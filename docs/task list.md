@@ -19,9 +19,9 @@
 
 | Loại     | Mô tả                                                                            | MS  | Tiến độ | Evidence |
 | -------- | -------------------------------------------------------------------------------- | --- | ------- | -------- |
-| Hạ tầng  | A-01 · Khởi tạo repo `pm2/`, README, `.gitignore`, cấu trúc NestJS + Python + Ollama | M0  |         |          |
-| Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold          | M0  |         |          |
-| Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`           | M0  |         |          |
+| Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  |         |          |
+| Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold        | M0  |         |          |
+| Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`         | M0  |         |          |
 | Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  |         |          |
 | Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  |         |          |
 | Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  |         |          |
@@ -37,15 +37,15 @@
 ## B. LLM / Embedding / Rerank services
 
 
-| Loại    | Mô tả                                                                         | MS  | Tiến độ | Evidence |
-| ------- | ----------------------------------------------------------------------------- | --- | ------- | -------- |
+| Loại    | Mô tả                                                                          | MS  | Tiến độ | Evidence |
+| ------- | ------------------------------------------------------------------------------ | --- | ------- | -------- |
 | AI      | B-01 · `llm-server` **Ollama** — Qwen3-8B, chat completions, models, streaming | M1  |         |          |
-| AI      | B-02 · `embedding-server` Python — BGE-M3, embeddings 1024 chiều             | M1  |         |          |
-| AI      | B-03 · Rerank service và HTTP wrapper                                         | M1  |         |          |
-| AI      | B-04 · `libs/ai-clients` — client thống nhất LLM/embedding/rerank             | M1  |         |          |
-| AI      | B-05 · Fallback, timeout, retry, circuit-breaker                              | M1  |         |          |
-| Hạ tầng | B-06 · Hoàn thiện profile `ai` trên Máy mô hình — build/pull Qwen3-8B, BGE-M3 | M1  |         |          |
-| Test    | B-07 · Contract test 3 endpoint và latency baseline                           | M1  |         |          |
+| AI      | B-02 · `embedding-server` Python — BGE-M3, embeddings 1024 chiều               | M1  |         |          |
+| AI      | B-03 · Rerank service và HTTP wrapper                                          | M1  |         |          |
+| AI      | B-04 · `libs/ai-clients` — client thống nhất LLM/embedding/rerank              | M1  |         |          |
+| AI      | B-05 · Fallback, timeout, retry, circuit-breaker                               | M1  |         |          |
+| Hạ tầng | B-06 · Hoàn thiện profile `ai` trên Máy mô hình — build/pull Qwen3-8B, BGE-M3  | M1  |         |          |
+| Test    | B-07 · Contract test 3 endpoint và latency baseline                            | M1  |         |          |
 
 
 ---
@@ -101,13 +101,13 @@
 | AI      | E-05 · Grounding prompt và sinh đáp án có citation    | M3  |         |          |
 | AI      | E-06 · Multi-turn context Redis                       | M3  |         |          |
 | Bảo mật | E-07 · Safe refusal và blacklist từ `admin-config`    | M3  |         |          |
-| Backend | E-08 · `rag-engine` Python service, health, chat API | M3  |         |          |
+| Backend | E-08 · `rag-engine` Python service, health, chat API  | M3  |         |          |
 | Test    | E-09 · Eval RAG                                       | M3  |         |          |
 
 
 ---
 
-## F. Text-to-SQL 
+## F. Text-to-SQL
 
 
 | Loại    | Mô tả                                                | MS  | Tiến độ | Evidence |
@@ -130,16 +130,16 @@
 | Loại    | Mô tả                                                        | MS  | Tiến độ | Evidence |
 | ------- | ------------------------------------------------------------ | --- | ------- | -------- |
 | Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  |         |          |
-| Backend | G-02 · `rbac` NestJS — role model, permission matrix           | M5  |         |          |
+| Backend | G-02 · `rbac` NestJS — role model, permission matrix         | M5  |         |          |
 | Backend | G-03 · `rbac` — inject `access_scope` cho downstream         | M5  |         |          |
 | Bảo mật | G-04 · Row-level filter (NestJS `rbac` + Postgres policy)    | M5  |         |          |
 | Backend | G-05 · `audit` NestJS — audit log immutable                  | M5  |         |          |
-| Backend | G-06 · `user-management` NestJS — user, profile, đơn vị, IAM   | M5  |         |          |
-| Backend | G-07 · Rate limit và throttling theo role (gateway)            | M5  |         |          |
-| Backend | G-08 · `admin-config` NestJS — CRUD prompt/policy có version   | M5  |         |          |
+| Backend | G-06 · `user-management` NestJS — user, profile, đơn vị, IAM | M5  |         |          |
+| Backend | G-07 · Rate limit và throttling theo role (gateway)          | M5  |         |          |
+| Backend | G-08 · `admin-config` NestJS — CRUD prompt/policy có version | M5  |         |          |
 | Backend | G-09 · `workflow` NestJS — luồng phê duyệt / trạng thái      | M5  |         |          |
-| Backend | G-10 · `notification` NestJS — in-app, hook RabbitMQ           | M6  |         |          |
-| Test    | G-11 · Penetration test auth, RBAC, audit                      | M5  |         |          |
+| Backend | G-10 · `notification` NestJS — in-app, hook RabbitMQ         | M6  |         |          |
+| Test    | G-11 · Penetration test auth, RBAC, audit                    | M5  |         |          |
 
 
 ---
