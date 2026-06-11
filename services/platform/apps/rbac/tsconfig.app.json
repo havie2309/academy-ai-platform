@@ -4,6 +4,6 @@
     "declaration": false,
     "outDir": "../../dist/apps/rbac"
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "../../src/**/*"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
 }
