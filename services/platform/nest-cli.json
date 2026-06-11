@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/platform/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/platform/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/platform",
+  "projects": {
+    "admin-config": {
+      "type": "application",
+      "root": "apps/admin-config",
+      "entryFile": "main",
+      "sourceRoot": "apps/admin-config/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/admin-config/tsconfig.app.json"
+      }
+    },
+    "api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+      }
+    },
+    "audit": {
+      "type": "application",
+      "root": "apps/audit",
+      "entryFile": "main",
+      "sourceRoot": "apps/audit/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/audit/tsconfig.app.json"
+      }
+    },
+    "notification": {
+      "type": "application",
+      "root": "apps/notification",
+      "entryFile": "main",
+      "sourceRoot": "apps/notification/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/notification/tsconfig.app.json"
+      }
+    },
+    "platform": {
+      "type": "application",
+      "root": "apps/platform",
+      "entryFile": "main",
+      "sourceRoot": "apps/platform/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/platform/tsconfig.app.json"
+      }
+    },
+    "rbac": {
+      "type": "application",
+      "root": "apps/rbac",
+      "entryFile": "main",
+      "sourceRoot": "apps/rbac/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/rbac/tsconfig.app.json"
+      }
+    },
+    "user-management": {
+      "type": "application",
+      "root": "apps/user-management",
+      "entryFile": "main",
+      "sourceRoot": "apps/user-management/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/user-management/tsconfig.app.json"
+      }
+    },
+    "workflow": {
+      "type": "application",
+      "root": "apps/workflow",
+      "entryFile": "main",
+      "sourceRoot": "apps/workflow/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/workflow/tsconfig.app.json"
+      }
+    }
+  }
+}
