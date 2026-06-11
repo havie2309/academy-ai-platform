@@ -19,11 +19,11 @@
 
 | Loại     | Mô tả                                                                            | MS  | Tiến độ | Evidence |
 | -------- | -------------------------------------------------------------------------------- | --- | ------- | -------- |
-| Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  |         |          |
-| Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold        | M0  |         |          |
+| Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  | `[-]`   | Repo root: `.gitignore`, `docker-compose.yml`, `docs/` (`plan.md`, `memory.md`, `task list.md`), `libs/` (`ai-clients`, `schemas`, `prompts`, `policies`), `services/` (Python placeholder: `rag-engine`, `embedding-server`, `document-processor`, `etl-sync`), `data/`, `eval/`. **Thiếu:** `README.md` gốc; chưa có placeholder `services/web-ui/`, `services/llm-server/` (Ollama chỉ qua `LLM_BASE_URL` trong `.env.example`). |
+| Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold        | M0  | `[x]`   | Monorepo NestJS 11: `nest-cli.json` + 8 apps (`api-gateway`, `admin-config`, `user-management`, `rbac`, `audit`, `workflow`, `notification`, `platform`) — mỗi app có `main.ts`, module, controller, service, spec + e2e scaffold. `npm run build` pass (2026-06-11). |
 | Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`         | M0  |         |          |
-| Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  |         |          |
-| Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  |         |          |
+| Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[x]`   | `docker-compose.yml`: profile `code` — 8 services (Postgres 16, MongoDB 7, Milvus+etcd+minio, Redis 7, RabbitMQ 3.12); `mem_limit` trên từng service; healthcheck: postgres, mongodb, redis, rabbitmq. `docker compose --profile code config` OK. **Ghi chú:** milvus/etcd/minio chưa có healthcheck. |
+| Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  | `[x]`   | `.env.example`: Postgres, Mongo, Redis, RabbitMQ, Milvus; `LLM_BASE_URL=http://localhost:11434`, `EMBEDDING_BASE_URL=http://localhost:8001` (+ `RERANK_BASE_URL`, `JWT_SECRET`, `APP_PORT`). |
 | Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  |         |          |
 | Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  |         |          |
 | Tài liệu | A-06 · Quickstart 2 máy (README): Máy nền tảng + hướng dẫn Máy mô hình           | M0  |         |          |
