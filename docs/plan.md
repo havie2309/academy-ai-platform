@@ -6,7 +6,7 @@
 
 - **Mục tiêu:** hệ thống PM2 full-parity, on-premise; hỏi đáp NLP có citation; Text-to-SQL an toàn; RBAC/audit/ETL.
 - **Trong phạm vi:** mọi module nghiệp vụ, mọi use case; production khi triển khai sau.
-- **Giai đoạn hiện tại (tạm thời):** phát triển trên **1 máy Ubuntu** — gộp Máy nền tảng + AI local (`localhost`); ưu tiên profile `code`, model dev nhỏ.
+- **Giai đoạn hiện tại (tạm thời):** phát triển trên **1 máy Ubuntu** — gộp Máy nền tảng + AI local (`localhost`); ưu tiên profile `code`, model dev **`qwen2.5:3b`**.
 - **Chuẩn nghiệm thu (sau):** dev/test **2 máy** — **Máy nền tảng** (app + data) và **Máy mô hình** (build/serving Qwen3-8B); đổi `LLM_BASE_URL` / `EMBEDDING_BASE_URL` khi có server riêng.
 - **Thành công:** traceability 100%, mọi acceptance gate pass với **Qwen3-8B** trên topology 2 máy.
 
@@ -50,14 +50,14 @@ Full parity · Model nghiệm thu **Qwen3-8B** · OpenAI-compatible API · On-pr
 **Phần cứng tham chiếu (máy dev hiện tại)**
 
 - RAM ~16 GB — **không đủ** để chạy đồng thời full stack Docker (5 kho DB + Milvus) **và** Ollama Qwen3-8B.
-- iGPU (Intel Arc) — không dùng cho serving 8B nặng trên laptop; AI local dùng model nhỏ CPU/GPU nhẹ.
+- iGPU (Intel Arc) — không dùng cho serving 8B nặng trên laptop; AI local dùng **`qwen2.5:3b`** (CPU/GPU nhẹ).
 
 **Chiến lược 1 máy**
 
 | Giai đoạn | Compose / AI | Ghi chú |
 | --------- | ------------ | ------- |
 | M0 | `docker compose --profile code up` | App + 5 kho DB; **chưa** bắt buộc profile `ai` |
-| M1 (tạm) | Cùng máy: Ollama `localhost` + model dev (`qwen2.5:3b` hoặc `qwen3:4b`) | `LLM_BASE_URL=http://localhost:11434`; đủ smoke RAG/SQL dev |
+| M1 (tạm) | Cùng máy: Ollama `localhost` + **`qwen2.5:3b`** | `LLM_BASE_URL=http://localhost:11434`, `LLM_MODEL=qwen2.5:3b`; đủ smoke RAG/SQL dev |
 | Nghiệm thu | Tách Máy mô hình: profile `ai`, **Qwen3-8B** | Đổi URL trong `.env`; smoke cross-host |
 
 **Giới hạn RAM trên Ubuntu**
@@ -71,7 +71,7 @@ Full parity · Model nghiệm thu **Qwen3-8B** · OpenAI-compatible API · On-pr
 
 1. Scaffold repo + migration (không cần Docker nặng).
 2. Bật profile `code` → seed + smoke M0.
-3. Cài Ollama trên Ubuntu (host hoặc container nhẹ) → model dev nhỏ → nối `rag-engine`.
+3. Cài Ollama trên Ubuntu (host hoặc container nhẹ) → `ollama pull qwen2.5:3b` → nối `rag-engine`.
 4. Khi có server Máy mô hình: profile `ai` riêng, pull Qwen3-8B, cập nhật `.env`, chạy A-09 smoke cross-host.
 
 ```mermaid
@@ -81,7 +81,7 @@ flowchart TB
     Nest[NestJS platform]
     Py[Python workers]
     DB[(Postgres Mongo Milvus Redis MQ)]
-    LLM[Ollama localhost model dev]
+    LLM[Ollama qwen2.5:3b]
     EMB[embedding-server hoặc Ollama embed]
     WebUI --> Nest --> Py
     Py --> DB
@@ -175,7 +175,7 @@ flowchart LR
 
 - Cùng host: profile `code` + Ollama/embedding qua `localhost`
 - `.env`: `LLM_BASE_URL=http://localhost:11434` (hoặc port embedding tương ứng)
-- Model dev nhỏ cho coding; **không** dùng Qwen3-8B làm gate M0–M4 trên laptop 16 GB
+- Model dev **`qwen2.5:3b`** (`LLM_MODEL` trong `.env`); **không** dùng Qwen3-8B làm gate M0–M4 trên laptop 16 GB
 
 **Chuẩn nghiệm thu (2 máy):**
 
@@ -335,7 +335,7 @@ M0 ──► M1 ──► M2 ──► M3 ──┐
 
 **DoD — giai đoạn tạm (1 máy Ubuntu)**
 
-- Ollama trên cùng máy: model dev (`qwen2.5:3b` hoặc `qwen3:4b`) + embed; `libs/ai-clients` smoke **localhost** pass
+- Ollama trên cùng máy: **`qwen2.5:3b`** + embed; `libs/ai-clients` smoke **localhost** pass
 - Embedding: BGE-M3 (container hoặc service nhẹ) **hoặc** embed qua Ollama nếu RAM chật — ghi rõ trong README dev
 
 **DoD — nghiệm thu (khi có Máy mô hình)**
@@ -346,7 +346,7 @@ M0 ──► M1 ──► M2 ──► M3 ──┐
 
 **Deliverable**
 
-- **#6 LLM Server** — `llm-server` **Ollama**, OpenAI-compatible API *(dev: model nhỏ · nghiệm thu: Qwen3-8B)*
+- **#6 LLM Server** — `llm-server` **Ollama**, OpenAI-compatible API *(dev: `qwen2.5:3b` · nghiệm thu: Qwen3-8B)*
 - **#7 Embedding Server** — BGE-M3, 1024 chiều
 - **#10 Tài liệu bàn giao** — README profile `ai` + hướng dẫn đổi URL 1 máy → 2 máy
 
@@ -500,7 +500,7 @@ Checklist hội đồng — artifact chi tiết tại từng milestone ở trên
 **Dev tạm (1 máy Ubuntu, M0–M5)**
 
 - Profile `code` healthy; smoke intra-host pass; RAM ổn định với `mem_limit`.
-- AI dev: model nhỏ + localhost — đủ tích hợp `rag-engine`, không thay gate chất lượng cuối.
+- AI dev: **`qwen2.5:3b`** + localhost — đủ tích hợp `rag-engine`, không thay gate chất lượng cuối (Qwen3-8B).
 
 **Nghiệm thu dự án (topology 2 máy + Qwen3-8B)**
 
