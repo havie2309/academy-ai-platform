@@ -1,37 +1,79 @@
+
 # Academy AI Platform (PM2)
 
-Kho dữ liệu tập trung và Cổng khai thác trợ lý ảo — on-premise.
+Kho dữ liệu tập trung và Cổng khai thác trợ lý ảo — on-premise, Qwen3-8B.
 
-- **Dev (1 máy, ~16 GB RAM):** Ollama `qwen2.5:3b`
-- **Nghiệm thu:** Qwen3-8B trên Máy mô hình riêng
+---
 
-## Quickstart (1 máy Ubuntu)
+## Yêu cầu
+
+- Docker Desktop
+- Node.js LTS
+- Python 3.12
+- Git
+
+---
+
+## Quickstart — 1 máy (hiện tại)
 
 ```bash
-cp .env.example .env
-docker compose --profile code up -d
-docker compose --profile code ps
+# 1. Clone repo
+git clone https://github.com/havie2309/academy-ai-platform.git
+cd academy-ai-platform
 
-# Ollama LLM dev (nhẹ RAM)
-ollama pull qwen2.5:3b
-ollama run qwen2.5:3b
+# 2. Tạo file .env
+cp .env.example .env
+
+# 3. Bật stack
+./scripts/up-code.ps1
+
+# 4. Kiểm tra health
+./scripts/health.ps1
 ```
 
+---
+
+## Scripts
+
+| Script | Mô tả |
+|---|---|
+| `./scripts/up-code.ps1` | Bật toàn bộ stack |
+| `./scripts/down.ps1` | Tắt toàn bộ stack |
+| `./scripts/logs.ps1` | Xem logs realtime |
+| `./scripts/health.ps1` | Kiểm tra trạng thái container |
+
+---
+
 ## Cấu trúc repo
+
+```
 services/
-platform/       # NestJS: api-gateway, rbac, audit, ...
-rag-engine/     # Python: RAG engine
-embedding-server/  # Python: BGE-M3
-document-processor/ # Python: ingest pipeline
-etl-sync/       # Python: ETL
-web-ui/         # Vite + React (M6)
-llm-server/     # Ollama placeholder (M1)
-libs/             # Shared: ai-clients, schemas, prompts, policies
-data/sample-docs/ # Tài liệu mẫu
-eval/             # Bộ eval
-docs/             # memory.md, plan.md, task list.md
+  platform/           # NestJS: api-gateway, rbac, audit, ...
+  rag-engine/         # Python: RAG engine
+  embedding-server/   # Python: BGE-M3
+  document-processor/ # Python: ingest pipeline
+  etl-sync/           # Python: ETL
+  web-ui/             # Vite + React (M6)
+  llm-server/         # Ollama (M1)
+libs/
+  ai-clients/         # Client LLM/embedding/rerank
+  schemas/            # Request/response schema
+  prompts/            # Prompt template
+  policies/           # Guardrail/policy
+data/sample-docs/     # Tài liệu mẫu
+eval/                 # Bộ eval
+docs/                 # memory.md, plan.md, task list.md
+```
+
+---
 
 ## Topology
 
-- **Giai đoạn hiện tại:** 1 máy Ubuntu, profile `code`, LLM dev `qwen2.5:3b` (`LLM_MODEL` trong `.env`)
-- **Nghiệm thu:** 2 máy (Máy nền tảng + Máy mô hình), đổi `LLM_MODEL` → Qwen3-8B
+- **Hiện tại:** 1 máy Windows/Ubuntu, profile `code`
+- **Nghiệm thu:** 2 máy — Máy nền tảng + Máy mô hình (Qwen3-8B)
+
+Khi có Máy mô hình: cập nhật `.env`:
+```env
+LLM_BASE_URL=http://<IP_MAY_MO_HINH>:11434
+EMBEDDING_BASE_URL=http://<IP_MAY_MO_HINH>:8001
+```
