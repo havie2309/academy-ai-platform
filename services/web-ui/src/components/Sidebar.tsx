@@ -22,7 +22,7 @@ export default function Sidebar() {
             <MessageSquare size={14} className="text-white" />
           </div>
           <div>
-            <p className="text-white font-semibold text-sm leading-tight">Academy AI</p>
+            <p className="text-white font-semibold text-sm leading-tight">EduMind</p>
             <p className="text-white/40 text-[11px]">Trợ lý ảo nội bộ</p>
           </div>
         </div>
