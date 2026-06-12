@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
+import { User, Lock, AlertCircle, GraduationCap } from "lucide-react";
 import "./LoginPage.css";
 
 export default function LoginPage() {
@@ -23,7 +24,9 @@ export default function LoginPage() {
       const { access_token, user } = await authApi.login(username, password);
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("user", JSON.stringify(user));
-      navigate("/chat");
+      const adminRoles = ["Admin", "BGD", "P2", "P7"];
+      const isAdmin = user.roles.some((r) => adminRoles.includes(r));
+      navigate(isAdmin ? "/admin" : "/chat");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng nhập thất bại.";
       setError(msg);
@@ -36,40 +39,58 @@ export default function LoginPage() {
     <div className="login-root">
       <div className="login-card">
         <div className="login-logo">
-          <span className="logo-mark">EDUMIND</span>
-          <p className="logo-sub">Trợ lý ảo khai thác dữ liệu học viện</p>
-
+          <div className="logo-icon-wrapper">
+            <GraduationCap size={24} />
+          </div>
+          <span className="logo-mark">EduMind</span>
+          <p className="logo-sub">Trợ lý ảo nội bộ học viện</p>
         </div>
+
         <h1 className="login-title">Đăng nhập</h1>
-        <p className="login-sub">Vui lòng đăng nhập thông tin tài khoản để tiếp tục</p>
+        <p className="login-sub">Nhập thông tin tài khoản của bạn để tiếp tục</p>
 
         <form onSubmit={handleSubmit} className="login-form" noValidate>
-          <label className="field-label" htmlFor="username">Tên đăng nhập</label>
-          <input
-            id="username"
-            className="field-input"
-            type="text"
-            autoComplete="username"
-            autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            disabled={loading}
-            placeholder="username"
-          />
+          <div className="field-group">
+            <label className="field-label" htmlFor="username">Tên đăng nhập</label>
+            <div className="input-wrapper">
+              <input
+                id="username"
+                className="field-input"
+                type="text"
+                autoComplete="username"
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={loading}
+                placeholder="Nhập tên đăng nhập"
+              />
+              <User size={16} className="input-icon" />
+            </div>
+          </div>
 
-          <label className="field-label" htmlFor="password">Mật khẩu</label>
-          <input
-            id="password"
-            className="field-input"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={loading}
-            placeholder="Nhập mật khẩu"
-          />
+          <div className="field-group">
+            <label className="field-label" htmlFor="password">Mật khẩu</label>
+            <div className="input-wrapper">
+              <input
+                id="password"
+                className="field-input"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+                placeholder="Nhập mật khẩu"
+              />
+              <Lock size={16} className="input-icon" />
+            </div>
+          </div>
 
-          {error && <p className="login-error" role="alert">{error}</p>}
+          {error && (
+            <div className="login-error" role="alert">
+              <AlertCircle size={16} className="shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           <button className="login-btn" type="submit" disabled={loading}>
             {loading ? "Đang xác thực…" : "Đăng nhập"}

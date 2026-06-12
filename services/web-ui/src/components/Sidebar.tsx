@@ -1,9 +1,10 @@
-import { MessageSquare, FileText, LayoutDashboard, Settings, Plus } from 'lucide-react'
+import { MessageSquare, FileText, LayoutDashboard, Settings, Plus, GraduationCap } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
 
 const history = ['Hỏi về lịch thi HK2', 'Điểm trung bình lớp K65', 'Tài liệu môn Học máy']
 
-const bottomNav = [
+const navItems = [
+  { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
   { icon: FileText, label: 'Tài liệu', href: '/docs' },
   { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
   { icon: Settings, label: 'Cài đặt', href: '/settings' },
@@ -14,71 +15,78 @@ export default function Sidebar() {
   const location = useLocation()
 
   return (
-    <aside className="w-60 shrink-0 flex flex-col h-full bg-[#171717] border-r border-white/5">
+    <aside className="w-64 shrink-0 flex flex-col h-full bg-white border-r border-slate-200/80 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
       {/* Logo */}
-      <div className="px-4 pt-5 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
-            <MessageSquare size={14} className="text-white" />
+      <div className="px-5 pt-6 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20 text-white">
+            <GraduationCap size={18} />
           </div>
           <div>
-            <p className="text-white font-semibold text-sm leading-tight">EduMind</p>
-            <p className="text-white/40 text-[11px]">Trợ lý ảo nội bộ</p>
+            <p className="text-slate-800 font-bold text-base leading-tight tracking-tight">EduMind</p>
+            <p className="text-slate-400 text-[11px] font-medium tracking-wide uppercase">Trợ lý ảo nội bộ</p>
           </div>
         </div>
       </div>
 
-      {/* New Chat */}
-      <div className="px-3 pb-3">
+      {/* Action: New Chat (tối giản) */}
+      <div className="px-4 pb-4">
         <button
           onClick={() => navigate('/chat')}
-          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-white/70 hover:text-white text-sm transition-all"
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-blue-100 bg-blue-50/50 hover:bg-blue-50 text-blue-600 hover:text-blue-700 text-sm font-semibold transition-all shadow-[0_2px_8px_rgba(37,99,235,0.05)]"
         >
-          <Plus size={15} />
+          <Plus size={16} />
           Cuộc trò chuyện mới
         </button>
       </div>
 
+      {/* Main Nav */}
+      <div className="px-3 space-y-2">
+        {navItems.map(({ icon: Icon, label, href }) => {
+          const isActive = location.pathname === href
+          return (
+            <button
+              key={href}
+              onClick={() => navigate(href)}
+              className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all ${
+                isActive
+                  ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
+            >
+              <Icon size={16} className={isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-600'} />
+              {label}
+            </button>
+          )
+        })}
+      </div>
+
       {/* History */}
-      <div className="flex-1 overflow-y-auto px-2">
-        <p className="text-white/30 text-[11px] font-medium px-2 py-2 uppercase tracking-wider">Gần đây</p>
-        {history.map((item) => (
-          <button
-            key={item}
-            className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/5 text-sm text-white/60 hover:text-white/90 truncate transition-all block"
-          >
-            {item}
-          </button>
-        ))}
+      <div className="flex-1 overflow-y-auto px-3 mt-6">
+        <div className="px-3 py-2">
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Hội thoại gần đây</p>
+        </div>
+        <div className="space-y-1.5">
+          {history.map((item) => (
+            <button
+              key={item}
+              className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-50 text-xs text-slate-500 hover:text-slate-800 truncate transition-all block font-medium"
+            >
+              {item}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Bottom Nav */}
-      <div className="px-2 pb-2 border-t border-white/5 pt-2">
-        {bottomNav.map(({ icon: Icon, label, href }) => (
-          <button
-            key={href}
-            onClick={() => navigate(href)}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-all ${
-              location.pathname === href
-                ? 'bg-white/10 text-white'
-                : 'text-white/50 hover:text-white/80 hover:bg-white/5'
-            }`}
-          >
-            <Icon size={15} />
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* User */}
-      <div className="px-3 py-3 border-t border-white/5">
-        <div className="flex items-center gap-2.5 px-1">
-          <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-semibold shrink-0">
+      {/* User Info */}
+      <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="flex items-center gap-3 px-1">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
             A
           </div>
           <div className="min-w-0">
-            <p className="text-white text-sm font-medium leading-tight truncate">Admin</p>
-            <p className="text-white/40 text-[11px] truncate">admin@academy.edu</p>
+            <p className="text-slate-800 text-sm font-semibold leading-tight truncate">Admin</p>
+            <p className="text-slate-400 text-[11px] truncate">admin@academy.edu</p>
           </div>
         </div>
       </div>

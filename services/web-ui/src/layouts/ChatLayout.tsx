@@ -3,9 +3,9 @@ import Sidebar from '../components/Sidebar.tsx'
 
 export default function ChatLayout() {
   return (
-    <div className="flex h-full overflow-hidden">
+    <div className="flex h-full w-full overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden flex flex-col">
         <Outlet />
       </main>
     </div>
