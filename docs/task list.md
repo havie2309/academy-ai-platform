@@ -21,10 +21,10 @@
 | -------- | -------------------------------------------------------------------------------- | --- | ------- | -------- |
 | Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  | `[x]`   | `README.md`, `.gitignore`, `docs/`, `libs/`, `services/platform/`, 4 Python services, `web-ui/`, `llm-server/` placeholder, `data/`, `eval/` |
 | Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold        | M0  | `[x]`   | `nest-cli.json` + 8 apps; `npm run build` pass (2026-06-11) |
-| Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`         | M0  | `[-]`   | 4 FastAPI template (`main.py` `/health`, `Dockerfile`, `requirements.txt`); `libs/` vẫn `.gitkeep` |
+| Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`         | M0  | `[x]`   | 4 FastAPI template (`main.py` `/health`, `Dockerfile`, `requirements.txt`); `services/platform/libs/` — `ai-clients`, `schemas`, `prompts`, `policies` (Python stubs); repo `libs/` vẫn `.gitkeep` |
 | Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[x]`   | profile `code`, 7 data services, `mem_limit`, HC postgres/mongo/redis/rabbitmq; `compose config` OK |
 | Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  | `[x]`   | DB/MQ/Redis/Milvus + `LLM_BASE_URL`, `LLM_MODEL=qwen2.5:3b`, `EMBEDDING_BASE_URL`, `RERANK_BASE_URL` |
-| Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  |         |          |
+| Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  | `[x]`   | `src/common/logger.middleware.ts` + `common.module.ts`; `CommonModule` import vào 8 Nest apps; `npm run build` pass |
 | Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  |         |          |
 | Tài liệu | A-06 · Quickstart 2 máy (README): Máy nền tảng + hướng dẫn Máy mô hình           | M0  | `[-]`   | README quickstart 1 máy; thiếu hướng dẫn 2 máy |
 | Test     | A-07 · Smoke test profile `code` — bootstrap Máy nền tảng end-to-end             | M0  |         |          |

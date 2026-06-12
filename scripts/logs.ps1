@@ -1,0 +1,1 @@
+docker compose --profile code logs -f
