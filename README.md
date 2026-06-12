@@ -1,7 +1,7 @@
 
 # Academy AI Platform (PM2)
 
-Kho dữ liệu tập trung và Cổng khai thác trợ lý ảo — on-premise, Qwen3-8B.
+Kho dữ liệu tập trung và Cổng khai thác trợ lý ảo — on-premise, Qwen2.5-3B.
 
 ---
 
@@ -70,7 +70,7 @@ docs/                 # memory.md, plan.md, task list.md
 ## Topology
 
 - **Hiện tại:** 1 máy Windows/Ubuntu, profile `code`
-- **Nghiệm thu:** 2 máy — Máy nền tảng + Máy mô hình (Qwen3-8B)
+- **Nghiệm thu:** 2 máy — Máy nền tảng + Máy mô hình (Qwen2.5-3B)
 
 Khi có Máy mô hình: cập nhật `.env`:
 ```env
