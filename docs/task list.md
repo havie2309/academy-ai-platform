@@ -25,8 +25,8 @@
 | Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[x]`   | profile `code`, 7 data services, `mem_limit`, HC postgres/mongo/redis/rabbitmq; `compose config` OK |
 | Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  | `[x]`   | DB/MQ/Redis/Milvus + `LLM_BASE_URL`, `LLM_MODEL=qwen2.5:3b`, `EMBEDDING_BASE_URL`, `RERANK_BASE_URL` |
 | Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  | `[x]`   | `src/common/logger.middleware.ts` + `common.module.ts`; `CommonModule` import vào 8 Nest apps; `npm run build` pass |
-| Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  |         |          |
-| Tài liệu | A-06 · Quickstart 2 máy (README): Máy nền tảng + hướng dẫn Máy mô hình           | M0  | `[-]`   | README quickstart 1 máy; thiếu hướng dẫn 2 máy |
+| Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  | `[-]`   | `scripts/up-code.ps1`, `down.ps1`, `logs.ps1`, `health.ps1` + bảng Scripts trong `README.md`; thiếu `up-ai.ps1` |
+| Tài liệu | A-06 · Quickstart 2 máy (README): Máy nền tảng + hướng dẫn Máy mô hình           | M0  | `[-]`   | `README.md` quickstart 1 máy + scripts; topology 2 máy ghi chú ngắn; thiếu hướng dẫn chi tiết Máy mô hình |
 | Test     | A-07 · Smoke test profile `code` — bootstrap Máy nền tảng end-to-end             | M0  |         |          |
 | Hạ tầng  | A-08 · Profile `ai` (Máy mô hình): compose services AI, `.env.ai.example`        | M1  |         |          |
 | Test     | A-09 · Smoke test cross-host: Máy nền tảng → Máy mô hình (embed + chat)          | M1  |         |          |
@@ -55,12 +55,12 @@
 
 | Loại    | Mô tả                                                           | MS  | Tiến độ | Evidence |
 | ------- | --------------------------------------------------------------- | --- | ------- | -------- |
-| Dữ liệu | C-01 · Postgres migration baseline (IAM, audit, nghiệp vụ core) | M0  |         |          |
+| Dữ liệu | C-01 · Postgres migration baseline (IAM, audit, nghiệp vụ core) | M0  | `[x]`   | `infra/postgres/init/01-schema.sql` — dimension + nghiệp vụ (hoc_vien, diem, …) + RBAC (users, roles, permissions, sessions, login_logs); mount `/docker-entrypoint-initdb.d` trong `docker-compose.yml` |
 | Dữ liệu | C-02 · MongoDB catalog schema tài liệu, chunk, ingest job       | M0  |         |          |
 | Dữ liệu | C-03 · Milvus collection và metadata filter                     | M0  |         |          |
 | Dữ liệu | C-04 · Redis session, cache, connection pool                    | M0  |         |          |
 | Dữ liệu | C-05 · RabbitMQ exchange/queue ingest và DLQ                    | M0  |         |          |
-| Dữ liệu | C-06 · Seed dữ liệu nghiệp vụ mẫu và user đa role               | M0  |         |          |
+| Dữ liệu | C-06 · Seed dữ liệu nghiệp vụ mẫu và user đa role               | M0  | `[-]`   | `infra/postgres/init/02-seed.sql` (~3800 dòng) + `infra/postgres/seed/generate_seed.py` (Faker vi_VN): nam_hoc, hoc_ky, don_vi, giang_vien, hoc_vien, mon_hoc, lop_hoc_phan, diem, ket_qua_hoc_ky; **chưa** seed users/roles/permissions |
 | Dữ liệu | C-07 · Bộ tài liệu mẫu `data/sample-docs/` đa định dạng         | M0  |         |          |
 | Bảo mật | C-08 · User `pm2_readonly` cho Text-to-SQL                      | M4  |         |          |
 | Test    | C-09 · Test health và connectivity data platform                | M0  |         |          |
@@ -197,9 +197,9 @@
 
 | Loại | Mô tả                                                      | MS  | Tiến độ | Evidence |
 | ---- | ---------------------------------------------------------- | --- | ------- | -------- |
-| UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  |         |          |
-| UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  |         |          |
-| UI   | K-03 · Chat page: SSE streaming, markdown, citation links  | M6  |         |          |
+| UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  | `[x]`   | `services/web-ui/` — Vite 8 + React 19 + Router 7 + Tailwind 4; `ChatLayout`, `Sidebar`, routes `/chat` `/docs` `/admin` `/settings` `/login`; brand **EduMind** |
+| UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[-]`   | `LoginPage.tsx`, `RequireAuth.tsx`, `auth.ts` (mock user admin/gv001/hv001/p2, pass `123456`); `localStorage` token; `VITE_REQUIRE_AUTH` toggle (`.env.example`); redirect role sau login; **chưa** JWT backend, **chưa** guard theo role trên route |
+| UI   | K-03 · Chat page: SSE streaming, markdown, citation links  | M6  | `[-]`   | `ChatPage.tsx` + `api/chat.ts` → `POST /chat` (mock `apps/platform`); UI gợi ý + loading; **chưa** SSE, markdown, citation links |
 | UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  |         |          |
 | UI   | K-05 · Self-service pages                                  | M6  |         |          |
 | UI   | K-06 · Quiz và summary UI                                  | M6  |         |          |
