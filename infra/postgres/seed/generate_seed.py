@@ -18,7 +18,6 @@ Optional:
 """
 
 import argparse
-import hashlib
 import os
 import random
 from datetime import datetime, timedelta
@@ -799,8 +798,15 @@ def generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vie
     }
 
 
-def sha256_hash(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+# Dev IAM password: bcrypt cost 10, plaintext "123456" (matches user-management auth)
+BCRYPT_DEV_PASSWORD_HASH = (
+    "$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2"
+)
+
+
+def bcrypt_dev_hash(_password: str = "123456") -> str:
+    """Fixed bcrypt hash for reproducible dev seed output."""
+    return BCRYPT_DEV_PASSWORD_HASH
 
 
 def generate_iam_data(hoc_vien_list, giang_vien_list):
@@ -809,17 +815,17 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": "USR001",
             "username": "admin",
             "email": "admin@pm2.edu.vn",
-            "password_hash": sha256_hash("Admin123!"),
-            "fullname": "PM2 Administrator",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Quản trị viên",
             "department": "Phòng CNTT",
             "max_security_level": 4,
             "status": "active",
         },
         {
             "user_id": "USR002",
-            "username": "bgd01",
-            "email": "bgd01@pm2.edu.vn",
-            "password_hash": sha256_hash("BGD123!"),
+            "username": "BGD",
+            "email": "pgd@pm2.edu.vn",
+            "password_hash": bcrypt_dev_hash(),
             "fullname": "Ban Giám đốc 01",
             "department": "BGD",
             "max_security_level": 4,
@@ -829,8 +835,8 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": "USR003",
             "username": "p2_01",
             "email": "p2_01@pm2.edu.vn",
-            "password_hash": sha256_hash("P2123!"),
-            "fullname": "Phòng Đào tạo 01",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Phòng Đào tạo",
             "department": "P2",
             "max_security_level": 3,
             "status": "active",
@@ -839,12 +845,12 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": "USR004",
             "username": "khaothi_01",
             "email": "khaothi_01@pm2.edu.vn",
-            "password_hash": sha256_hash("KhaoThi123!"),
+            "password_hash": bcrypt_dev_hash(),
             "fullname": "Ban Khảo thí 01",
             "department": "BKT",
             "max_security_level": 3,
             "status": "active",
-        },
+        }
     ]
     user_roles = [
         {"user_id": "USR001", "role_id": "RL001"},  # ADMIN
@@ -861,7 +867,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": uid,
             "username": hv["ma_hv"],
             "email": hv["email"],
-            "password_hash": sha256_hash("Student123!"),
+            "password_hash": bcrypt_dev_hash(),
             "fullname": hv["ho_ten"],
             "department": hv["ten_nganh"],
             "max_security_level": 1,
@@ -876,7 +882,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": uid,
             "username": gv["ma_gv"],
             "email": gv["email"],
-            "password_hash": sha256_hash("Teacher123!"),
+            "password_hash": bcrypt_dev_hash(),
             "fullname": gv["ho_ten"],
             "department": gv["ten_don_vi"],
             "max_security_level": 2,

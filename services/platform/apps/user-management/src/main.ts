@@ -1,8 +1,10 @@
-import { NestFactory } from '@nestjs/core';
-import { UserManagementModule } from './user-management.module';
+import { NestFactory } from '@nestjs/core'
+import { UserManagementModule } from './user-management.module'
 
 async function bootstrap() {
-  const app = await NestFactory.create(UserManagementModule);
-  await app.listen(process.env.port ?? 3000);
+  const app = await NestFactory.create(UserManagementModule)
+  app.enableCors({ origin: process.env.WEB_URL ?? 'http://localhost:5173' })
+  app.setGlobalPrefix('api')
+  await app.listen(process.env.USER_MANAGEMENT_PORT ?? 3001)
 }
-bootstrap();
+bootstrap()
