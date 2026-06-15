@@ -2,18 +2,24 @@
 """
 generate_seed.py - Complete seed data generator for PostgreSQL using Faker vi_VN.
 
-This file generates BOTH:
-1) Training/data warehouse seed data
-2) Khao Thi module seed data
+This file generates seed SQL split into separate init outputs:
+  infra/postgres/init/11-seed-dimensions.sql
+  infra/postgres/init/12-seed-iam.sql
+  infra/postgres/init/13-seed-core.sql
+  infra/postgres/init/14-seed-khao-thi.sql
+
+A legacy combined output file can still be generated with --output.
 
 Usage:
-    python generate_seed.py --output infra/postgres/init/02-seed.sql
+    python generate_seed.py --out-dir infra/postgres/init
 
 Optional:
-    python generate_seed.py --output infra/postgres/init/02-seed.sql --truncate
+    python generate_seed.py --out-dir infra/postgres/init --truncate
 """
 
 import argparse
+import hashlib
+import os
 import random
 from datetime import datetime, timedelta
 from faker import Faker
@@ -794,6 +800,247 @@ def generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vie
     }
 
 
+def sha256_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def generate_iam_data():
+    users = [
+        {
+            "user_id": "USR001",
+            "username": "admin",
+            "email": "admin@pm2.local",
+            "password_hash": sha256_hash("Admin123!"),
+            "fullname": "PM2 Administrator",
+            "department": "Phòng CNTT",
+            "max_security_level": 4,
+            "status": "active",
+        },
+        {
+            "user_id": "USR002",
+            "username": "auditor",
+            "email": "auditor@pm2.local",
+            "password_hash": sha256_hash("Audit123!"),
+            "fullname": "Kiểm toán viên",
+            "department": "Phòng Pháp chế",
+            "max_security_level": 3,
+            "status": "active",
+        },
+        {
+            "user_id": "USR003",
+            "username": "giangvien",
+            "email": "giangvien@pm2.local",
+            "password_hash": sha256_hash("Teach123!"),
+            "fullname": "Giảng viên mẫu",
+            "department": "Khoa CNTT",
+            "max_security_level": 2,
+            "status": "active",
+        },
+        {
+            "user_id": "USR004",
+            "username": "sinhvien",
+            "email": "sinhvien@pm2.local",
+            "password_hash": sha256_hash("Student123!"),
+            "fullname": "Sinh viên mẫu",
+            "department": "Khoa CNTT",
+            "max_security_level": 1,
+            "status": "active",
+        },
+    ]
+
+    permissions = [
+        {"id": "PM001", "code": "users:read", "resource": "users", "action": "read", "description": "Read user accounts"},
+        {"id": "PM002", "code": "users:write", "resource": "users", "action": "write", "description": "Create and update user accounts"},
+        {"id": "PM003", "code": "roles:read", "resource": "roles", "action": "read", "description": "Read roles"},
+        {"id": "PM004", "code": "roles:write", "resource": "roles", "action": "write", "description": "Create and update roles"},
+        {"id": "PM005", "code": "audit:read", "resource": "audit_log", "action": "read", "description": "View audit logs"},
+        {"id": "PM006", "code": "documents:read", "resource": "documents", "action": "read", "description": "Read document metadata"},
+        {"id": "PM007", "code": "documents:write", "resource": "documents", "action": "write", "description": "Update document metadata"},
+    ]
+
+    roles = [
+        {"id": "RL001", "name": "Administrator", "code": "admin", "description": "Hệ thống quản trị viên"},
+        {"id": "RL002", "name": "Auditor", "code": "auditor", "description": "Người kiểm toán"},
+        {"id": "RL003", "name": "Instructor", "code": "instructor", "description": "Giảng viên"},
+        {"id": "RL004", "name": "Student", "code": "student", "description": "Sinh viên"},
+    ]
+
+    role_permissions = [
+        {"role_id": "RL001", "permission_id": "PM001"},
+        {"role_id": "RL001", "permission_id": "PM002"},
+        {"role_id": "RL001", "permission_id": "PM003"},
+        {"role_id": "RL001", "permission_id": "PM004"},
+        {"role_id": "RL001", "permission_id": "PM005"},
+        {"role_id": "RL001", "permission_id": "PM006"},
+        {"role_id": "RL001", "permission_id": "PM007"},
+        {"role_id": "RL002", "permission_id": "PM001"},
+        {"role_id": "RL002", "permission_id": "PM003"},
+        {"role_id": "RL002", "permission_id": "PM005"},
+        {"role_id": "RL003", "permission_id": "PM001"},
+        {"role_id": "RL003", "permission_id": "PM006"},
+        {"role_id": "RL003", "permission_id": "PM007"},
+        {"role_id": "RL004", "permission_id": "PM001"},
+    ]
+
+    user_roles = [
+        {"user_id": "USR001", "role_id": "RL001"},
+        {"user_id": "USR002", "role_id": "RL002"},
+        {"user_id": "USR003", "role_id": "RL003"},
+        {"user_id": "USR004", "role_id": "RL004"},
+    ]
+
+    user_permissions = [
+        {"user_id": "USR001", "permission_id": "PM001"},
+        {"user_id": "USR001", "permission_id": "PM002"},
+        {"user_id": "USR001", "permission_id": "PM003"},
+    ]
+
+    return {
+        "users": users,
+        "permissions": permissions,
+        "roles": roles,
+        "role_permissions": role_permissions,
+        "user_roles": user_roles,
+        "user_permissions": user_permissions,
+    }
+
+
+def get_output_paths(out_dir):
+    return {
+        "dimensions": os.path.join(out_dir, "11-seed-dimensions.sql"),
+        "iam": os.path.join(out_dir, "12-seed-iam.sql"),
+        "core": os.path.join(out_dir, "13-seed-core.sql"),
+        "khao_thi": os.path.join(out_dir, "14-seed-khao-thi.sql"),
+        "legacy": os.path.join(out_dir, "02-seed.sql"),
+    }
+
+
+def write_truncate_statements(f):
+    f.write("""-- Clearing existing data
+TRUNCATE TABLE
+    survey_answers, survey_sessions, surveys, survey_questions, survey_question_groups,
+    cluster_surveys, survey_object_types, survey_topics,
+    exam_bank_questions, exam_banks, question_options, questions, question_banks,
+    knowledge_blocks, exam_matrices, exam_frameworks,
+    user_permissions, user_roles, role_permissions, users, permissions, roles,
+    diem, ket_qua_hoc_ky, lop_hoc_phan, mon_hoc,
+    hoc_vien, giang_vien, don_vi, hoc_ky, nam_hoc
+RESTART IDENTITY CASCADE;
+
+""")
+
+
+def write_dimensions_seed(path, nam_hoc_list, hoc_ky_list, don_vi_list, giang_vien_list, truncate=False):
+    with open(path, "w", encoding="utf-8") as f:
+        write_header(f)
+        if truncate:
+            write_truncate_statements(f)
+        f.write("-- ============================================\n-- DIMENSION TABLES\n-- ============================================\n\n")
+        write_insert_statement(f, "nam_hoc", ["id", "ma", "ten", "ngay_bat_dau", "ngay_ket_thuc", "active"], nam_hoc_list)
+        write_insert_statement(f, "hoc_ky", ["id", "ma", "ten", "loai_hoc_ky", "nam_hoc_id", "ten_nam_hoc", "ngay_bat_dau", "ngay_ket_thuc", "active"], hoc_ky_list)
+        write_insert_statement(f, "don_vi", ["id", "ma", "ten", "ten_viet_tat", "cap_don_vi", "parent_id", "active"], don_vi_list)
+        write_insert_statement(f, "giang_vien", ["id", "ma_gv", "ho_ten", "email", "so_dien_thoai", "don_vi_id", "ten_don_vi", "hoc_vi", "hoc_ham", "active"], giang_vien_list)
+        write_footer(f)
+
+
+def write_iam_seed(path, iam_data, truncate=False):
+    with open(path, "w", encoding="utf-8") as f:
+        write_header(f)
+        if truncate:
+            write_truncate_statements(f)
+        f.write("-- ============================================\n-- IAM SEED\n-- ============================================\n\n")
+        write_insert_statement(f, "users", ["user_id", "username", "email", "password_hash", "fullname", "department", "max_security_level", "status"], iam_data["users"])
+        write_insert_statement(f, "permissions", ["id", "code", "resource", "action", "description"], iam_data["permissions"])
+        write_insert_statement(f, "roles", ["id", "name", "code", "description"], iam_data["roles"])
+        write_insert_statement(f, "role_permissions", ["role_id", "permission_id"], iam_data["role_permissions"])
+        write_insert_statement(f, "user_roles", ["user_id", "role_id"], iam_data["user_roles"])
+        write_insert_statement(f, "user_permissions", ["user_id", "permission_id"], iam_data["user_permissions"])
+        write_footer(f)
+
+
+def write_core_seed(path, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, truncate=False):
+    with open(path, "w", encoding="utf-8") as f:
+        write_header(f)
+        if truncate:
+            write_truncate_statements(f)
+        f.write("-- ============================================\n-- CORE ENTITY SEED\n-- ============================================\n\n")
+        write_insert_statement(f, "hoc_vien", ["id", "ma_hv", "ho_ten", "ngay_sinh", "noi_sinh", "que_quan", "email", "so_dien_thoai", "ma_lop", "ten_chuyen_nganh", "ten_nganh", "ten_khoa_dao_tao", "trang_thai", "gpa_he4", "gpa_he10", "so_tin_chi_tich_luy", "muc_canh_bao", "active"], hoc_vien_list)
+        write_insert_statement(f, "mon_hoc", ["id", "ma_mon", "ten_mon", "so_tin_chi", "so_tiet", "don_vi_ql_id", "ten_don_vi_ql", "active"], mon_hoc_list)
+        write_insert_statement(f, "lop_hoc_phan", ["id", "ma_lhp", "ten_lhp", "mon_hoc_id", "ma_mon", "ten_mon", "hoc_ky_id", "ten_hoc_ky", "giang_vien_id", "ten_giang_vien", "si_so_toi_da", "phong", "active"], lop_hoc_phan_list)
+        write_insert_statement(f, "diem", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "mon_hoc_id", "ma_mon", "ten_mon", "so_tin_chi", "hoc_ky_id", "ten_hoc_ky", "lop_hoc_phan_id", "diem_chuyen_can", "diem_thuong_xuyen", "diem_thi", "diem_tong_ket", "diem_chu", "diem_he4", "dat"], diem_list)
+        write_insert_statement(f, "ket_qua_hoc_ky", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "hoc_ky_id", "ten_hoc_ky", "gpa_hoc_ky_he4", "gpa_tich_luy_he4", "gpa_hoc_ky_he10", "so_tc_dang_ky", "so_tc_dat", "so_tc_tich_luy", "xep_loai", "diem_ren_luyen", "muc_canh_bao"], ket_qua_list)
+        write_footer(f)
+
+
+def write_khao_thi_seed(path, khao_thi, truncate=False):
+    with open(path, "w", encoding="utf-8") as f:
+        write_header(f)
+        if truncate:
+            write_truncate_statements(f)
+        f.write("-- ============================================\n-- KHAO THI SEED\n-- ============================================\n\n")
+        write_insert_statement(f, "exam_frameworks", ["id", "code", "name", "description", "time_minutes", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["frameworks"])
+        write_insert_statement(f, "exam_matrices", ["id", "code", "name", "description", "is_default", "exam_framework_id", "active", "created_at", "updated_at", "created_by"], khao_thi["matrices"])
+        write_insert_statement(f, "knowledge_blocks", ["id", "code", "name", "description", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["blocks"])
+        write_insert_statement(f, "question_banks", ["id", "code", "name", "description", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["banks"])
+        write_insert_statement(f, "questions", ["id", "code", "content", "type", "difficult", "explanation", "question_bank_id", "knowledge_block_id", "active", "created_at", "updated_at", "created_by"], khao_thi["questions"])
+        write_insert_statement(f, "question_options", ["id", "question_id", "option_label", "content", "is_correct", "created_at"], khao_thi["options"])
+        write_insert_statement(f, "exam_banks", ["id", "code", "exam_code", "description", "exam_time", "explain", "exam_day", "is_note", "hoc_ky_id", "lop_hoc_phan_id", "exam_matrix_id", "active", "created_at", "updated_at", "created_by"], khao_thi["exams"])
+        write_insert_statement(f, "exam_bank_questions", ["exam_bank_id", "question_id", "question_order", "points"], khao_thi["exam_questions"])
+        write_insert_statement(f, "survey_topics", ["id", "code", "name", "type", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["survey_topics"])
+        write_insert_statement(f, "survey_object_types", ["id", "code", "name", "description", "training_object_type_code", "active", "created_at", "updated_at", "created_by"], khao_thi["object_types"])
+        write_insert_statement(f, "cluster_surveys", ["id", "code", "name", "description", "survey_topic_id", "active", "created_at", "updated_at", "created_by"], khao_thi["clusters"])
+        write_insert_statement(f, "survey_question_groups", ["id", "code", "name", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["groups"])
+        write_insert_statement(f, "survey_questions", ["id", "code", "name", "type", "description", "survey_question_group_id", "active", "created_at", "updated_at", "created_by"], khao_thi["survey_questions"])
+        write_insert_statement(f, "surveys", ["id", "code", "name", "description", "start_date", "end_date", "is_public", "anonymous", "survey_topic_id", "cluster_survey_id", "survey_object_type_id", "active", "created_at", "updated_at", "created_by"], khao_thi["surveys"])
+        write_insert_statement(f, "survey_sessions", ["id", "code", "survey_id", "user_id", "hoc_vien_id", "survey_object_type_id", "is_completed", "completed_at", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["sessions"])
+        write_insert_statement(f, "survey_answers", ["id", "survey_session_id", "survey_question_id", "rating_value", "choice_value", "text_value", "created_at"], khao_thi["answers"])
+        write_footer(f)
+
+
+def write_legacy_seed(path, nam_hoc_list, hoc_ky_list, don_vi_list, giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, khao_thi, iam_data, truncate=False):
+    with open(path, "w", encoding="utf-8") as f:
+        write_header(f)
+        if truncate:
+            write_truncate_statements(f)
+        f.write("-- ============================================\n-- DIMENSION TABLES\n-- ============================================\n\n")
+        write_insert_statement(f, "nam_hoc", ["id", "ma", "ten", "ngay_bat_dau", "ngay_ket_thuc", "active"], nam_hoc_list)
+        write_insert_statement(f, "hoc_ky", ["id", "ma", "ten", "loai_hoc_ky", "nam_hoc_id", "ten_nam_hoc", "ngay_bat_dau", "ngay_ket_thuc", "active"], hoc_ky_list)
+        write_insert_statement(f, "don_vi", ["id", "ma", "ten", "ten_viet_tat", "cap_don_vi", "parent_id", "active"], don_vi_list)
+        write_insert_statement(f, "giang_vien", ["id", "ma_gv", "ho_ten", "email", "so_dien_thoai", "don_vi_id", "ten_don_vi", "hoc_vi", "hoc_ham", "active"], giang_vien_list)
+        f.write("-- ============================================\n-- IAM SEED\n-- ============================================\n\n")
+        write_insert_statement(f, "users", ["user_id", "username", "email", "password_hash", "fullname", "department", "max_security_level", "status"], iam_data["users"])
+        write_insert_statement(f, "permissions", ["id", "code", "resource", "action", "description"], iam_data["permissions"])
+        write_insert_statement(f, "roles", ["id", "name", "code", "description"], iam_data["roles"])
+        write_insert_statement(f, "role_permissions", ["role_id", "permission_id"], iam_data["role_permissions"])
+        write_insert_statement(f, "user_roles", ["user_id", "role_id"], iam_data["user_roles"])
+        write_insert_statement(f, "user_permissions", ["user_id", "permission_id"], iam_data["user_permissions"])
+        f.write("-- ============================================\n-- MAIN ENTITY TABLES\n-- ============================================\n\n")
+        write_insert_statement(f, "hoc_vien", ["id", "ma_hv", "ho_ten", "ngay_sinh", "noi_sinh", "que_quan", "email", "so_dien_thoai", "ma_lop", "ten_chuyen_nganh", "ten_nganh", "ten_khoa_dao_tao", "trang_thai", "gpa_he4", "gpa_he10", "so_tin_chi_tich_luy", "muc_canh_bao", "active"], hoc_vien_list)
+        write_insert_statement(f, "mon_hoc", ["id", "ma_mon", "ten_mon", "so_tin_chi", "so_tiet", "don_vi_ql_id", "ten_don_vi_ql", "active"], mon_hoc_list)
+        write_insert_statement(f, "lop_hoc_phan", ["id", "ma_lhp", "ten_lhp", "mon_hoc_id", "ma_mon", "ten_mon", "hoc_ky_id", "ten_hoc_ky", "giang_vien_id", "ten_giang_vien", "si_so_toi_da", "phong", "active"], lop_hoc_phan_list)
+        f.write("-- ============================================\n-- FACT TABLES\n-- ============================================\n\n")
+        write_insert_statement(f, "diem", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "mon_hoc_id", "ma_mon", "ten_mon", "so_tin_chi", "hoc_ky_id", "ten_hoc_ky", "lop_hoc_phan_id", "diem_chuyen_can", "diem_thuong_xuyen", "diem_thi", "diem_tong_ket", "diem_chu", "diem_he4", "dat"], diem_list)
+        write_insert_statement(f, "ket_qua_hoc_ky", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "hoc_ky_id", "ten_hoc_ky", "gpa_hoc_ky_he4", "gpa_tich_luy_he4", "gpa_hoc_ky_he10", "so_tc_dang_ky", "so_tc_dat", "so_tc_tich_luy", "xep_loai", "diem_ren_luyen", "muc_canh_bao"], ket_qua_list)
+        f.write("-- ============================================\n-- KHAO THI TABLES\n-- ============================================\n\n")
+        write_insert_statement(f, "exam_frameworks", ["id", "code", "name", "description", "time_minutes", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["frameworks"])
+        write_insert_statement(f, "exam_matrices", ["id", "code", "name", "description", "is_default", "exam_framework_id", "active", "created_at", "updated_at", "created_by"], khao_thi["matrices"])
+        write_insert_statement(f, "knowledge_blocks", ["id", "code", "name", "description", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["blocks"])
+        write_insert_statement(f, "question_banks", ["id", "code", "name", "description", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["banks"])
+        write_insert_statement(f, "questions", ["id", "code", "content", "type", "difficult", "explanation", "question_bank_id", "knowledge_block_id", "active", "created_at", "updated_at", "created_by"], khao_thi["questions"])
+        write_insert_statement(f, "question_options", ["id", "question_id", "option_label", "content", "is_correct", "created_at"], khao_thi["options"])
+        write_insert_statement(f, "exam_banks", ["id", "code", "exam_code", "description", "exam_time", "explain", "exam_day", "is_note", "hoc_ky_id", "lop_hoc_phan_id", "exam_matrix_id", "active", "created_at", "updated_at", "created_by"], khao_thi["exams"])
+        write_insert_statement(f, "exam_bank_questions", ["exam_bank_id", "question_id", "question_order", "points"], khao_thi["exam_questions"])
+        write_insert_statement(f, "survey_topics", ["id", "code", "name", "type", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["survey_topics"])
+        write_insert_statement(f, "survey_object_types", ["id", "code", "name", "description", "training_object_type_code", "active", "created_at", "updated_at", "created_by"], khao_thi["object_types"])
+        write_insert_statement(f, "cluster_surveys", ["id", "code", "name", "description", "survey_topic_id", "active", "created_at", "updated_at", "created_by"], khao_thi["clusters"])
+        write_insert_statement(f, "survey_question_groups", ["id", "code", "name", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["groups"])
+        write_insert_statement(f, "survey_questions", ["id", "code", "name", "type", "description", "survey_question_group_id", "active", "created_at", "updated_at", "created_by"], khao_thi["survey_questions"])
+        write_insert_statement(f, "surveys", ["id", "code", "name", "description", "start_date", "end_date", "is_public", "anonymous", "survey_topic_id", "cluster_survey_id", "survey_object_type_id", "active", "created_at", "updated_at", "created_by"], khao_thi["surveys"])
+        write_insert_statement(f, "survey_sessions", ["id", "code", "survey_id", "user_id", "hoc_vien_id", "survey_object_type_id", "is_completed", "completed_at", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["sessions"])
+        write_insert_statement(f, "survey_answers", ["id", "survey_session_id", "survey_question_id", "rating_value", "choice_value", "text_value", "created_at"], khao_thi["answers"])
+        write_footer(f)
+
+
 # ============================================
 # MAIN
 # ============================================
@@ -815,79 +1062,53 @@ def write_footer(f):
 
 def main():
     parser = argparse.ArgumentParser(description="Generate complete seed data for PostgreSQL")
-    parser.add_argument("--output", "-o", default="infra/postgres/init/02-seed.sql", help="Output SQL file")
+    parser.add_argument("--output", "-o", default=None, help="Output SQL file (legacy single file mode)")
+    parser.add_argument("--out-dir", "-d", default="infra/postgres/init", help="Output directory for split seed files")
     parser.add_argument("--truncate", "-t", action="store_true", help="Include TRUNCATE statements")
     args = parser.parse_args()
-
-    with open(args.output, "w", encoding="utf-8") as f:
-        write_header(f)
-
-        if args.truncate:
-            f.write("""-- Clearing existing data
-TRUNCATE TABLE
-    survey_answers, survey_sessions, surveys, survey_questions, survey_question_groups,
-    cluster_surveys, survey_object_types, survey_topics,
-    exam_bank_questions, exam_banks, question_options, questions, question_banks,
-    knowledge_blocks, exam_matrices, exam_frameworks,
-    diem, ket_qua_hoc_ky, lop_hoc_phan, mon_hoc,
-    hoc_vien, giang_vien, don_vi, hoc_ky, nam_hoc
-RESTART IDENTITY CASCADE;
-
-""")
-
-        f.write("-- ============================================\n-- DIMENSION TABLES\n-- ============================================\n\n")
-        nam_hoc_list = generate_nam_hoc()
-        hoc_ky_list = generate_hoc_ky(nam_hoc_list)
-        don_vi_list = generate_don_vi()
-        giang_vien_list = generate_giang_vien(don_vi_list)
-
-        write_insert_statement(f, "nam_hoc", ["id", "ma", "ten", "ngay_bat_dau", "ngay_ket_thuc", "active"], nam_hoc_list)
-        write_insert_statement(f, "hoc_ky", ["id", "ma", "ten", "loai_hoc_ky", "nam_hoc_id", "ten_nam_hoc", "ngay_bat_dau", "ngay_ket_thuc", "active"], hoc_ky_list)
-        write_insert_statement(f, "don_vi", ["id", "ma", "ten", "ten_viet_tat", "cap_don_vi", "parent_id", "active"], don_vi_list)
-        write_insert_statement(f, "giang_vien", ["id", "ma_gv", "ho_ten", "email", "so_dien_thoai", "don_vi_id", "ten_don_vi", "hoc_vi", "hoc_ham", "active"], giang_vien_list)
-
-        f.write("-- ============================================\n-- MAIN ENTITY TABLES\n-- ============================================\n\n")
-        hoc_vien_list = generate_hoc_vien()
-        mon_hoc_list = generate_mon_hoc(don_vi_list)
-        lop_hoc_phan_list = generate_lop_hoc_phan(mon_hoc_list, hoc_ky_list, giang_vien_list)
-
-        write_insert_statement(f, "hoc_vien", ["id", "ma_hv", "ho_ten", "ngay_sinh", "noi_sinh", "que_quan", "email", "so_dien_thoai", "ma_lop", "ten_chuyen_nganh", "ten_nganh", "ten_khoa_dao_tao", "trang_thai", "gpa_he4", "gpa_he10", "so_tin_chi_tich_luy", "muc_canh_bao", "active"], hoc_vien_list)
-        write_insert_statement(f, "mon_hoc", ["id", "ma_mon", "ten_mon", "so_tin_chi", "so_tiet", "don_vi_ql_id", "ten_don_vi_ql", "active"], mon_hoc_list)
-        write_insert_statement(f, "lop_hoc_phan", ["id", "ma_lhp", "ten_lhp", "mon_hoc_id", "ma_mon", "ten_mon", "hoc_ky_id", "ten_hoc_ky", "giang_vien_id", "ten_giang_vien", "si_so_toi_da", "phong", "active"], lop_hoc_phan_list)
-
-        f.write("-- ============================================\n-- FACT TABLES\n-- ============================================\n\n")
-        diem_list = generate_diem(hoc_vien_list, mon_hoc_list, hoc_ky_list, lop_hoc_phan_list)
-        validate_diem_uniqueness(diem_list)
-        validate_student_class_section_consistency(diem_list)
-        ket_qua_list = generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list)
-        validate_ket_qua_uniqueness(ket_qua_list)
-
-        write_insert_statement(f, "diem", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "mon_hoc_id", "ma_mon", "ten_mon", "so_tin_chi", "hoc_ky_id", "ten_hoc_ky", "lop_hoc_phan_id", "diem_chuyen_can", "diem_thuong_xuyen", "diem_thi", "diem_tong_ket", "diem_chu", "diem_he4", "dat"], diem_list)
-        write_insert_statement(f, "ket_qua_hoc_ky", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "hoc_ky_id", "ten_hoc_ky", "gpa_hoc_ky_he4", "gpa_tich_luy_he4", "gpa_hoc_ky_he10", "so_tc_dang_ky", "so_tc_dat", "so_tc_tich_luy", "xep_loai", "diem_ren_luyen", "muc_canh_bao"], ket_qua_list)
-
-        f.write("-- ============================================\n-- KHAO THI TABLES\n-- ============================================\n\n")
-        khao_thi = generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vien_list)
-
-        write_insert_statement(f, "exam_frameworks", ["id", "code", "name", "description", "time_minutes", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["frameworks"])
-        write_insert_statement(f, "exam_matrices", ["id", "code", "name", "description", "is_default", "exam_framework_id", "active", "created_at", "updated_at", "created_by"], khao_thi["matrices"])
-        write_insert_statement(f, "knowledge_blocks", ["id", "code", "name", "description", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["blocks"])
-        write_insert_statement(f, "question_banks", ["id", "code", "name", "description", "mon_hoc_id", "active", "created_at", "updated_at", "created_by"], khao_thi["banks"])
-        write_insert_statement(f, "questions", ["id", "code", "content", "type", "difficult", "explanation", "question_bank_id", "knowledge_block_id", "active", "created_at", "updated_at", "created_by"], khao_thi["questions"])
-        write_insert_statement(f, "question_options", ["id", "question_id", "option_label", "content", "is_correct", "created_at"], khao_thi["options"])
-        write_insert_statement(f, "exam_banks", ["id", "code", "exam_code", "description", "exam_time", "explain", "exam_day", "is_note", "hoc_ky_id", "lop_hoc_phan_id", "exam_matrix_id", "active", "created_at", "updated_at", "created_by"], khao_thi["exams"])
-        write_insert_statement(f, "exam_bank_questions", ["exam_bank_id", "question_id", "question_order", "points"], khao_thi["exam_questions"])
-        write_insert_statement(f, "survey_topics", ["id", "code", "name", "type", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["survey_topics"])
-        write_insert_statement(f, "survey_object_types", ["id", "code", "name", "description", "training_object_type_code", "active", "created_at", "updated_at", "created_by"], khao_thi["object_types"])
-        write_insert_statement(f, "cluster_surveys", ["id", "code", "name", "description", "survey_topic_id", "active", "created_at", "updated_at", "created_by"], khao_thi["clusters"])
-        write_insert_statement(f, "survey_question_groups", ["id", "code", "name", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["groups"])
-        write_insert_statement(f, "survey_questions", ["id", "code", "name", "type", "description", "survey_question_group_id", "active", "created_at", "updated_at", "created_by"], khao_thi["survey_questions"])
-        write_insert_statement(f, "surveys", ["id", "code", "name", "description", "start_date", "end_date", "is_public", "anonymous", "survey_topic_id", "cluster_survey_id", "survey_object_type_id", "active", "created_at", "updated_at", "created_by"], khao_thi["surveys"])
-        write_insert_statement(f, "survey_sessions", ["id", "code", "survey_id", "user_id", "hoc_vien_id", "survey_object_type_id", "is_completed", "completed_at", "description", "active", "created_at", "updated_at", "created_by"], khao_thi["sessions"])
-        write_insert_statement(f, "survey_answers", ["id", "survey_session_id", "survey_question_id", "rating_value", "choice_value", "text_value", "created_at"], khao_thi["answers"])
-
-        write_footer(f)
-
-    print(f"Seed data generated successfully in: {args.output}")
+    
+    # Generate all data first (shared across both modes)
+    nam_hoc_list = generate_nam_hoc()
+    hoc_ky_list = generate_hoc_ky(nam_hoc_list)
+    don_vi_list = generate_don_vi()
+    giang_vien_list = generate_giang_vien(don_vi_list)
+    hoc_vien_list = generate_hoc_vien()
+    mon_hoc_list = generate_mon_hoc(don_vi_list)
+    lop_hoc_phan_list = generate_lop_hoc_phan(mon_hoc_list, hoc_ky_list, giang_vien_list)
+    diem_list = generate_diem(hoc_vien_list, mon_hoc_list, hoc_ky_list, lop_hoc_phan_list)
+    ket_qua_list = generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list)
+    khao_thi = generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vien_list)
+    iam_data = generate_iam_data()  # You'll need to implement this
+    
+    # Validate
+    validate_diem_uniqueness(diem_list)
+    validate_ket_qua_uniqueness(ket_qua_list)
+    validate_student_class_section_consistency(diem_list)
+    
+    if args.out_dir:
+        # Split file mode
+        os.makedirs(args.out_dir, exist_ok=True)
+        paths = get_output_paths(args.out_dir)
+        
+        write_dimensions_seed(paths["dimensions"], nam_hoc_list, hoc_ky_list, don_vi_list, giang_vien_list, args.truncate)
+        write_iam_seed(paths["iam"], iam_data, args.truncate)
+        write_core_seed(paths["core"], hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, args.truncate)
+        write_khao_thi_seed(paths["khao_thi"], khao_thi, args.truncate)
+        
+        print(f"Seed data generated in: {args.out_dir}")
+        print(f"   - 11-seed-dimensions.sql")
+        print(f"   - 12-seed-iam.sql")
+        print(f"   - 13-seed-core.sql")
+        print(f"   - 14-seed-khao-thi.sql")
+        
+    elif args.output:
+        # Legacy single file mode
+        write_legacy_seed(args.output, nam_hoc_list, hoc_ky_list, don_vi_list, giang_vien_list, 
+                         hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, 
+                         khao_thi, iam_data, args.truncate)
+        print(f"Seed data generated successfully in: {args.output}")
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
