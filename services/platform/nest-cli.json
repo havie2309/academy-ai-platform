@@ -37,6 +37,15 @@
         "tsConfigPath": "apps/audit/tsconfig.app.json"
       }
     },
+    "chat": {
+      "type": "application",
+      "root": "apps/chat",
+      "entryFile": "main",
+      "sourceRoot": "apps/chat/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/chat/tsconfig.app.json"
+      }
+    },
     "notification": {
       "type": "application",
       "root": "apps/notification",

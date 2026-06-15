@@ -50,8 +50,9 @@ export default function AdminPage() {
       .finally(() => setHealthLoading(false))
   }, [])
 
-  const gatewayUp = health?.status === 'ok'
+  const gatewayUp = health?.status === 'ok' || health?.status === 'degraded'
   const userMgmtUp = health?.upstream.userManagement === 'up'
+  const chatUp = health?.upstream.chat === 'up'
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-6 md:p-8 overflow-y-auto">
@@ -73,7 +74,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8 max-w-3xl">
         <div className="flex items-center gap-3 bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
           <Server size={18} className="text-blue-600 shrink-0" />
           <div className="min-w-0 flex-1">
@@ -94,6 +95,18 @@ export default function AdminPage() {
               <StatusDot ok={!healthLoading && userMgmtUp} />
               <span className="text-sm font-semibold text-slate-700">
                 {healthLoading ? 'Đang kiểm tra…' : userMgmtUp ? 'Hoạt động' : 'Offline'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
+          <Server size={18} className="text-emerald-600 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Chat Service</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <StatusDot ok={!healthLoading && chatUp} />
+              <span className="text-sm font-semibold text-slate-700">
+                {healthLoading ? 'Đang kiểm tra…' : chatUp ? 'Hoạt động' : 'Offline'}
               </span>
             </div>
           </div>
