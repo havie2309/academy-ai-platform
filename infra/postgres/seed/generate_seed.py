@@ -51,9 +51,19 @@ NUM_SURVEY_QUESTIONS = 60
 NUM_SURVEYS = 15
 NUM_SURVEY_SESSIONS = 180
 
-# ============================================
-# RELIABLE VIETNAMESE LOCATION DATA
-# ============================================
+FIRST_NAMES = [
+    "Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Vũ",
+    "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", "Lý"
+]
+MIDDLE_NAMES = [
+    "Văn", "Thị", "Hữu", "Đức", "Minh", "Thanh", "Ngọc",
+    "Quang", "Phương", "Kim", "Bảo", "Tuấn", "Hải"
+]
+LAST_NAMES = [
+    "Anh", "Bình", "Chiến", "Dũng", "Em", "Phúc", "Giang",
+    "Hương", "Linh", "Minh", "Nguyệt", "Phương", "Quân",
+    "Sơn", "Tùng", "Việt", "Xuân", "Yến", "Hoa", "Hạnh"
+]
 
 VIETNAM_CITIES = [
     "Hà Nội", "Hồ Chí Minh", "Đà Nẵng", "Hải Phòng", "Cần Thơ",
@@ -208,6 +218,12 @@ QUESTION_STEMS = [
 def generate_id(prefix: str, index: int) -> str:
     return f"{prefix}{index:03d}"
 
+def random_vietnamese_name() -> str:
+    first_name = random.choice(FIRST_NAMES)
+    middle_name = random.choice(MIDDLE_NAMES)
+    last_name = random.choice(LAST_NAMES)
+    full_name = f"{first_name} {middle_name} {last_name}"
+    return full_name.strip()
 
 def reliable_vietnamese_address():
     ward = random.choice(VIETNAM_WARDS)
@@ -242,7 +258,23 @@ def random_grade(min_val=0, max_val=10, decimals=2):
 
 
 def random_gpa_he4():
-    return round(random.uniform(0, 4.0), 2)
+    value = random.gauss(2.8, 0.8)
+    value = min(max(value, 0.0), 4.0)
+    return round(value, 2)
+
+
+def sample_score_from_gpa(gpa_he4, min_val=0.0, max_val=10.0):
+    """Generate a realistic score distribution based on GPA."""
+    mean = 4.0 + gpa_he4 * 1.5
+    stddev = 0.8 if gpa_he4 >= 2.0 else 1.0
+    score = random.gauss(mean, stddev)
+    score = min(max(score, min_val), max_val)
+    score = round(score * 4) / 4.0
+
+    if score < 1.0:
+        score = 0.0 if random.random() < 0.1 else 1.0
+
+    return max(min(score, max_val), min_val)
 
 
 def grade_to_letter(score):
@@ -310,6 +342,36 @@ def write_insert_statement(file, table, columns, rows, batch_size=500):
             values.append("    (" + ", ".join(sql_value(v) for v in row_values) + ")")
         file.write(",\n".join(values))
         file.write(";\n\n")
+
+
+def validate_diem_uniqueness(diem_list):
+    seen = set()
+    for row in diem_list:
+        key = (row["hoc_vien_id"], row["mon_hoc_id"], row["hoc_ky_id"])
+        if key in seen:
+            raise ValueError(f"Duplicate diem entry for hoc_vien_id={key[0]}, mon_hoc_id={key[1]}, hoc_ky_id={key[2]}")
+        seen.add(key)
+
+
+def validate_ket_qua_uniqueness(ket_qua_list):
+    seen = set()
+    for row in ket_qua_list:
+        key = (row["hoc_vien_id"], row["hoc_ky_id"])
+        if key in seen:
+            raise ValueError(f"Duplicate ket_qua_hoc_ky entry for hoc_vien_id={key[0]}, hoc_ky_id={key[1]}")
+        seen.add(key)
+
+
+def validate_student_class_section_consistency(diem_list):
+    section_map = {}
+    for row in diem_list:
+        key = (row["hoc_vien_id"], row["mon_hoc_id"])
+        sections = section_map.setdefault(key, set())
+        sections.add(row["lop_hoc_phan_id"])
+        if len(sections) > 1:
+            raise ValueError(
+                f"Invalid class assignment: hoc_vien_id={key[0]} is enrolled in multiple lop_hoc_phan for mon_hoc_id={key[1]}"
+            )
 
 
 # ============================================
@@ -385,7 +447,7 @@ def generate_giang_vien(don_vi_list):
 
     for i in range(NUM_GIANG_VIEN):
         dept = random.choice(teaching_depts)
-        name = fake.name()
+        name = random_vietnamese_name()
         result.append({
             "id": generate_id("GV", i + 1),
             "ma_gv": f"GV{random.randint(1000, 9999)}",
@@ -404,7 +466,7 @@ def generate_giang_vien(don_vi_list):
 def generate_hoc_vien():
     result = []
     for i in range(NUM_HOC_VIEN):
-        name = fake.name()
+        name = random_vietnamese_name()
         course = random.randint(63, 67)
         major_name, major_code = random.choice(MAJORS)
         gpa_he4 = random_gpa_he4()
@@ -500,49 +562,87 @@ def generate_lop_hoc_phan(mon_hoc_list, hoc_ky_list, giang_vien_list):
 
 def generate_diem(hoc_vien_list, mon_hoc_list, hoc_ky_list, lop_hoc_phan_list):
     result = []
-    for i in range(NUM_DIEM):
-        hoc_vien = random.choice(hoc_vien_list)
-        mon_hoc = random.choice(mon_hoc_list)
-        hoc_ky = random.choice(hoc_ky_list)
-        lop_hoc_phan = next(
-            (l for l in lop_hoc_phan_list if l["mon_hoc_id"] == mon_hoc["id"] and l["hoc_ky_id"] == hoc_ky["id"]),
-            random.choice(lop_hoc_phan_list),
-        )
+    used_combos = set()
+    student_subjects = {hv["id"]: set() for hv in hoc_vien_list}
 
-        gpa_factor = hoc_vien["gpa_he4"] / 4.0
-        diem_chuyen_can = min(10, max(0, random_grade(5, 10) + random.uniform(-2, 2) * gpa_factor))
-        diem_thuong_xuyen = min(10, max(0, random_grade(4, 10) + random.uniform(-2, 2) * gpa_factor))
-        diem_thi = min(10, max(0, random_grade(3, 10) + random.uniform(-2, 2) * gpa_factor))
+    by_subject_semester = {}
+    for lop in lop_hoc_phan_list:
+        key = (lop["mon_hoc_id"], lop["hoc_ky_id"])
+        by_subject_semester.setdefault(key, []).append(lop)
+
+    available_combos = [
+        (hv["id"], mon["id"], hk["id"], mon["ma_mon"], mon["ten_mon"], mon["so_tin_chi"])
+        for hv in hoc_vien_list
+        for mon in mon_hoc_list
+        for hk in hoc_ky_list
+        if (mon["id"], hk["id"]) in by_subject_semester
+    ]
+    random.shuffle(available_combos)
+
+    for i, (hoc_vien_id, mon_hoc_id, hoc_ky_id, ma_mon, ten_mon, so_tin_chi) in enumerate(available_combos):
+        if len(result) >= NUM_DIEM:
+            break
+        if mon_hoc_id in student_subjects[hoc_vien_id]:
+            continue
+
+        lop_hoc_phan_options = by_subject_semester.get((mon_hoc_id, hoc_ky_id))
+        if not lop_hoc_phan_options:
+            continue
+
+        hoc_vien = next(hv for hv in hoc_vien_list if hv["id"] == hoc_vien_id)
+        hoc_ky = next(hk for hk in hoc_ky_list if hk["id"] == hoc_ky_id)
+        lop_hoc_phan = random.choice(lop_hoc_phan_options)
+
+        student_subjects[hoc_vien_id].add(mon_hoc_id)
+        used_combos.add((hoc_vien_id, mon_hoc_id, hoc_ky_id))
+
+        diem_chuyen_can = sample_score_from_gpa(hoc_vien["gpa_he4"], min_val=4.0, max_val=10.0)
+        diem_thuong_xuyen = sample_score_from_gpa(hoc_vien["gpa_he4"], min_val=3.5, max_val=10.0)
+        diem_thi = sample_score_from_gpa(hoc_vien["gpa_he4"], min_val=2.5, max_val=10.0)
         diem_tong_ket = round(diem_chuyen_can * 0.1 + diem_thuong_xuyen * 0.2 + diem_thi * 0.7, 2)
 
         result.append({
-            "id": i + 1,
-            "hoc_vien_id": hoc_vien["id"],
+            "id": len(result) + 1,
+            "hoc_vien_id": hoc_vien_id,
             "ma_hv": hoc_vien["ma_hv"],
             "ho_ten_hv": hoc_vien["ho_ten"],
-            "mon_hoc_id": mon_hoc["id"],
-            "ma_mon": mon_hoc["ma_mon"],
-            "ten_mon": mon_hoc["ten_mon"],
-            "so_tin_chi": mon_hoc["so_tin_chi"],
-            "hoc_ky_id": hoc_ky["id"],
+            "mon_hoc_id": mon_hoc_id,
+            "ma_mon": ma_mon,
+            "ten_mon": ten_mon,
+            "so_tin_chi": so_tin_chi,
+            "hoc_ky_id": hoc_ky_id,
             "ten_hoc_ky": hoc_ky["ten"],
             "lop_hoc_phan_id": lop_hoc_phan["id"],
-            "diem_chuyen_can": round(diem_chuyen_can, 2),
-            "diem_thuong_xuyen": round(diem_thuong_xuyen, 2),
-            "diem_thi": round(diem_thi, 2),
+            "diem_chuyen_can": diem_chuyen_can,
+            "diem_thuong_xuyen": diem_thuong_xuyen,
+            "diem_thi": diem_thi,
             "diem_tong_ket": diem_tong_ket,
             "diem_chu": grade_to_letter(diem_tong_ket),
             "diem_he4": score_to_grade_4(diem_tong_ket),
             "dat": diem_tong_ket >= 5.0,
         })
+
     return result
 
 
 def generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list):
     result = []
-    for i in range(NUM_KET_QUA_HOC_KY):
-        hoc_vien = random.choice(hoc_vien_list)
-        hoc_ky = random.choice(hoc_ky_list)
+    used_semesters = {hv["id"]: set() for hv in hoc_vien_list}
+
+    combos = [
+        (hv["id"], hk["id"], hk["ten"], hv["ma_hv"], hv["ho_ten"], hv["gpa_he4"], hv["so_tin_chi_tich_luy"])
+        for hv in hoc_vien_list
+        for hk in hoc_ky_list
+    ]
+    random.shuffle(combos)
+
+    for i, (hoc_vien_id, hoc_ky_id, ten_hoc_ky, ma_hv, ho_ten_hv, gpa_he4, so_tin_chi_tich_luy) in enumerate(combos):
+        if len(result) >= NUM_KET_QUA_HOC_KY:
+            break
+        if hoc_ky_id in used_semesters[hoc_vien_id]:
+            continue
+
+        used_semesters[hoc_vien_id].add(hoc_ky_id)
         gpa_hoc_ky_he4 = random_gpa_he4()
         if gpa_hoc_ky_he4 >= 3.6:
             ranking = "Xuất sắc"
@@ -558,18 +658,18 @@ def generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list):
         so_tc_dang_ky = random.randint(10, 25)
         so_tc_dat = random.randint(0, so_tc_dang_ky)
         result.append({
-            "id": generate_id("KQ", i + 1),
-            "hoc_vien_id": hoc_vien["id"],
-            "ma_hv": hoc_vien["ma_hv"],
-            "ho_ten_hv": hoc_vien["ho_ten"],
-            "hoc_ky_id": hoc_ky["id"],
-            "ten_hoc_ky": hoc_ky["ten"],
+            "id": generate_id("KQ", len(result) + 1),
+            "hoc_vien_id": hoc_vien_id,
+            "ma_hv": ma_hv,
+            "ho_ten_hv": ho_ten_hv,
+            "hoc_ky_id": hoc_ky_id,
+            "ten_hoc_ky": ten_hoc_ky,
             "gpa_hoc_ky_he4": gpa_hoc_ky_he4,
-            "gpa_tich_luy_he4": hoc_vien["gpa_he4"],
+            "gpa_tich_luy_he4": gpa_he4,
             "gpa_hoc_ky_he10": round(gpa_hoc_ky_he4 * 2.5, 1),
             "so_tc_dang_ky": so_tc_dang_ky,
             "so_tc_dat": so_tc_dat,
-            "so_tc_tich_luy": hoc_vien["so_tin_chi_tich_luy"],
+            "so_tc_tich_luy": so_tin_chi_tich_luy,
             "xep_loai": ranking,
             "diem_ren_luyen": random.randint(50, 100),
             "muc_canh_bao": random.randint(0, 3),
@@ -757,7 +857,10 @@ RESTART IDENTITY CASCADE;
 
         f.write("-- ============================================\n-- FACT TABLES\n-- ============================================\n\n")
         diem_list = generate_diem(hoc_vien_list, mon_hoc_list, hoc_ky_list, lop_hoc_phan_list)
+        validate_diem_uniqueness(diem_list)
+        validate_student_class_section_consistency(diem_list)
         ket_qua_list = generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list)
+        validate_ket_qua_uniqueness(ket_qua_list)
 
         write_insert_statement(f, "diem", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "mon_hoc_id", "ma_mon", "ten_mon", "so_tin_chi", "hoc_ky_id", "ten_hoc_ky", "lop_hoc_phan_id", "diem_chuyen_can", "diem_thuong_xuyen", "diem_thi", "diem_tong_ket", "diem_chu", "diem_he4", "dat"], diem_list)
         write_insert_statement(f, "ket_qua_hoc_ky", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "hoc_ky_id", "ten_hoc_ky", "gpa_hoc_ky_he4", "gpa_tich_luy_he4", "gpa_hoc_ky_he10", "so_tc_dang_ky", "so_tc_dat", "so_tc_tich_luy", "xep_loai", "diem_ren_luyen", "muc_canh_bao"], ket_qua_list)
