@@ -1,18 +1,25 @@
-import { MessageSquare, FileText, LayoutDashboard, Settings, Plus, GraduationCap } from 'lucide-react'
+import { MessageSquare, FileText, LayoutDashboard, Settings, Plus, GraduationCap, LogOut } from 'lucide-react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { authApi } from '../api/auth'
 
 const history = ['Hỏi về lịch thi HK2', 'Điểm trung bình lớp K65', 'Tài liệu môn Học máy']
-
-const navItems = [
-  { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
-  { icon: FileText, label: 'Tài liệu', href: '/docs' },
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
-  { icon: Settings, label: 'Cài đặt', href: '/settings' },
-]
 
 export default function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
+
+  const user = authApi.getUser()
+  const displayName = user?.full_name ?? 'Khách'
+  const displayEmail = user?.username ? `${user.username}@academy.edu` : ''
+  const avatarLetter = displayName.charAt(0).toUpperCase()
+  const isAdmin = user?.roles.some(r => ['Admin', 'BGD', 'P2', 'P7'].includes(r)) ?? false
+
+  const navItems = [
+    { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
+    { icon: FileText, label: 'Tài liệu', href: '/docs' },
+    ...(isAdmin ? [{ icon: LayoutDashboard, label: 'Dashboard', href: '/admin' }] : []),
+    { icon: Settings, label: 'Cài đặt', href: '/settings' },
+  ]
 
   return (
     <aside className="w-64 shrink-0 flex flex-col h-full bg-white border-r border-slate-200/80 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
@@ -29,7 +36,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Action: New Chat (tối giản) */}
+      {/* Action: New Chat */}
       <div className="px-4 pb-4">
         <button
           onClick={() => navigate('/chat')}
@@ -82,12 +89,19 @@ export default function Sidebar() {
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-3 px-1">
           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
-            A
+            {avatarLetter}
           </div>
-          <div className="min-w-0">
-            <p className="text-slate-800 text-sm font-semibold leading-tight truncate">Admin</p>
-            <p className="text-slate-400 text-[11px] truncate">admin@academy.edu</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-slate-800 text-sm font-semibold leading-tight truncate">{displayName}</p>
+            <p className="text-slate-400 text-[11px] truncate">{displayEmail}</p>
           </div>
+          <button
+            onClick={() => { authApi.logout(); navigate('/login') }}
+            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all shrink-0"
+            title="Đăng xuất"
+          >
+            <LogOut size={15} />
+          </button>
         </div>
       </div>
     </aside>
