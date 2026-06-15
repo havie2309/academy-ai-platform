@@ -24,7 +24,20 @@ CREATE TABLE hoc_vien (
     active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW()
 );
-
+-- giang_vien - Giảng viên
+CREATE TABLE giang_vien (
+    id VARCHAR(20) PRIMARY KEY,
+    ma_gv VARCHAR(50),
+    ho_ten VARCHAR(255),
+    email VARCHAR(255),
+    so_dien_thoai VARCHAR(20),
+    don_vi_id VARCHAR(20) REFERENCES don_vi(id),
+    ten_don_vi VARCHAR(255),
+    hoc_vi VARCHAR(100),
+    hoc_ham VARCHAR(100),
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+); 
 -- mon_hoc - Môn học
 CREATE TABLE mon_hoc (
     id VARCHAR(20) PRIMARY KEY,

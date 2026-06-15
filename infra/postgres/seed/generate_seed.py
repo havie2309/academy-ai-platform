@@ -240,14 +240,13 @@ def reliable_vietnamese_address():
 
 
 def random_email(name=None):
-    domains = ["gmail.com", "tlu.edu.vn", "yahoo.com", "viettel.com.vn", "fpt.vn"]
-    if name:
+    if name: 
         try:
             from unidecode import unidecode
             name_ascii = unidecode(name.lower().replace(" ", ""))
         except ImportError:
             name_ascii = name.lower().replace(" ", "")
-        return f"{name_ascii}@{random.choice(domains)}"
+        return f"{name_ascii}@pm2.edu.vn"
     return fake.email()
 
 
@@ -810,12 +809,12 @@ def bcrypt_dev_hash(_password: str = "123456") -> str:
     return BCRYPT_DEV_PASSWORD_HASH
 
 
-def generate_iam_data():
+def generate_iam_data(hoc_vien_list, giang_vien_list):
     users = [
         {
             "user_id": "USR001",
             "username": "admin",
-            "email": "admin@pm2.local",
+            "email": "admin@pm2.edu.vn",
             "password_hash": bcrypt_dev_hash(),
             "fullname": "Quản trị viên",
             "department": "Phòng CNTT",
@@ -824,103 +823,135 @@ def generate_iam_data():
         },
         {
             "user_id": "USR002",
-            "username": "auditor",
-            "email": "auditor@pm2.local",
+            "username": "BGD",
+            "email": "pgd@pm2.edu.vn",
             "password_hash": bcrypt_dev_hash(),
-            "fullname": "Kiểm toán viên",
-            "department": "Phòng Pháp chế",
-            "max_security_level": 3,
+            "fullname": "Ban Giám đốc 01",
+            "department": "BGD",
+            "max_security_level": 4,
             "status": "active",
         },
         {
             "user_id": "USR003",
-            "username": "gv001",
-            "email": "gv001@edumind.local",
+            "username": "p2_01",
+            "email": "p2_01@pm2.edu.vn",
             "password_hash": bcrypt_dev_hash(),
-            "fullname": "Nguyễn Văn A",
-            "department": "P2",
-            "max_security_level": 2,
-            "status": "active",
-        },
-        {
-            "user_id": "USR004",
-            "username": "hv001",
-            "email": "hv001@edumind.local",
-            "password_hash": bcrypt_dev_hash(),
-            "fullname": "Trần Thị B",
-            "department": "P2",
-            "max_security_level": 1,
-            "status": "active",
-        },
-        {
-            "user_id": "USR005",
-            "username": "p2",
-            "email": "p2@edumind.local",
-            "password_hash": bcrypt_dev_hash(),
-            "fullname": "Cán bộ P2",
+            "fullname": "Phòng Đào tạo",
             "department": "P2",
             "max_security_level": 3,
             "status": "active",
         },
+        {
+            "user_id": "USR004",
+            "username": "khaothi_01",
+            "email": "khaothi_01@pm2.edu.vn",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Ban Khảo thí 01",
+            "department": "BKT",
+            "max_security_level": 3,
+            "status": "active",
+        }
+    ]
+    user_roles = [
+        {"user_id": "USR001", "role_id": "RL001"},  # ADMIN
+        {"user_id": "USR002", "role_id": "RL002"},  # BGD
+        {"user_id": "USR003", "role_id": "RL003"},  # P2
+        {"user_id": "USR004", "role_id": "RL006"},  # KHAO_THI
     ]
 
+    next_user_id = 5
+
+    for hv in hoc_vien_list:
+        uid = f"USR{next_user_id:03d}"
+        users.append({
+            "user_id": uid,
+            "username": hv["ma_hv"],
+            "email": hv["email"],
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": hv["ho_ten"],
+            "department": hv["ten_nganh"],
+            "max_security_level": 1,
+            "status": "active" if hv["active"] else "inactive",
+        })
+        user_roles.append({"user_id": uid, "role_id": "RL005"})  # HOC_VIEN
+        next_user_id += 1
+
+    for gv in giang_vien_list:
+        uid = f"USR{next_user_id:03d}"
+        users.append({
+            "user_id": uid,
+            "username": gv["ma_gv"],
+            "email": gv["email"],
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": gv["ho_ten"],
+            "department": gv["ten_don_vi"],
+            "max_security_level": 2,
+            "status": "active",
+        })
+        user_roles.append({"user_id": uid, "role_id": "RL004"})  # GIANG_VIEN
+        next_user_id += 1
+
     permissions = [
-        {"id": "PM001", "code": "users:read", "resource": "users", "action": "read", "description": "Read user accounts"},
-        {"id": "PM002", "code": "users:write", "resource": "users", "action": "write", "description": "Create and update user accounts"},
-        {"id": "PM003", "code": "roles:read", "resource": "roles", "action": "read", "description": "Read roles"},
-        {"id": "PM004", "code": "roles:write", "resource": "roles", "action": "write", "description": "Create and update roles"},
-        {"id": "PM005", "code": "audit:read", "resource": "audit_log", "action": "read", "description": "View audit logs"},
-        {"id": "PM006", "code": "documents:read", "resource": "documents", "action": "read", "description": "Read document metadata"},
-        {"id": "PM007", "code": "documents:write", "resource": "documents", "action": "write", "description": "Update document metadata"},
+        {"id": "PM001", "code": "users:read", "resource": "users", "action": "read", "description": "Xem tài khoản người dùng"},
+        {"id": "PM002", "code": "users:write", "resource": "users", "action": "write", "description": "Tạo/cập nhật tài khoản người dùng"},
+        {"id": "PM003", "code": "roles:read", "resource": "roles", "action": "read", "description": "Xem vai trò"},
+        {"id": "PM004", "code": "roles:write", "resource": "roles", "action": "write", "description": "Tạo/cập nhật vai trò"},
+        {"id": "PM005", "code": "audit:read", "resource": "audit_log", "action": "read", "description": "Xem nhật ký kiểm toán"},
+
+        {"id": "PM006", "code": "students:read", "resource": "hoc_vien", "action": "read", "description": "Xem học viên"},
+        {"id": "PM007", "code": "students:write", "resource": "hoc_vien", "action": "write", "description": "Tạo/cập nhật học viên"},
+
+        {"id": "PM008", "code": "grades:read", "resource": "diem", "action": "read", "description": "Xem điểm"},
+        {"id": "PM009", "code": "grades:write", "resource": "diem", "action": "write", "description": "Nhập/cập nhật điểm"},
+
+        {"id": "PM010", "code": "exams:read", "resource": "exam_banks", "action": "read", "description": "Xem dữ liệu khảo thí"},
+        {"id": "PM011", "code": "exams:write", "resource": "exam_banks", "action": "write", "description": "Tạo/cập nhật dữ liệu khảo thí"},
+
+        {"id": "PM012", "code": "surveys:read", "resource": "surveys", "action": "read", "description": "Xem khảo sát"},
+        {"id": "PM013", "code": "surveys:write", "resource": "surveys", "action": "write", "description": "Tạo/cập nhật khảo sát"},
+
+        {"id": "PM014", "code": "documents:read", "resource": "documents", "action": "read", "description": "Xem metadata tài liệu"},
+        {"id": "PM015", "code": "documents:write", "resource": "documents", "action": "write", "description": "Tạo/cập nhật metadata tài liệu"},
+
+        {"id": "PM016", "code": "reports:read", "resource": "reports", "action": "read", "description": "Xem báo cáo tổng hợp"},
     ]
 
     roles = [
-        {"id": "RL001", "name": "Quản trị viên", "code": "Admin", "description": "Hệ thống quản trị viên"},
-        {"id": "RL002", "name": "Kiểm toán viên", "code": "Auditor", "description": "Người kiểm toán"},
-        {"id": "RL003", "name": "Giảng viên", "code": "GiangVien", "description": "Giảng viên"},
-        {"id": "RL004", "name": "Học viên", "code": "HocVien", "description": "Học viên / sinh viên"},
-        {"id": "RL005", "name": "Cán bộ P2", "code": "P2", "description": "Phòng đào tạo"},
-        {"id": "RL006", "name": "Ban giám đốc", "code": "BGD", "description": "Ban giám đốc"},
-        {"id": "RL007", "name": "Cán bộ P7", "code": "P7", "description": "Phòng khảo thí"},
+        {"id": "RL001", "name": "Administrator", "code": "ADMIN", "description": "Quản trị toàn hệ thống"},
+        {"id": "RL002", "name": "Ban Giám đốc", "code": "BGD", "description": "Xem báo cáo cấp cao"},
+        {"id": "RL003", "name": "Phòng Đào tạo", "code": "P2", "description": "Quản lý đào tạo"},
+        {"id": "RL004", "name": "Giảng viên", "code": "GIANG_VIEN", "description": "Tài khoản giảng viên"},
+        {"id": "RL005", "name": "Học viên", "code": "HOC_VIEN", "description": "Tài khoản học viên"},
+        {"id": "RL006", "name": "Ban Khảo thí", "code": "KHAO_THI", "description": "Quản lý khảo thí"},
     ]
 
-    role_permissions = [
-        {"role_id": "RL001", "permission_id": "PM001"},
-        {"role_id": "RL001", "permission_id": "PM002"},
-        {"role_id": "RL001", "permission_id": "PM003"},
-        {"role_id": "RL001", "permission_id": "PM004"},
-        {"role_id": "RL001", "permission_id": "PM005"},
-        {"role_id": "RL001", "permission_id": "PM006"},
-        {"role_id": "RL001", "permission_id": "PM007"},
-        {"role_id": "RL002", "permission_id": "PM001"},
-        {"role_id": "RL002", "permission_id": "PM003"},
-        {"role_id": "RL002", "permission_id": "PM005"},
-        {"role_id": "RL003", "permission_id": "PM001"},
-        {"role_id": "RL003", "permission_id": "PM006"},
-        {"role_id": "RL003", "permission_id": "PM007"},
-        {"role_id": "RL004", "permission_id": "PM001"},
-        {"role_id": "RL005", "permission_id": "PM001"},
-        {"role_id": "RL005", "permission_id": "PM006"},
-        {"role_id": "RL006", "permission_id": "PM001"},
-        {"role_id": "RL006", "permission_id": "PM005"},
-        {"role_id": "RL007", "permission_id": "PM001"},
-        {"role_id": "RL007", "permission_id": "PM006"},
-    ]
+    role_permissions = []
 
-    user_roles = [
-        {"user_id": "USR001", "role_id": "RL001"},
-        {"user_id": "USR002", "role_id": "RL002"},
-        {"user_id": "USR003", "role_id": "RL003"},
-        {"user_id": "USR004", "role_id": "RL004"},
-        {"user_id": "USR005", "role_id": "RL005"},
-    ]
+    # ADMIN: all permissions
+    for permission in permissions:
+        role_permissions.append({"role_id": "RL001", "permission_id": permission["id"]})
 
-    user_permissions = [
-        {"user_id": "USR001", "permission_id": "PM001"},
-        {"user_id": "USR001", "permission_id": "PM002"},
-        {"user_id": "USR001", "permission_id": "PM003"},
-    ]
+    # BGD: read-only overview
+    for pid in ["PM006", "PM008", "PM010", "PM012", "PM014", "PM016"]:
+        role_permissions.append({"role_id": "RL002", "permission_id": pid})
 
+    # P2: training/student/grades
+    for pid in ["PM006", "PM007", "PM008", "PM009", "PM014", "PM016"]:
+        role_permissions.append({"role_id": "RL003", "permission_id": pid})
+
+    # GIANG_VIEN
+    for pid in ["PM006", "PM008", "PM009", "PM010", "PM012", "PM014"]:
+        role_permissions.append({"role_id": "RL004", "permission_id": pid})
+
+    # HOC_VIEN
+    for pid in ["PM008", "PM012", "PM014"]:
+        role_permissions.append({"role_id": "RL005", "permission_id": pid})
+
+    # KHAO_THI
+    for pid in ["PM010", "PM011", "PM012", "PM013", "PM014"]:
+        role_permissions.append({"role_id": "RL006", "permission_id": pid})
+
+    user_permissions = []
     return {
         "users": users,
         "permissions": permissions,
@@ -956,7 +987,7 @@ RESTART IDENTITY CASCADE;
 """)
 
 
-def write_dimensions_seed(path, nam_hoc_list, hoc_ky_list, don_vi_list, giang_vien_list, truncate=False):
+def write_dimensions_seed(path, nam_hoc_list, hoc_ky_list, don_vi_list, truncate=False):
     with open(path, "w", encoding="utf-8") as f:
         write_header(f)
         if truncate:
@@ -965,7 +996,6 @@ def write_dimensions_seed(path, nam_hoc_list, hoc_ky_list, don_vi_list, giang_vi
         write_insert_statement(f, "nam_hoc", ["id", "ma", "ten", "ngay_bat_dau", "ngay_ket_thuc", "active"], nam_hoc_list)
         write_insert_statement(f, "hoc_ky", ["id", "ma", "ten", "loai_hoc_ky", "nam_hoc_id", "ten_nam_hoc", "ngay_bat_dau", "ngay_ket_thuc", "active"], hoc_ky_list)
         write_insert_statement(f, "don_vi", ["id", "ma", "ten", "ten_viet_tat", "cap_don_vi", "parent_id", "active"], don_vi_list)
-        write_insert_statement(f, "giang_vien", ["id", "ma_gv", "ho_ten", "email", "so_dien_thoai", "don_vi_id", "ten_don_vi", "hoc_vi", "hoc_ham", "active"], giang_vien_list)
         write_footer(f)
 
 
@@ -984,12 +1014,13 @@ def write_iam_seed(path, iam_data, truncate=False):
         write_footer(f)
 
 
-def write_core_seed(path, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, truncate=False):
+def write_core_seed(path, giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, truncate=False):
     with open(path, "w", encoding="utf-8") as f:
         write_header(f)
         if truncate:
             write_truncate_statements(f)
         f.write("-- ============================================\n-- CORE ENTITY SEED\n-- ============================================\n\n")
+        write_insert_statement(f, "giang_vien", ["id", "ma_gv", "ho_ten", "email", "so_dien_thoai", "don_vi_id", "ten_don_vi", "hoc_vi", "hoc_ham", "active"], giang_vien_list)
         write_insert_statement(f, "hoc_vien", ["id", "ma_hv", "ho_ten", "ngay_sinh", "noi_sinh", "que_quan", "email", "so_dien_thoai", "ma_lop", "ten_chuyen_nganh", "ten_nganh", "ten_khoa_dao_tao", "trang_thai", "gpa_he4", "gpa_he10", "so_tin_chi_tich_luy", "muc_canh_bao", "active"], hoc_vien_list)
         write_insert_statement(f, "mon_hoc", ["id", "ma_mon", "ten_mon", "so_tin_chi", "so_tiet", "don_vi_ql_id", "ten_don_vi_ql", "active"], mon_hoc_list)
         write_insert_statement(f, "lop_hoc_phan", ["id", "ma_lhp", "ten_lhp", "mon_hoc_id", "ma_mon", "ten_mon", "hoc_ky_id", "ten_hoc_ky", "giang_vien_id", "ten_giang_vien", "si_so_toi_da", "phong", "active"], lop_hoc_phan_list)
@@ -1104,7 +1135,7 @@ def main():
     diem_list = generate_diem(hoc_vien_list, mon_hoc_list, hoc_ky_list, lop_hoc_phan_list)
     ket_qua_list = generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list)
     khao_thi = generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vien_list)
-    iam_data = generate_iam_data()  # You'll need to implement this
+    iam_data = generate_iam_data(hoc_vien_list, giang_vien_list)  # You'll need to implement this
     
     # Validate
     validate_diem_uniqueness(diem_list)
@@ -1116,9 +1147,9 @@ def main():
         os.makedirs(args.out_dir, exist_ok=True)
         paths = get_output_paths(args.out_dir)
         
-        write_dimensions_seed(paths["dimensions"], nam_hoc_list, hoc_ky_list, don_vi_list, giang_vien_list, args.truncate)
+        write_dimensions_seed(paths["dimensions"], nam_hoc_list, hoc_ky_list, don_vi_list, args.truncate)
         write_iam_seed(paths["iam"], iam_data, args.truncate)
-        write_core_seed(paths["core"], hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, args.truncate)
+        write_core_seed(paths["core"],giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, args.truncate)
         write_khao_thi_seed(paths["khao_thi"], khao_thi, args.truncate)
         
         print(f"Seed data generated in: {args.out_dir}")
