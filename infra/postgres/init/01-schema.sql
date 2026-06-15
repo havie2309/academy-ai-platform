@@ -139,7 +139,8 @@ CREATE TABLE diem (
     diem_he4 DECIMAL(3,2),
     dat BOOLEAN,
     created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (hoc_vien_id, mon_hoc_id, hoc_ky_id)
 );
 
 -- ket_qua_hoc_ky - Kết quả học kỳ
@@ -159,7 +160,8 @@ CREATE TABLE ket_qua_hoc_ky (
     xep_loai VARCHAR(50),
     diem_ren_luyen INTEGER,
     muc_canh_bao INTEGER,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE (hoc_vien_id, hoc_ky_id)
 );
 
 
@@ -261,6 +263,79 @@ CREATE TABLE login_logs (
     success BOOLEAN DEFAULT TRUE,
     failure_reason VARCHAR(255),
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- audit_log - Nhật ký kiểm toán (Security & Compliance)
+CREATE TABLE audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
+    action VARCHAR(50) NOT NULL,
+    resource_type VARCHAR(50),
+    resource_id VARCHAR(100),
+    old_value JSONB,
+    new_value JSONB,
+    ip_address INET,
+    user_agent TEXT,
+    status VARCHAR(20) DEFAULT 'success' CHECK (status IN ('success', 'failure', 'denied')),
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+
+-- ============================================
+-- DOCUMENT MANAGEMENT TABLES
+-- ============================================
+
+-- documents - Metadata tài liệu (bản ghi master)
+CREATE TABLE documents (
+    id VARCHAR(50) PRIMARY KEY,
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    document_type VARCHAR(20) NOT NULL CHECK (document_type IN ('pdf', 'docx', 'pptx', 'xlsx', 'txt')),
+    source_type VARCHAR(50) DEFAULT 'manual_upload' CHECK (source_type IN ('manual_upload', 'library_sync', 'api_sync')),
+    source_system VARCHAR(50) DEFAULT 'manual' CHECK (source_system IN ('manual', 'pm_thu_vien', 'pm_dao_tao', 'pm_khcn')),
+    source_id VARCHAR(100),
+    owner_unit_code VARCHAR(50),
+    owner_unit_name VARCHAR(255),
+    category VARCHAR(100),
+    tags TEXT[],
+    security_level VARCHAR(20) DEFAULT 'internal' CHECK (security_level IN ('public', 'internal', 'restricted', 'confidential')),
+    access_scope_type VARCHAR(20) DEFAULT 'department' CHECK (access_scope_type IN ('all', 'department', 'role', 'custom')),
+    access_department_codes TEXT[],
+    access_role_codes TEXT[],
+    access_user_ids VARCHAR(50)[],
+    file_name VARCHAR(255) NOT NULL,
+    file_original_name VARCHAR(500),
+    file_path VARCHAR(500) NOT NULL,
+    file_mime_type VARCHAR(100),
+    file_size_bytes BIGINT,
+    file_checksum VARCHAR(100),
+    version INTEGER DEFAULT 1,
+    is_latest_version BOOLEAN DEFAULT TRUE,
+    processing_status VARCHAR(30) DEFAULT 'uploaded' CHECK (processing_status IN ('uploaded', 'extracting', 'chunking', 'embedding', 'embedded', 'error')),
+    chunk_count INTEGER DEFAULT 0,
+    uploaded_by VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    deleted_at TIMESTAMP
+);
+
+-- document_versions - Lịch sử phiên bản tài liệu
+CREATE TABLE document_versions (
+    version_id VARCHAR(50) PRIMARY KEY,
+    doc_id VARCHAR(50) REFERENCES documents(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    title VARCHAR(500),
+    description TEXT,
+    file_name VARCHAR(255),
+    file_path VARCHAR(500),
+    file_size_bytes BIGINT,
+    file_checksum VARCHAR(100),
+    owner_unit_code VARCHAR(50),
+    security_level VARCHAR(20),
+    change_reason TEXT,
+    changed_by VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
+    changed_at TIMESTAMP DEFAULT NOW()
 );
 
 
@@ -565,3 +640,30 @@ CREATE INDEX idx_surveys_topic ON surveys(survey_topic_id);
 CREATE INDEX idx_survey_sessions_survey ON survey_sessions(survey_id);
 CREATE INDEX idx_survey_sessions_student ON survey_sessions(hoc_vien_id);
 CREATE INDEX idx_survey_answers_session ON survey_answers(survey_session_id);
+
+
+-- Audit log indexes
+CREATE INDEX idx_audit_user_id ON audit_log(user_id);
+CREATE INDEX idx_audit_action ON audit_log(action);
+CREATE INDEX idx_audit_created_at ON audit_log(created_at DESC);
+CREATE INDEX idx_audit_resource ON audit_log(resource_type, resource_id);
+CREATE INDEX idx_audit_status ON audit_log(status);
+
+-- Document indexes
+CREATE INDEX idx_documents_owner_unit ON documents(owner_unit_code);
+CREATE INDEX idx_documents_security_level ON documents(security_level);
+CREATE INDEX idx_documents_processing_status ON documents(processing_status);
+CREATE INDEX idx_documents_uploaded_by ON documents(uploaded_by);
+CREATE INDEX idx_documents_source_system ON documents(source_system, source_id);
+CREATE INDEX idx_documents_category ON documents(category);
+CREATE INDEX idx_documents_tags ON documents USING GIN(tags);
+CREATE INDEX idx_documents_access_department ON documents USING GIN(access_department_codes);
+CREATE INDEX idx_documents_access_role ON documents USING GIN(access_role_codes);
+CREATE INDEX idx_documents_is_latest_version ON documents(is_latest_version) WHERE is_latest_version = true;
+CREATE INDEX idx_documents_deleted_at ON documents(deleted_at) WHERE deleted_at IS NULL;
+
+-- Document versions indexes
+CREATE INDEX idx_document_versions_doc_id ON document_versions(doc_id);
+CREATE INDEX idx_document_versions_changed_by ON document_versions(changed_by);
+CREATE INDEX idx_document_versions_changed_at ON document_versions(changed_at DESC);
+CREATE INDEX idx_document_versions_doc_version ON document_versions(doc_id, version_number);
