@@ -24,7 +24,13 @@ export default function Sidebar() {
   ]
 
   const handleNewChat = () => {
-    navigate('/chat')
+    if (activeSessionId) {
+      navigate('/chat')
+      return
+    }
+    if (location.pathname !== '/chat') {
+      navigate('/chat')
+    }
   }
 
   const handleDeleteSession = async (e: MouseEvent, id: string) => {

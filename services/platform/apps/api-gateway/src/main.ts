@@ -1,21 +1,17 @@
 import { NestFactory } from '@nestjs/core';
-import { ApiGatewayModule } from './api-gateway.module';
+import { ExpressAdapter } from '@nestjs/platform-express';
+import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import { ApiGatewayModule } from './api-gateway.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(ApiGatewayModule);
-
-  app.enableCors({
-    origin: process.env.WEB_URL ?? 'http://localhost:5173',
-    credentials: true,
-  });
-
   const userMgmt =
     process.env.USER_MANAGEMENT_URL ?? 'http://localhost:3001';
   const chatUrl = process.env.CHAT_URL ?? 'http://localhost:3002';
-  const expressApp = app.getHttpAdapter().getInstance();
 
-  expressApp.use(
+  const server = express();
+
+  server.use(
     createProxyMiddleware({
       target: userMgmt,
       changeOrigin: true,
@@ -24,7 +20,7 @@ async function bootstrap() {
     }),
   );
 
-  expressApp.use(
+  server.use(
     createProxyMiddleware({
       target: chatUrl,
       changeOrigin: true,
@@ -33,6 +29,13 @@ async function bootstrap() {
       timeout: 0,
     }),
   );
+
+  const app = await NestFactory.create(ApiGatewayModule, new ExpressAdapter(server));
+
+  app.enableCors({
+    origin: process.env.WEB_URL ?? 'http://localhost:5173',
+    credentials: true,
+  });
 
   const port = process.env.APP_PORT ?? 3000;
   await app.listen(port);
