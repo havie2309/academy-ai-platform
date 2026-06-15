@@ -12,6 +12,7 @@ async function bootstrap() {
 
   const userMgmt =
     process.env.USER_MANAGEMENT_URL ?? 'http://localhost:3001';
+  const chatUrl = process.env.CHAT_URL ?? 'http://localhost:3002';
   const expressApp = app.getHttpAdapter().getInstance();
 
   expressApp.use(
@@ -20,6 +21,16 @@ async function bootstrap() {
       changeOrigin: true,
       pathFilter: (pathname) =>
         pathname.startsWith('/api/auth') || pathname.startsWith('/api/users'),
+    }),
+  );
+
+  expressApp.use(
+    createProxyMiddleware({
+      target: chatUrl,
+      changeOrigin: true,
+      pathFilter: (pathname) => pathname.startsWith('/api/chat'),
+      proxyTimeout: 0,
+      timeout: 0,
     }),
   );
 

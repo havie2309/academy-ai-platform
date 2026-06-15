@@ -17,6 +17,7 @@ function App() {
           <Route element={<ChatLayout />}>
             <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/docs" element={<DocsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
 

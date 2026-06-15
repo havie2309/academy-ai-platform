@@ -75,7 +75,7 @@ export interface GatewayHealth {
   status: string;
   service: string;
   timestamp: string;
-  upstream: { userManagement: 'up' | 'down' };
+  upstream: { userManagement: 'up' | 'down'; chat?: 'up' | 'down' };
 }
 
 export async function fetchGatewayHealth(): Promise<GatewayHealth | null> {
