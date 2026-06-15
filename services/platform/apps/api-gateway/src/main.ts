@@ -1,8 +1,30 @@
 import { NestFactory } from '@nestjs/core';
 import { ApiGatewayModule } from './api-gateway.module';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
-  await app.listen(process.env.port ?? 3000);
+
+  app.enableCors({
+    origin: process.env.WEB_URL ?? 'http://localhost:5173',
+    credentials: true,
+  });
+
+  const userMgmt =
+    process.env.USER_MANAGEMENT_URL ?? 'http://localhost:3001';
+  const expressApp = app.getHttpAdapter().getInstance();
+
+  expressApp.use(
+    createProxyMiddleware({
+      target: userMgmt,
+      changeOrigin: true,
+      pathFilter: (pathname) =>
+        pathname.startsWith('/api/auth') || pathname.startsWith('/api/users'),
+    }),
+  );
+
+  const port = process.env.APP_PORT ?? 3000;
+  await app.listen(port);
+  console.log(`api-gateway listening on http://localhost:${port}`);
 }
 bootstrap();

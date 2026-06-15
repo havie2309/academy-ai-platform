@@ -1,4 +1,6 @@
-import { LayoutDashboard, Users, MessageSquare, CheckCircle, Database, TrendingUp } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { LayoutDashboard, Users, MessageSquare, CheckCircle, Database, TrendingUp, Server, AlertCircle } from 'lucide-react'
+import { authApi, fetchGatewayHealth, type GatewayHealth } from '../api/auth'
 
 const stats = [
   { label: 'Học viên hoạt động', value: '1,248', change: '+12%', sub: 'so với tuần trước', icon: Users, color: 'text-blue-600 bg-blue-50' },
@@ -21,7 +23,6 @@ const topics = [
   { name: 'Học phí & Học bổng', percent: 10, count: 4521, color: 'bg-amber-600' },
 ]
 
-// Pure CSS bar chart representation
 const weeklyActivity = [
   { day: 'T2', value: 45 },
   { day: 'T3', value: 65 },
@@ -32,27 +33,73 @@ const weeklyActivity = [
   { day: 'CN', value: 30 },
 ]
 
+function StatusDot({ ok }: { ok: boolean }) {
+  return (
+    <span className={`w-2 h-2 rounded-full shrink-0 ${ok ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+  )
+}
+
 export default function AdminPage() {
+  const user = authApi.getUser()
+  const [health, setHealth] = useState<GatewayHealth | null>(null)
+  const [healthLoading, setHealthLoading] = useState(true)
+
+  useEffect(() => {
+    fetchGatewayHealth()
+      .then(setHealth)
+      .finally(() => setHealthLoading(false))
+  }, [])
+
+  const gatewayUp = health?.status === 'ok'
+  const userMgmtUp = health?.upstream.userManagement === 'up'
+
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-6 md:p-8 overflow-y-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <LayoutDashboard className="text-blue-600" />
             Dashboard Giáo dục
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Theo dõi lưu lượng truy vấn, độ chính xác tri thức và hoạt động học vụ của học viên.
+            Xin chào {user?.full_name ?? 'Admin'} — theo dõi hoạt động trợ lý ảo và hệ thống.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          <span>Dữ liệu thời gian thực</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
+            <AlertCircle size={14} />
+            <span>Số liệu demo</span>
+          </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 max-w-2xl">
+        <div className="flex items-center gap-3 bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
+          <Server size={18} className="text-blue-600 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">API Gateway</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <StatusDot ok={!healthLoading && gatewayUp} />
+              <span className="text-sm font-semibold text-slate-700">
+                {healthLoading ? 'Đang kiểm tra…' : gatewayUp ? 'Hoạt động' : 'Lỗi'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
+          <Server size={18} className="text-indigo-600 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">User Management</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <StatusDot ok={!healthLoading && userMgmtUp} />
+              <span className="text-sm font-semibold text-slate-700">
+                {healthLoading ? 'Đang kiểm tra…' : userMgmtUp ? 'Hoạt động' : 'Offline'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         {stats.map(({ label, value, change, sub, icon: Icon, color }) => (
           <div key={label} className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm">
@@ -74,13 +121,11 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        {/* Left: Topic distribution */}
         <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm lg:col-span-2">
           <h3 className="text-sm font-extrabold text-slate-800 mb-4 uppercase tracking-wider">Chủ đề học viên quan tâm</h3>
           <div className="space-y-4">
-            {topics.map(topic => (
+            {topics.map((topic) => (
               <div key={topic.name}>
                 <div className="flex justify-between text-xs font-bold text-slate-600 mb-1.5">
                   <span>{topic.name}</span>
@@ -94,13 +139,15 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Right: Activity Chart */}
         <div className="bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm">
           <h3 className="text-sm font-extrabold text-slate-800 mb-4 uppercase tracking-wider">Tần suất hỏi trong tuần</h3>
           <div className="flex items-end justify-between h-40 pt-4 px-2">
-            {weeklyActivity.map(activity => (
+            {weeklyActivity.map((activity) => (
               <div key={activity.day} className="flex flex-col items-center gap-2 w-full">
-                <div className="w-6 bg-gradient-to-t from-blue-500 to-blue-600 rounded-t-md hover:opacity-90 transition-all" style={{ height: `${activity.value * 1.2}px` }} />
+                <div
+                  className="w-6 bg-gradient-to-t from-blue-500 to-blue-600 rounded-t-md hover:opacity-90 transition-all"
+                  style={{ height: `${activity.value * 1.2}px` }}
+                />
                 <span className="text-[11px] font-bold text-slate-400">{activity.day}</span>
               </div>
             ))}
@@ -108,11 +155,12 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Recent Queries Table */}
       <div className="bg-white border border-slate-200/60 rounded-2xl shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-100 flex justify-between items-center">
           <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">Lịch sử câu hỏi gần đây</h3>
-          <button className="text-xs font-bold text-blue-600 hover:text-blue-700">Xem tất cả</button>
+          <button type="button" className="text-xs font-bold text-blue-600 hover:text-blue-700 cursor-pointer">
+            Xem tất cả
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm border-collapse">
@@ -137,9 +185,15 @@ export default function AdminPage() {
                     </span>
                   </td>
                   <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                    <span className={`inline-block text-[11px] font-bold ${
-                      q.rating === 'Tốt' ? 'text-emerald-600' : q.rating === 'Trung bình' ? 'text-amber-500' : 'text-slate-400'
-                    }`}>
+                    <span
+                      className={`inline-block text-[11px] font-bold ${
+                        q.rating === 'Tốt'
+                          ? 'text-emerald-600'
+                          : q.rating === 'Trung bình'
+                            ? 'text-amber-500'
+                            : 'text-slate-400'
+                      }`}
+                    >
                       {q.rating}
                     </span>
                   </td>

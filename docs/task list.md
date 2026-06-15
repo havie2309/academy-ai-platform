@@ -22,12 +22,12 @@
 | Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  | `[x]`   | `README.md`, `.gitignore`, `docs/`, `libs/`, `services/platform/`, 4 Python services, `web-ui/`, `llm-server/` placeholder, `data/`, `eval/` |
 | Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold        | M0  | `[x]`   | `nest-cli.json` + 8 apps; `npm run build` pass (2026-06-11) |
 | Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`         | M0  | `[x]`   | 4 FastAPI template (`main.py` `/health`, `Dockerfile`, `requirements.txt`); `services/platform/libs/` — `ai-clients`, `schemas`, `prompts`, `policies` (Python stubs); repo `libs/` vẫn `.gitkeep` |
-| Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[x]`   | profile `code`, 7 data services, `mem_limit`, HC postgres/mongo/redis/rabbitmq; `compose config` OK |
-| Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  | `[x]`   | DB/MQ/Redis/Milvus + `LLM_BASE_URL`, `LLM_MODEL=qwen2.5:3b`, `EMBEDDING_BASE_URL`, `RERANK_BASE_URL` |
+| Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[x]`   | profile `code`, 7 data services + `user-management` (3001); Postgres host **5433** (tránh xung đột local); Mongo mount init; `mem_limit`, HC postgres/mongo/redis/rabbitmq |
+| Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  | `[x]`   | DB/MQ/Redis/Milvus + `LLM_*`, `EMBEDDING_*`, `RERANK_*`; `JWT_*`, `USER_MANAGEMENT_*`, `APP_PORT`, `WEB_URL`; `services/platform/.env.example` |
 | Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  | `[x]`   | `src/common/logger.middleware.ts` + `common.module.ts`; `CommonModule` import vào 8 Nest apps; `npm run build` pass |
-| Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  | `[-]`   | `scripts/up-code.ps1`, `down.ps1`, `logs.ps1`, `health.ps1` + bảng Scripts trong `README.md`; thiếu `up-ai.ps1` |
+| Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  | `[-]`   | `scripts/up-code.ps1`, `down.ps1`, `logs.ps1`, `health.ps1`, **`seed-iam.ps1`** (docker cp UTF-8); thiếu `up-ai.ps1` |
 | Tài liệu | A-06 · Quickstart 2 máy (README): Máy nền tảng + hướng dẫn Máy mô hình           | M0  | `[-]`   | `README.md` quickstart 1 máy + scripts; topology 2 máy ghi chú ngắn; thiếu hướng dẫn chi tiết Máy mô hình |
-| Test     | A-07 · Smoke test profile `code` — bootstrap Máy nền tảng end-to-end             | M0  |         |          |
+| Test     | A-07 · Smoke test profile `code` — bootstrap Máy nền tảng end-to-end             | M0  | `[-]`   | Dev smoke: Postgres + JWT login qua gateway OK (2026-06-15); chưa script tự động |
 | Hạ tầng  | A-08 · Profile `ai` (Máy mô hình): compose services AI, `.env.ai.example`        | M1  |         |          |
 | Test     | A-09 · Smoke test cross-host: Máy nền tảng → Máy mô hình (embed + chat)          | M1  |         |          |
 
@@ -55,12 +55,12 @@
 
 | Loại    | Mô tả                                                           | MS  | Tiến độ | Evidence |
 | ------- | --------------------------------------------------------------- | --- | ------- | -------- |
-| Dữ liệu | C-01 · Postgres migration baseline (IAM, audit, nghiệp vụ core) | M0  | `[x]`   | `infra/postgres/init/01-schema.sql` — dimension + nghiệp vụ (hoc_vien, diem, …) + RBAC (users, roles, permissions, sessions, login_logs); mount `/docker-entrypoint-initdb.d` trong `docker-compose.yml` |
-| Dữ liệu | C-02 · MongoDB catalog schema tài liệu, chunk, ingest job       | M0  |         |          |
+| Dữ liệu | C-01 · Postgres migration baseline (IAM, audit, nghiệp vụ core) | M0  | `[x]`   | **Reorg main** (`reorg-postgres`): `01-dimensions.sql`, `02-iam.sql`, `03-core-entities.sql`, `04-khao-thi.sql`, `09-indexes.sql`; audit/documents; mount `/docker-entrypoint-initdb.d` |
+| Dữ liệu | C-02 · MongoDB catalog schema tài liệu, chunk, ingest job       | M0  | `[x]`   | `infra/mongodb/init/01-schema.js` + `02-config.js`; mount `./infra/mongodb/init:/docker-entrypoint-initdb.d` trong `docker-compose.yml` (PR #6) |
 | Dữ liệu | C-03 · Milvus collection và metadata filter                     | M0  |         |          |
 | Dữ liệu | C-04 · Redis session, cache, connection pool                    | M0  |         |          |
 | Dữ liệu | C-05 · RabbitMQ exchange/queue ingest và DLQ                    | M0  |         |          |
-| Dữ liệu | C-06 · Seed dữ liệu nghiệp vụ mẫu và user đa role               | M0  | `[-]`   | `infra/postgres/init/02-seed.sql` (~3800 dòng) + `infra/postgres/seed/generate_seed.py` (Faker vi_VN): nam_hoc, hoc_ky, don_vi, giang_vien, hoc_vien, mon_hoc, lop_hoc_phan, diem, ket_qua_hoc_ky; **chưa** seed users/roles/permissions |
+| Dữ liệu | C-06 · Seed dữ liệu nghiệp vụ mẫu và user đa role               | M0  | `[-]`   | **Split seed main**: `11-seed-dimensions.sql`, **`12-seed-iam.sql`** (bcrypt `123456`, roles Admin/GiangVien/HocVien/P2), `13-seed-core.sql`, `14-seed-khao-thi.sql` + `generate_seed.py`; **chưa** sync `generate_seed.py` IAM với bcrypt |
 | Dữ liệu | C-07 · Bộ tài liệu mẫu `data/sample-docs/` đa định dạng         | M0  |         |          |
 | Bảo mật | C-08 · User `pm2_readonly` cho Text-to-SQL                      | M4  |         |          |
 | Test    | C-09 · Test health và connectivity data platform                | M0  |         |          |
@@ -129,12 +129,12 @@
 
 | Loại    | Mô tả                                                        | MS  | Tiến độ | Evidence |
 | ------- | ------------------------------------------------------------ | --- | ------- | -------- |
-| Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  |         |          |
+| Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  | `[-]`   | Proxy `/api/auth`, `/api/users` → `user-management`; `GET /api/health` + upstream check; port 3000; Vite proxy `/api`; **chưa** JWT verify gateway, proxy RAG/Python |
 | Backend | G-02 · `rbac` NestJS — role model, permission matrix         | M5  |         |          |
 | Backend | G-03 · `rbac` — inject `access_scope` cho downstream         | M5  |         |          |
 | Bảo mật | G-04 · Row-level filter (NestJS `rbac` + Postgres policy)    | M5  |         |          |
 | Backend | G-05 · `audit` NestJS — audit log immutable                  | M5  |         |          |
-| Backend | G-06 · `user-management` NestJS — user, profile, đơn vị, IAM | M5  |         |          |
+| Backend | G-06 · `user-management` NestJS — user, profile, đơn vị, IAM | M5  | `[-]`   | `auth/` + `user/`: login/logout/me; JWT + bcrypt; sessions + login_logs; port 3001; `Dockerfile`; E2E login **admin/123456** qua gateway (2026-06-15); **chưa** CRUD user, align role codes với `12-seed-iam.sql` |
 | Backend | G-07 · Rate limit và throttling theo role (gateway)          | M5  |         |          |
 | Backend | G-08 · `admin-config` NestJS — CRUD prompt/policy có version | M5  |         |          |
 | Backend | G-09 · `workflow` NestJS — luồng phê duyệt / trạng thái      | M5  |         |          |
@@ -167,7 +167,7 @@
 | Loại      | Mô tả                                       | MS  | Tiến độ | Evidence |
 | --------- | ------------------------------------------- | --- | ------- | -------- |
 | Nghiệp vụ | I-01 · Module Đào tạo                       | M6  |         |          |
-| Nghiệp vụ | I-02 · Module Khảo thí & ĐBCL               | M6  |         |          |
+| Nghiệp vụ | I-02 · Module Khảo thí & ĐBCL               | M6  | `[-]`   | DB: `04-khao-thi.sql` + `14-seed-khao-thi.sql`; **chưa** API NestJS, ingest, UI nghiệp vụ |
 | Nghiệp vụ | I-03 · Module KHCN                          | M6  |         |          |
 | Nghiệp vụ | I-04 · Module Thư viện                      | M6  |         |          |
 | Nghiệp vụ | I-05 · Module tự phục vụ học viên/sinh viên | M6  |         |          |
@@ -197,14 +197,14 @@
 
 | Loại | Mô tả                                                      | MS  | Tiến độ | Evidence |
 | ---- | ---------------------------------------------------------- | --- | ------- | -------- |
-| UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  | `[x]`   | `services/web-ui/` — Vite 8 + React 19 + Router 7 + Tailwind 4; `ChatLayout`, `Sidebar`, routes `/chat` `/docs` `/admin` `/settings` `/login`; brand **EduMind** |
-| UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[-]`   | `LoginPage.tsx`, `RequireAuth.tsx`, `auth.ts` (mock user admin/gv001/hv001/p2, pass `123456`); `localStorage` token; `VITE_REQUIRE_AUTH` toggle (`.env.example`); redirect role sau login; **chưa** JWT backend, **chưa** guard theo role trên route |
-| UI   | K-03 · Chat page: SSE streaming, markdown, citation links  | M6  | `[-]`   | `ChatPage.tsx` + `api/chat.ts` → `POST /chat` (mock `apps/platform`); UI gợi ý + loading; **chưa** SSE, markdown, citation links |
-| UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  |         |          |
+| UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  | `[x]`   | `services/web-ui/` — Vite 8 + React 19 + Router 7 + Tailwind 4; `ChatLayout`, `Sidebar`; routes `/chat` `/docs` `/admin` `/settings` `/login`; brand **EduMind** |
+| UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[-]`   | JWT E2E qua gateway (`VITE_API_URL` empty → Vite proxy `/api`); login/logout; guard `/admin` Admin/BGD/P2/P7; mock toggle `VITE_MOCK_AUTH`; **chưa** align role codes với seed main (`admin`/`instructor`/`student`) |
+| UI   | K-03 · Chat page: SSE streaming, markdown, citation links  | M6  | `[-]`   | `ChatPage.tsx` polish (greeting, clear chat, role badge); OpenAI qua `/api/openai`; mock citations; **chưa** SSE, markdown, RAG |
+| UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  | `[-]`   | `DocsPage.tsx` — mock list, search/filter, stats; nút Upload disabled; **chưa** backend ingest |
 | UI   | K-05 · Self-service pages                                  | M6  |         |          |
 | UI   | K-06 · Quiz và summary UI                                  | M6  |         |          |
 | UI   | K-07 · Admin audit viewer và export                        | M6  |         |          |
-| UI   | K-08 · Admin health view (gọi API gateway)                 | M6  |         |          |
+| UI   | K-08 · Admin health view (gọi API gateway)                 | M6  | `[-]`   | `AdminPage.tsx` — `fetchGatewayHealth()` gateway + user-management; badge demo data; stats mock |
 | UI   | K-09 · Admin AI config editor                              | M6  |         |          |
 | UI   | K-10 · Quota/token usage và quản lý tài khoản              | M6  |         |          |
 | Test | K-11 · E2E UI và accessibility checklist                   | M6  |         |          |
@@ -221,7 +221,7 @@
 | Nghiệp vụ | UC-KT-01..04 — khảo thí          | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KH-01..04 — KHCN              | M2/M3/M6 |         |          |
 | AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    |         |          |
-| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 |         |          |
+| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + admin dashboard prototype (K-02, K-08, G-06) |
 
 
 ---
@@ -231,12 +231,12 @@
 
 | Loại      | Mô tả                   | MS  | Workstream | Tiến độ | Evidence |
 | --------- | ----------------------- | --- | ---------- | ------- | -------- |
-| Nghiệp vụ | Nhóm Đào tạo            | M6  | I, F       |         |          |
-| Nghiệp vụ | Nhóm Khảo thí & ĐBCL    | M6  | I          |         |          |
+| Nghiệp vụ | Nhóm Đào tạo            | M6  | I, F       | `[-]`   | Schema + seed core (`13-seed-core.sql`); chưa API/UI |
+| Nghiệp vụ | Nhóm Khảo thí & ĐBCL    | M6  | I          | `[-]`   | Schema + seed (`14-seed-khao-thi.sql`); chưa API/UI |
 | Nghiệp vụ | Nhóm KHCN               | M6  | I, D       |         |          |
 | Nghiệp vụ | Nhóm Thư viện           | M6  | I          |         |          |
-| UI        | Nhóm Tự phục vụ HV/SV   | M6  | K, I       |         |          |
-| AI        | Nhóm Trợ lý ảo nâng cao | M6  | J, K       |         |          |
+| UI        | Nhóm Tự phục vụ HV/SV   | M6  | K, I       | `[-]`   | K-01..K-04 prototype; JWT auth qua gateway |
+| AI        | Nhóm Trợ lý ảo nâng cao | M6  | J, K       | `[-]`   | Chat OpenAI + mock citations (K-03); chưa RAG/J |
 
 
 ### Quy tắc kiểm soát phạm vi
@@ -245,4 +245,3 @@
 - Không dùng `TBD` / `làm sau` / `defer`.
 - Mọi thay đổi phạm vi cập nhật đồng thời section L, M, deliverable và lộ trình milestone.
 - Thay đổi topology (1 máy ↔ 2 máy): cập nhật topology, kế hoạch hạ tầng M0/M1 và workstream A–B cùng lúc.
-

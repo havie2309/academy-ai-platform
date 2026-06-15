@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, FileText, Download, ExternalLink, Filter, BookOpen } from 'lucide-react'
+import { Search, FileText, Download, ExternalLink, Filter, BookOpen, Upload, FolderOpen } from 'lucide-react'
 
 const mockDocs = [
   { id: '1', title: 'Quy chế đào tạo trình độ đại học mới nhất', category: 'Quy chế', type: 'PDF', size: '2.4 MB', date: '12/01/2026', author: 'Phòng Đào tạo' },
@@ -16,45 +16,71 @@ export default function DocsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCat, setSelectedCat] = useState('Tất cả')
 
-  const filteredDocs = mockDocs.filter(doc => {
-    const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          doc.author.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredDocs = mockDocs.filter((doc) => {
+    const matchesSearch =
+      doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      doc.author.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCat = selectedCat === 'Tất cả' || doc.category === selectedCat
     return matchesSearch && matchesCat
   })
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-6 md:p-8 overflow-y-auto">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <BookOpen className="text-blue-600" />
             Tài liệu & Học liệu
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Tra cứu và khai thác kho tài nguyên học tập, quy chế đào tạo nội bộ.
+            Tra cứu kho tài nguyên học tập và quy chế đào tạo nội bộ.
           </p>
         </div>
-        
-        {/* Search */}
-        <div className="relative w-full md:w-80 shrink-0">
-          <input
-            type="text"
-            placeholder="Tìm kiếm tài liệu..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.08)] transition-all text-slate-800 placeholder-slate-400 shadow-sm"
-          />
-          <Search className="absolute left-3.5 top-3 text-slate-400" size={16} />
+
+        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <div className="relative w-full md:w-72 shrink-0">
+            <input
+              type="text"
+              placeholder="Tìm kiếm tài liệu..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.08)] transition-all text-slate-800 placeholder-slate-400 shadow-sm"
+            />
+            <Search className="absolute left-3.5 top-3 text-slate-400" size={16} />
+          </div>
+          <button
+            type="button"
+            disabled
+            title="Tính năng upload sẽ có khi pipeline ingest sẵn sàng"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm font-semibold cursor-not-allowed border border-slate-200"
+          >
+            <Upload size={16} />
+            Tải lên
+          </button>
         </div>
       </div>
 
-      {/* Tabs */}
+      <div className="grid grid-cols-3 gap-3 mb-6 max-w-xl">
+        {[
+          { label: 'Tài liệu', value: mockDocs.length, icon: FileText },
+          { label: 'Danh mục', value: categories.length - 1, icon: FolderOpen },
+          { label: 'Kết quả lọc', value: filteredDocs.length, icon: Filter },
+        ].map(({ label, value, icon: Icon }) => (
+          <div key={label} className="bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-2 text-slate-400 mb-1">
+              <Icon size={14} />
+              <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
+            </div>
+            <p className="text-xl font-extrabold text-slate-800">{value}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
-        {categories.map(cat => (
+        {categories.map((cat) => (
           <button
             key={cat}
+            type="button"
             onClick={() => setSelectedCat(cat)}
             className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
               selectedCat === cat
@@ -67,16 +93,15 @@ export default function DocsPage() {
         ))}
       </div>
 
-      {/* Grid List */}
       {filteredDocs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredDocs.map(doc => (
+          {filteredDocs.map((doc) => (
             <div
               key={doc.id}
-              className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-slate-300 transition-all group"
+              className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-200/60 transition-all group"
             >
               <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
                   <FileText size={20} />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wide">
@@ -84,32 +109,38 @@ export default function DocsPage() {
                 </span>
               </div>
 
+              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">{doc.category}</span>
               <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
                 {doc.title}
               </h3>
 
               <div className="space-y-1.5 mb-5 text-xs text-slate-400">
                 <div className="flex justify-between">
-                  <span>Phát hành:</span>
+                  <span>Phát hành</span>
                   <span className="font-semibold text-slate-600">{doc.author}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Ngày tạo:</span>
+                  <span>Ngày tạo</span>
                   <span className="font-semibold text-slate-600">{doc.date}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Dung lượng:</span>
+                  <span>Dung lượng</span>
                   <span className="font-semibold text-slate-600">{doc.size}</span>
                 </div>
               </div>
 
-              {/* Actions */}
               <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
-                <button className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer">
+                <button
+                  type="button"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer"
+                >
                   <ExternalLink size={12} />
                   Xem online
                 </button>
-                <button className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer">
+                <button
+                  type="button"
+                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer"
+                >
                   <Download size={13} />
                 </button>
               </div>
@@ -122,7 +153,7 @@ export default function DocsPage() {
             <Filter size={20} />
           </div>
           <p className="text-slate-600 font-bold text-sm">Không tìm thấy tài liệu phù hợp</p>
-          <p className="text-slate-400 text-xs mt-1">Vui lòng kiểm tra lại từ khóa hoặc danh mục bộ lọc.</p>
+          <p className="text-slate-400 text-xs mt-1">Thử đổi từ khóa hoặc danh mục bộ lọc.</p>
         </div>
       )}
     </div>

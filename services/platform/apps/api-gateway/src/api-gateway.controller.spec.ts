@@ -14,9 +14,9 @@ describe('ApiGatewayController', () => {
     apiGatewayController = app.get<ApiGatewayController>(ApiGatewayController);
   });
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(apiGatewayController.getHello()).toBe('Hello World!');
-    });
+  it('health returns gateway payload', async () => {
+    const result = await apiGatewayController.health();
+    expect(result.service).toBe('api-gateway');
+    expect(result.upstream).toBeDefined();
   });
 });
