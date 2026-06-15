@@ -11,7 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./infra/postgres/init:/docker-entrypoint-initdb.d
     ports:
-      - "5432:5432"
+      - "5433:5432"
     deploy:
       resources:
         limits:
@@ -146,6 +146,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles: ["code"]
+
+  user-management:
+    build:
+      context: ./services/platform
+      dockerfile: apps/user-management/Dockerfile
+    container_name: pm2_user_management
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: pm2
+      POSTGRES_USER: pm2_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pm2pass}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+      USER_MANAGEMENT_PORT: 3001
+      WEB_URL: ${WEB_URL:-http://localhost:5173}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
     profiles: ["code"]
 
 volumes:
