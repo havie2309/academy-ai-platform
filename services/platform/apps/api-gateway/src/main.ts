@@ -1,3 +1,4 @@
+import http from 'node:http';
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
@@ -11,10 +12,15 @@ async function bootstrap() {
 
   const server = express();
 
+  // Tắt keep-alive cho upstream: tránh tái dùng socket đã bị nửa-đóng sau khi
+  // một stream SSE bị abort, nguyên nhân gây HTTP 400 ngắt quãng cho request kế tiếp.
+  const noKeepAliveAgent = new http.Agent({ keepAlive: false });
+
   server.use(
     createProxyMiddleware({
       target: userMgmt,
       changeOrigin: true,
+      agent: noKeepAliveAgent,
       pathFilter: (pathname) =>
         pathname.startsWith('/api/auth') || pathname.startsWith('/api/users'),
     }),
@@ -24,6 +30,7 @@ async function bootstrap() {
     createProxyMiddleware({
       target: chatUrl,
       changeOrigin: true,
+      agent: noKeepAliveAgent,
       pathFilter: (pathname) => pathname.startsWith('/api/chat'),
       proxyTimeout: 0,
       timeout: 0,
