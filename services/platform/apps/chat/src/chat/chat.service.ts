@@ -118,7 +118,7 @@ export class ChatService implements OnModuleInit {
       content,
     )
     const citations = resolveCitations(text)
-    const answer = await this.callOpenAi(history, citations)
+    const answer = await this.callLlm(history, citations)
     const assistantMsg = await this.persistAssistantMessage(
       userId,
       sessionId,
@@ -169,7 +169,7 @@ export class ChatService implements OnModuleInit {
         route: 'rag',
       })
 
-      const answer = await this.streamOpenAi(history, citations, (delta) => {
+      const answer = await this.streamLlm(history, citations, (delta) => {
         writeSseEvent(res, 'token', { delta })
       })
 
@@ -282,7 +282,7 @@ export class ChatService implements OnModuleInit {
     assistantText: string,
   ): Promise<string> {
     try {
-      return await this.callOpenAiForTitle(userText, assistantText)
+      return await this.callLlmForTitle(userText, assistantText)
     } catch {
       return this.fallbackTitle(userText)
     }
@@ -311,19 +311,60 @@ export class ChatService implements OnModuleInit {
     return this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini')
   }
 
-  private async callOpenAiForTitle(
+  /**
+   * Chọn backend LLM theo LLM_PROVIDER:
+   * - 'openai': gọi OpenAI cloud (cần OPENAI_API_KEY).
+   * - 'ollama' (mặc định): gọi endpoint OpenAI-compatible của Ollama tại LLM_BASE_URL.
+   * Nếu không set LLM_PROVIDER: dùng 'ollama' khi có LLM_BASE_URL, ngược lại 'openai'.
+   */
+  private getLlmConfig(): {
+    provider: 'openai' | 'ollama'
+    url: string
+    model: string
+    headers: Record<string, string>
+  } {
+    const explicit = this.config.get<string>('LLM_PROVIDER')?.trim().toLowerCase()
+    const baseUrl = this.config.get<string>('LLM_BASE_URL')?.trim()
+    const provider: 'openai' | 'ollama' =
+      explicit === 'openai'
+        ? 'openai'
+        : explicit === 'ollama'
+          ? 'ollama'
+          : baseUrl
+            ? 'ollama'
+            : 'openai'
+
+    if (provider === 'openai') {
+      return {
+        provider,
+        url: 'https://api.openai.com/v1/chat/completions',
+        model: this.getOpenAiModel(),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getOpenAiApiKey()}`,
+        },
+      }
+    }
+
+    const base = (baseUrl ?? 'http://localhost:11434').replace(/\/+$/, '')
+    return {
+      provider,
+      url: `${base}/v1/chat/completions`,
+      model: this.config.get<string>('LLM_MODEL', 'qwen2.5:3b'),
+      headers: { 'Content-Type': 'application/json' },
+    }
+  }
+
+  private async callLlmForTitle(
     userText: string,
     assistantText: string,
   ): Promise<string> {
-    const model = this.getOpenAiModel()
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const llm = this.getLlmConfig()
+    const res = await fetch(llm.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.getOpenAiApiKey()}`,
-      },
+      headers: llm.headers,
       body: JSON.stringify({
-        model,
+        model: llm.model,
         max_tokens: 24,
         temperature: 0.3,
         messages: [
@@ -337,14 +378,14 @@ export class ChatService implements OnModuleInit {
     })
 
     if (!res.ok) {
-      throw new ServiceUnavailableException(`OpenAI title lỗi (${res.status})`)
+      throw new ServiceUnavailableException(`LLM title lỗi (${res.status})`)
     }
 
     const data = (await res.json()) as {
       choices?: { message?: { content?: string } }[]
     }
     const raw = data.choices?.[0]?.message?.content?.trim()
-    if (!raw) throw new ServiceUnavailableException('OpenAI title rỗng.')
+    if (!raw) throw new ServiceUnavailableException('LLM title rỗng.')
 
     const title = raw.replace(/^["'「『]|["'」』]$/g, '').trim()
     if (!title) return this.fallbackTitle(userText)
@@ -376,27 +417,24 @@ export class ChatService implements OnModuleInit {
     ]
   }
 
-  private async streamOpenAi(
+  private async streamLlm(
     history: ChatMessageDoc[],
     citations: ChatCitationDto[],
     onDelta: (delta: string) => void,
   ): Promise<string> {
-    const model = this.getOpenAiModel()
+    const llm = this.getLlmConfig()
     const messages = this.buildOpenAiMessages(history, citations)
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(llm.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.getOpenAiApiKey()}`,
-      },
-      body: JSON.stringify({ model, messages, stream: true }),
+      headers: llm.headers,
+      body: JSON.stringify({ model: llm.model, messages, stream: true }),
     })
 
     if (!res.ok || !res.body) {
       const body = await res.text()
       throw new ServiceUnavailableException(
-        `OpenAI API lỗi (${res.status}): ${body.slice(0, 200)}`,
+        `LLM API lỗi (${res.status}): ${body.slice(0, 200)}`,
       )
     }
 
@@ -433,32 +471,28 @@ export class ChatService implements OnModuleInit {
     }
 
     if (!fullContent.trim()) {
-      throw new ServiceUnavailableException('OpenAI trả về rỗng.')
+      throw new ServiceUnavailableException('LLM trả về rỗng.')
     }
     return fullContent
   }
 
-  private async callOpenAi(
+  private async callLlm(
     history: ChatMessageDoc[],
     citations: ChatCitationDto[] = [],
   ): Promise<string> {
-    const apiKey = this.getOpenAiApiKey()
-    const model = this.getOpenAiModel()
+    const llm = this.getLlmConfig()
     const messages = this.buildOpenAiMessages(history, citations)
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    const res = await fetch(llm.url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ model, messages }),
+      headers: llm.headers,
+      body: JSON.stringify({ model: llm.model, messages }),
     })
 
     if (!res.ok) {
       const body = await res.text()
       throw new ServiceUnavailableException(
-        `OpenAI API lỗi (${res.status}): ${body.slice(0, 200)}`,
+        `LLM API lỗi (${res.status}): ${body.slice(0, 200)}`,
       )
     }
 
@@ -466,7 +500,7 @@ export class ChatService implements OnModuleInit {
       choices?: { message?: { content?: string } }[]
     }
     const content = data.choices?.[0]?.message?.content
-    if (!content) throw new ServiceUnavailableException('OpenAI trả về rỗng.')
+    if (!content) throw new ServiceUnavailableException('LLM trả về rỗng.')
     return content
   }
 

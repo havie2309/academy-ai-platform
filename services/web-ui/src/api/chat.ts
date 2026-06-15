@@ -50,6 +50,7 @@ export interface ChatMessage {
   created_at: string
   citations?: ChatCitation[]
   route?: string
+  error?: boolean
 }
 
 export interface StreamDonePayload {
