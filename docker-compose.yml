@@ -33,6 +33,7 @@ services:
       MONGO_INITDB_DATABASE: pm2
     volumes:
       - mongo_data:/data/db
+      - ./infra/mongodb/init:/docker-entrypoint-initdb.d
     ports:
       - "27017:27017"
     deploy:
