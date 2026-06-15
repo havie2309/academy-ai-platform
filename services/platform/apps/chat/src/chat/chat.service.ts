@@ -64,6 +64,9 @@ export class ChatService implements OnModuleInit {
   }
 
   async listSessions(userId: string) {
+    if (!this.sessions) {
+      throw new ServiceUnavailableException('Chat database chưa sẵn sàng.')
+    }
     const rows = await this.sessions
       .find({ userId })
       .sort({ updatedAt: -1 })

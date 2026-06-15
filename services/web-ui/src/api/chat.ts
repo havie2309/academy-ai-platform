@@ -89,9 +89,12 @@ function parseSseBlock(
 
 export const chatApi = {
   async listSessions(): Promise<ChatSession[]> {
-    const res = await fetch(apiUrl('/api/chat/sessions'), { headers: authHeaders(false) })
+    const res = await fetch(apiUrl('/api/chat/sessions'), {
+      headers: { ...authHeaders(false), Accept: 'application/json' },
+    })
     if (!res.ok) throw new Error(await parseError(res))
-    return res.json()
+    const data = await res.json()
+    return Array.isArray(data) ? data : []
   },
 
   async createSession(title?: string): Promise<ChatSession> {

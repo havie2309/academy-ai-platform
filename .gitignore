@@ -28,3 +28,18 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 .cursor/
+
+# AI models & training artifacts (weights — never commit)
+models/ollama/**
+models/inference/**
+!models/README.md
+!models/**/.gitkeep
+
+training/datasets/**
+training/runs/**
+training/checkpoints/**
+training/exports/**
+!training/README.md
+!training/**/.gitkeep
+!training/configs/
+!training/configs/**
