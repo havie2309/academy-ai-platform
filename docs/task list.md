@@ -19,7 +19,7 @@
 
 | Loại     | Mô tả                                                                            | MS  | Tiến độ | Evidence |
 | -------- | -------------------------------------------------------------------------------- | --- | ------- | -------- |
-| Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  | `[x]`   | `README.md`, `.gitignore`, `docs/`, `libs/`, `services/platform/`, 4 Python services, `web-ui/`, `llm-server/` placeholder, `data/`, `eval/` |
+| Hạ tầng  | A-01 · Khởi tạo repo, README, `.gitignore`, cấu trúc NestJS + Python + Ollama    | M0  | `[x]`   | `README.md`, `.gitignore`, `docs/`, `libs/`, `services/platform/`, 4 Python services, `web-ui/`, `llm-server/` placeholder, `data/`, `eval/`; **`models/`** (ollama, inference) + **`training/`** (datasets, configs, runs, checkpoints, exports) scaffold + README + `.gitkeep`; `.gitignore` bỏ weight/artifact (PR #13) |
 | Hạ tầng  | A-01b · NestJS monorepo `services/platform/` — gateway + modules scaffold        | M0  | `[x]`   | `nest-cli.json` + **9 apps** (thêm `chat`); `npm run build` pass (2026-06-15) |
 | Hạ tầng  | A-01c · Python service template (`rag-engine`, workers) + shared `libs/`         | M0  | `[x]`   | 4 FastAPI template (`main.py` `/health`, `Dockerfile`, `requirements.txt`); `services/platform/libs/` — `ai-clients`, `schemas`, `prompts`, `policies` (Python stubs); repo `libs/` vẫn `.gitkeep` |
 | Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[-]`   | profile `code`, 7 data services + `user-management` (3001); Postgres **5433**; Mongo mount init; `user-management` **Dockerfile build OK** (Node 22); **chưa** verify `up-code.ps1` full stack với container `user-management` |
@@ -129,7 +129,7 @@
 
 | Loại    | Mô tả                                                        | MS  | Tiến độ | Evidence |
 | ------- | ------------------------------------------------------------ | --- | ------- | -------- |
-| Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  | `[-]`   | Proxy `/api/auth`, `/api/users` → `user-management`; proxy `/api/chat` → `chat` `:3002`; health upstream user-management + chat; login E2E pass (2026-06-15); PR **#9**; **chưa** JWT verify gateway, proxy RAG/Python |
+| Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  | `[-]`   | Proxy `/api/auth`, `/api/users` → `user-management`; proxy `/api/chat` → `chat` `:3002` (SSE-friendly timeouts, proxy đăng ký trước Nest routes qua `ExpressAdapter`); health upstream user-management + chat; login E2E pass; PR **#9/#12/#13**; **chưa** JWT verify gateway, proxy RAG/Python |
 | Backend | G-02 · `rbac` NestJS — role model, permission matrix         | M5  |         |          |
 | Backend | G-03 · `rbac` — inject `access_scope` cho downstream         | M5  |         |          |
 | Bảo mật | G-04 · Row-level filter (NestJS `rbac` + Postgres policy)    | M5  |         |          |
@@ -139,7 +139,7 @@
 | Backend | G-08 · `admin-config` NestJS — CRUD prompt/policy có version | M5  |         |          |
 | Backend | G-09 · `workflow` NestJS — luồng phê duyệt / trạng thái      | M5  |         |          |
 | Backend | G-10 · `notification` NestJS — in-app, hook RabbitMQ         | M6  |         |          |
-| Backend | G-12 · Chat service — session/message Mongo, OpenAI multi-turn | M5  | `[x]`   | App `chat` `:3002`; Mongo `chat_sessions`/`chat_messages`; CRUD session/message + auto-title; `OPENAI_API_KEY` server-only (`chat.service.ts`); JWT; gateway proxy `/api/chat`; `npm run build chat` pass (2026-06-15). **Chưa:** service trong `docker-compose`, swap RAG (E-08) |
+| Backend | G-12 · Chat service — session/message Mongo, OpenAI multi-turn | M5  | `[x]`   | App `chat` `:3002`; Mongo `chat_sessions`/`chat_messages`; CRUD session/message + auto-title; **SSE stream endpoint** (`/messages/stream`: `meta`/`token`/`done`/`error`) + non-stream; citation stub server-side (`chat.citations.ts`); `OPENAI_API_KEY` server-only; JWT; gateway proxy `/api/chat`; guard Mongo chưa init; `npm run build chat` pass (2026-06-15). **Chưa:** service trong `docker-compose`, swap RAG (E-08) |
 | Test    | G-11 · Penetration test auth, RBAC, audit                    | M5  |         |          |
 
 
@@ -200,8 +200,8 @@
 | ---- | ---------------------------------------------------------- | --- | ------- | -------- |
 | UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  | `[x]`   | `services/web-ui/` — Vite 8 + React 19 + Router 7 + Tailwind 4; `ChatLayout`, `Sidebar`; routes `/chat` `/docs` `/admin` `/settings` `/login`; brand **EduMind** |
 | UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[x]`   | JWT E2E qua gateway; login/logout; guard Admin/BGD/P2/P7; role codes khớp seed; PR **#9** (2026-06-15) |
-| UI   | K-12 · Chat history — session list, resume, persist        | M6  | `[x]`   | `ChatSessionContext` + `Sidebar` list/delete; `/chat/:sessionId`; `ChatPage` load/send; auto-title qua G-12 + `refreshSessions`; bỏ ephemeral state + proxy OpenAI client; `npm run build` web-ui pass (2026-06-15). **Chưa:** smoke/E2E tự động (K-11) |
-| UI   | K-03 · Chat page: SSE streaming, markdown, citation RAG    | M6  | `[ ]`   | **Sau E-08:** SSE, markdown, citation RAG; hiện plain text qua OpenAI tạm (G-12) |
+| UI   | K-12 · Chat history — session list, resume, persist        | M6  | `[x]`   | `ChatSessionContext` + `Sidebar` list/delete; `/chat/:sessionId`; `ChatPage` load/send; auto-title qua G-12; bỏ ephemeral state + proxy OpenAI client. **Ổn định (PR #13):** sidebar optimistic (`upsertSession`), giữ list khi list API lỗi tạm, dedupe refresh + guard stale, bỏ reload thừa sau khi gửi (skip-load), không văng về home khi load lỗi; `npm run build` pass (2026-06-15). **Chưa:** smoke/E2E tự động (K-11) |
+| UI   | K-03 · Chat page: SSE streaming, markdown, citation RAG    | M6  | `[-]`   | **UI done:** SSE client (`chatApi.streamMessage`), markdown sanitize (`react-markdown`+`remark-gfm`+`rehype-sanitize`, `ChatMarkdown.tsx`), citation chips (`CitationList.tsx`); `npm run build` pass. **Chưa:** citation đang là stub server-side (keyword) — chờ **E-08** RAG thật |
 | UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  | `[-]`   | `DocsPage.tsx` — mock list, search/filter, stats; nút Upload disabled; **chưa** backend ingest |
 | UI   | K-05 · Self-service pages                                  | M6  |         |          |
 | UI   | K-06 · Quiz và summary UI                                  | M6  |         |          |
@@ -258,8 +258,9 @@
 | - | ---- | ---------- |
 | ~~C1~~ | ~~**G-12**~~ | `[x]` chat service + OpenAI server-side |
 | ~~C2~~ | ~~**K-12**~~ | `[x]` UI history sidebar/route/load/send/delete |
-| **C3** | **G-01** | JWT verify gateway; proxy `rag-engine` sau |
-| **Sau** | **K-03 + E-08** | Ingest/RAG → citation + SSE |
+| ~~C3~~ | ~~**K-03 UI**~~ | `[-]` SSE + markdown sanitize + citation chips (citation stub) |
+| **C4** | **G-01** | JWT verify gateway; proxy `rag-engine` sau |
+| **Sau** | **E-08** | Ingest/RAG → citation thật thay stub trong K-03/G-12 |
 
 **Lộ trình chat**
 
@@ -305,7 +306,8 @@
 
 ### Đã xong gần đây
 
-- **G-12** `[x]`, **K-12** `[x]` — chat history Phase 1: Mongo sessions/messages, OpenAI server-only, UI sidebar/route/persist (2026-06-15)
+- PR **#12/#13 merged** — chat service + SSE + UI history; **K-03 UI** (SSE/markdown/citation chips) `[-]`; fix ổn định chat (sidebar optimistic, dedupe refresh, bỏ reload thừa, không văng về home); gateway proxy qua `ExpressAdapter`; scaffold `models/` + `training/` + `.gitignore` (2026-06-15)
+- **G-12** `[x]`, **K-12** `[x]` — chat history Phase 1: Mongo sessions/messages, OpenAI server-only, UI sidebar/route/persist
 - PR **#9 merged** — JWT auth, gateway proxy, web-ui, IAM seed bcrypt
 - **G-06** `[x]`, **K-02** `[x]` — login E2E qua gateway
 - Dev stack: Postgres `:5433` + gateway `:3000` + user-management `:3001` + chat `:3002` + web-ui `:5173`
