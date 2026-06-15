@@ -11,17 +11,19 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public — không có ChatLayout */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protected — có ChatLayout */}
         <Route element={<RequireAuth />}>
           <Route element={<ChatLayout />}>
             <Route path="/" element={<Navigate to="/chat" replace />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/docs" element={<DocsPage />} />
-            <Route path="/admin" element={<AdminPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+
+            {/* Admin only */}
+            <Route element={<RequireAuth allowedRoles={['Admin', 'BGD', 'P2', 'P7']} />}>
+              <Route path="/admin" element={<AdminPage />} />
+            </Route>
           </Route>
         </Route>
 
