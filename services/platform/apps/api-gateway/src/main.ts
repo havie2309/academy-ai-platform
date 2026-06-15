@@ -31,7 +31,9 @@ async function bootstrap() {
       target: chatUrl,
       changeOrigin: true,
       agent: noKeepAliveAgent,
-      pathFilter: (pathname) => pathname.startsWith('/api/chat'),
+      pathFilter: (pathname) =>
+        pathname.startsWith('/api/chat') ||
+        pathname.startsWith('/api/documents'),
       proxyTimeout: 0,
       timeout: 0,
     }),

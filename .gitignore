@@ -29,6 +29,10 @@ Thumbs.db
 .idea/
 .cursor/
 
+# Uploaded documents (user content — never commit)
+data/uploads/**
+!data/uploads/.gitkeep
+
 # AI models & training artifacts (weights — never commit)
 models/ollama/**
 models/inference/**

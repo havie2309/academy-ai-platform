@@ -6,6 +6,8 @@ import { CommonModule } from '../../../src/common/common.module'
 import { JwtStrategy } from './auth/jwt.strategy'
 import { ChatController } from './chat/chat.controller'
 import { ChatService } from './chat/chat.service'
+import { DocumentsController } from './documents/documents.controller'
+import { DocumentsService } from './documents/documents.service'
 
 @Module({
   imports: [
@@ -19,7 +21,7 @@ import { ChatService } from './chat/chat.service'
     }),
     CommonModule,
   ],
-  controllers: [ChatController],
-  providers: [ChatService, JwtStrategy],
+  controllers: [ChatController, DocumentsController],
+  providers: [ChatService, DocumentsService, JwtStrategy],
 })
 export class ChatModule {}

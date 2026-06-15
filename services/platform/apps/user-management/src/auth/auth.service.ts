@@ -27,6 +27,8 @@ export class AuthService {
       sub:      user.user_id,
       username: user.username,
       roles:    user.roles ?? [],
+      department: user.department ?? null,
+      max_security_level: user.max_security_level ?? 1,
     }
 
     const access_token = this.jwt.sign(payload)
