@@ -146,13 +146,14 @@ export default function ChatPage() {
           onError: (detail) => {
             setMessages((prev) =>
               prev
-                .filter((m) => m.id !== STREAMING_ID && m.id !== optimisticUser.id)
+                .filter((m) => m.id !== STREAMING_ID)
                 .concat({
                   id: `err-${Date.now()}`,
                   session_id: activeId ?? '',
                   role: 'assistant',
                   content: `Không thể gửi tin nhắn.\n\n${detail}`,
                   created_at: new Date().toISOString(),
+                  error: true,
                 }),
             )
           },
@@ -164,13 +165,14 @@ export default function ChatPage() {
       const detail = err instanceof Error ? err.message : 'Lỗi không xác định'
       setMessages((prev) =>
         prev
-          .filter((m) => m.id !== STREAMING_ID && !m.id.startsWith('tmp-'))
+          .filter((m) => m.id !== STREAMING_ID)
           .concat({
             id: `err-${Date.now()}`,
             session_id: sessionId ?? '',
             role: 'assistant',
             content: `Không thể gửi tin nhắn.\n\n${detail}`,
             created_at: new Date().toISOString(),
+            error: true,
           }),
       )
     } finally {
@@ -281,7 +283,9 @@ export default function ChatPage() {
                 className={`flex gap-4 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
-                  <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm ${msg.error ? 'bg-red-500' : 'bg-blue-600'}`}
+                  >
                     AI
                   </div>
                 )}
@@ -289,6 +293,12 @@ export default function ChatPage() {
                 {msg.role === 'user' ? (
                   <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap shadow-sm bg-blue-600 text-white rounded-tr-none font-medium max-w-[80%]">
                     {msg.content}
+                  </div>
+                ) : msg.error ? (
+                  <div className="flex flex-col max-w-[80%] gap-1 min-w-0 flex-1">
+                    <div className="rounded-2xl px-4 py-3 shadow-sm bg-red-50 text-red-700 border border-red-200 rounded-tl-none text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                      {msg.content}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col max-w-[80%] gap-1 min-w-0 flex-1">

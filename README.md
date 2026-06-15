@@ -7,29 +7,114 @@ Kho dữ liệu tập trung và Cổng khai thác trợ lý ảo — on-premise,
 
 ## Yêu cầu
 
-- Docker Desktop
-- Node.js LTS
-- Python 3.12
-- Git
+- **Docker Desktop** — chạy Postgres, MongoDB, (tuỳ chọn) Milvus/Redis/RabbitMQ
+- **Node.js LTS** (≥ 20) + npm — backend NestJS & frontend Vite
+- **[Ollama](https://ollama.com/download)** — chạy LLM `qwen2.5:3b` local
+- **Python 3.12** (chỉ cần cho RAG/embedding sau này)
+- **Git**
 
 ---
 
-## Quickstart — 1 máy (hiện tại)
+## Chạy môi trường dev (1 máy) — từng bước
 
-```bash
-# 1. Clone repo
+> Lệnh dưới đây dùng **PowerShell** trên Windows. Mở **nhiều terminal** vì backend gồm 3 service + frontend chạy song song.
+
+### 1. Clone & cấu hình env
+
+```powershell
 git clone https://github.com/havie2309/academy-ai-platform.git
 cd academy-ai-platform
 
-# 2. Tạo file .env
+# env cho stack docker (root)
 cp .env.example .env
 
-# 3. Bật stack
+# env cho backend NestJS (Postgres/Mongo/JWT/LLM)
+cp services/platform/.env.example services/platform/.env
+```
+
+Mặc định `services/platform/.env` đã trỏ LLM về Ollama local:
+
+```env
+LLM_PROVIDER=ollama
+LLM_BASE_URL=http://localhost:11434
+LLM_MODEL=qwen2.5:3b
+```
+
+> Muốn dùng OpenAI cloud thay vì local: đổi `LLM_PROVIDER=openai` và điền `OPENAI_API_KEY`.
+
+### 2. Cài model local (Ollama)
+
+```powershell
+# tải model (~2GB), chỉ cần 1 lần
+ollama pull qwen2.5:3b
+
+# kiểm tra Ollama đang chạy ở cổng 11434
+curl.exe http://localhost:11434/api/tags
+```
+
+> Muốn lưu model vào thư mục repo `models/ollama`: đặt biến môi trường (User)
+> `OLLAMA_MODELS = E:\ai-platform\models\ollama\models` rồi khởi động lại Ollama.
+> Xem chi tiết tại [`models/README.md`](models/README.md).
+
+### 3. Bật hạ tầng (Docker)
+
+```powershell
+# bật toàn bộ stack code-profile (postgres, mongodb, milvus, redis, rabbitmq...)
 ./scripts/up-code.ps1
 
-# 4. Kiểm tra health
-./scripts/health.ps1
+# hoặc tối thiểu cho chat: chỉ cần Postgres + Mongo
+docker compose --profile code up -d postgres mongodb
 ```
+
+Seed tài khoản đăng nhập (chạy 1 lần sau khi Postgres khoẻ):
+
+```powershell
+./scripts/seed-iam.ps1
+# Tài khoản: admin / gv001 / hv001 / p2  —  mật khẩu: 123456
+```
+
+### 4. Chạy backend (NestJS monorepo — 3 terminal)
+
+```powershell
+cd services/platform
+npm install   # lần đầu
+
+# Terminal A — API Gateway (cổng 3000, proxy /api/* sang các service)
+npm run start:dev api-gateway
+
+# Terminal B — User Management / Auth (cổng 3001, cần Postgres)
+npm run start:dev user-management
+
+# Terminal C — Chat + RAG (cổng 3002, cần MongoDB + Ollama)
+npm run start:dev chat
+```
+
+### 5. Chạy frontend (Vite + React)
+
+```powershell
+cd services/web-ui
+npm install   # lần đầu
+npm run dev   # mở http://localhost:5173
+```
+
+### 6. Truy cập
+
+- Web UI: **http://localhost:5173**
+- API Gateway: **http://localhost:3000** (frontend gọi `/api/*` qua proxy của Vite/Gateway)
+
+---
+
+## Bản đồ cổng (dev)
+
+| Thành phần | Cổng | Ghi chú |
+|---|---|---|
+| Web UI (Vite) | 5173 | `npm run dev` trong `services/web-ui` |
+| API Gateway | 3000 | proxy `/api/auth`, `/api/chat` |
+| User Management / Auth | 3001 | cần Postgres |
+| Chat + RAG | 3002 | cần MongoDB + Ollama |
+| Ollama (LLM) | 11434 | `qwen2.5:3b` |
+| Postgres | 5433 | map ra `5432` trong container |
+| MongoDB | 27017 | hội thoại & tin nhắn chat |
 
 ---
 
@@ -37,10 +122,24 @@ cp .env.example .env
 
 | Script | Mô tả |
 |---|---|
-| `./scripts/up-code.ps1` | Bật toàn bộ stack |
+| `./scripts/up-code.ps1` | Bật stack Docker (profile `code`) |
 | `./scripts/down.ps1` | Tắt toàn bộ stack |
 | `./scripts/logs.ps1` | Xem logs realtime |
 | `./scripts/health.ps1` | Kiểm tra trạng thái container |
+| `./scripts/seed-iam.ps1` | Seed tài khoản đăng nhập vào Postgres |
+
+---
+
+## Khắc phục sự cố thường gặp
+
+- **`EADDRINUSE` cổng 3000/3001/3002** — còn tiến trình cũ. Tìm & kill:
+  ```powershell
+  netstat -ano | Select-String ":3002"
+  taskkill /PID <pid> /F
+  ```
+- **Chat trả lỗi 400/503** — kiểm tra MongoDB (`docker compose --profile code up -d mongodb`) và Ollama (`curl.exe http://localhost:11434/api/tags`) đang chạy.
+- **`ollama` không nhận lệnh** — Ollama chưa có trong PATH hoặc server chưa khởi động; mở app Ollama hoặc chạy `ollama serve`.
+- **Đăng nhập sai** — chạy lại `./scripts/seed-iam.ps1` (cần Postgres đang chạy).
 
 ---
 
