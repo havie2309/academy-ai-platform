@@ -1,31 +1,242 @@
-import { useState } from 'react'
-import { Search, FileText, Download, ExternalLink, Filter, BookOpen, Upload, FolderOpen } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Search,
+  FileText,
+  Download,
+  ExternalLink,
+  Filter,
+  BookOpen,
+  Upload,
+  FolderOpen,
+  Trash2,
+  X,
+  Loader2,
+} from 'lucide-react'
+import {
+  docsApi,
+  type DocItem,
+  type SecurityLevel,
+  type AccessScopeType,
+} from '../api/docs'
+import { authApi } from '../api/auth'
 
-const mockDocs = [
-  { id: '1', title: 'Quy chế đào tạo trình độ đại học mới nhất', category: 'Quy chế', type: 'PDF', size: '2.4 MB', date: '12/01/2026', author: 'Phòng Đào tạo' },
-  { id: '2', title: 'Hướng dẫn đăng ký học phần & sử dụng Cổng thông tin', category: 'Quy chế', type: 'PDF', size: '1.8 MB', date: '15/02/2026', author: 'Phòng Công tác Sinh viên' },
-  { id: '3', title: 'Đề cương chi tiết môn học Học máy ứng dụng', category: 'Tài liệu môn học', type: 'DOCX', size: '540 KB', date: '08/01/2026', author: 'Khoa CNTT' },
-  { id: '4', title: 'Giáo trình Cơ sở dữ liệu và SQL nâng cao', category: 'Tài liệu môn học', type: 'PDF', size: '12.6 MB', date: '20/12/2025', author: 'Bộ môn Hệ thống thông tin' },
-  { id: '5', title: 'Lịch thi học kỳ II năm học 2025 - 2026 (Chính thức)', category: 'Lịch thi', type: 'PDF', size: '1.2 MB', date: '10/06/2026', author: 'Phòng Khảo thí' },
-  { id: '6', title: 'Đề cương ôn tập kiểm tra giữa kỳ môn Vật lý đại cương', category: 'Tài liệu môn học', type: 'PDF', size: '3.1 MB', date: '05/03/2026', author: 'Khoa Khoa học cơ bản' },
+const UPLOAD_CATEGORIES = ['Quy chế', 'Tài liệu môn học', 'Lịch thi', 'Khác']
+
+const SECURITY_LEVELS: {
+  value: SecurityLevel
+  label: string
+  badge: string
+}[] = [
+  { value: 'public', label: 'Công khai', badge: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+  { value: 'internal', label: 'Nội bộ', badge: 'bg-blue-50 text-blue-600 border-blue-200' },
+  { value: 'restricted', label: 'Hạn chế', badge: 'bg-amber-50 text-amber-600 border-amber-200' },
+  { value: 'confidential', label: 'Mật', badge: 'bg-red-50 text-red-600 border-red-200' },
 ]
 
-const categories = ['Tất cả', 'Quy chế', 'Tài liệu môn học', 'Lịch thi']
+const SCOPE_TYPES: { value: AccessScopeType; label: string }[] = [
+  { value: 'all', label: 'Tất cả người dùng' },
+  { value: 'role', label: 'Theo vai trò' },
+  { value: 'department', label: 'Theo đơn vị' },
+  { value: 'custom', label: 'Danh sách người dùng' },
+]
+
+const ROLE_OPTIONS: { code: string; label: string }[] = [
+  { code: 'BGD', label: 'Ban Giám đốc' },
+  { code: 'P2', label: 'Phòng Đào tạo' },
+  { code: 'KHAO_THI', label: 'Ban Khảo thí' },
+  { code: 'GIANG_VIEN', label: 'Giảng viên' },
+  { code: 'HOC_VIEN', label: 'Học viên' },
+]
+
+function securityMeta(level: SecurityLevel) {
+  return SECURITY_LEVELS.find((s) => s.value === level) ?? SECURITY_LEVELS[1]
+}
+
+function formatSize(bytes: number): string {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('vi-VN')
+  } catch {
+    return iso
+  }
+}
+
+function fileTypeLabel(name: string): string {
+  const ext = name.split('.').pop()
+  return ext ? ext.toUpperCase() : 'FILE'
+}
 
 export default function DocsPage() {
+  const currentUser = authApi.getUser()
+  const isAdmin = currentUser?.roles?.some((r) =>
+    ['Admin', 'BGD', 'P2'].includes(r),
+  )
+
+  const [docs, setDocs] = useState<DocItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCat, setSelectedCat] = useState('Tất cả')
+  const [busyId, setBusyId] = useState<string | null>(null)
 
-  const filteredDocs = mockDocs.filter((doc) => {
-    const matchesSearch =
-      doc.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doc.author.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesCat = selectedCat === 'Tất cả' || doc.category === selectedCat
-    return matchesSearch && matchesCat
-  })
+  const [uploadOpen, setUploadOpen] = useState(false)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [uploadTitle, setUploadTitle] = useState('')
+  const [uploadCat, setUploadCat] = useState(UPLOAD_CATEGORIES[0])
+  const [uploadSecurity, setUploadSecurity] = useState<SecurityLevel>('internal')
+  const [uploadScope, setUploadScope] = useState<AccessScopeType>('all')
+  const [uploadRoles, setUploadRoles] = useState<string[]>([])
+  const [uploadDepartments, setUploadDepartments] = useState('')
+  const [uploadUserIds, setUploadUserIds] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const loadDocs = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setDocs(await docsApi.list())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không tải được danh sách tài liệu.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDocs()
+  }, [])
+
+  const categories = useMemo(() => {
+    const set = new Set<string>()
+    docs.forEach((d) => d.category && set.add(d.category))
+    return ['Tất cả', ...Array.from(set)]
+  }, [docs])
+
+  const filteredDocs = useMemo(() => {
+    const term = searchTerm.toLowerCase()
+    return docs.filter((doc) => {
+      const matchesSearch =
+        doc.title.toLowerCase().includes(term) ||
+        doc.uploaded_by.toLowerCase().includes(term) ||
+        doc.original_name.toLowerCase().includes(term)
+      const matchesCat = selectedCat === 'Tất cả' || doc.category === selectedCat
+      return matchesSearch && matchesCat
+    })
+  }, [docs, searchTerm, selectedCat])
+
+  const onPickFile = () => fileInputRef.current?.click()
+
+  const onFileChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPendingFile(file)
+    setUploadTitle(file.name.replace(/\.[^.]+$/, ''))
+    setUploadCat(UPLOAD_CATEGORIES[0])
+    setUploadSecurity('internal')
+    setUploadScope('all')
+    setUploadRoles([])
+    setUploadDepartments('')
+    setUploadUserIds('')
+    setUploadOpen(true)
+    e.target.value = ''
+  }
+
+  const toggleRole = (code: string) => {
+    setUploadRoles((prev) =>
+      prev.includes(code) ? prev.filter((r) => r !== code) : [...prev, code],
+    )
+  }
+
+  const submitUpload = async () => {
+    if (!pendingFile) return
+    if (uploadScope === 'role' && uploadRoles.length === 0) {
+      setError('Vui lòng chọn ít nhất một vai trò được xem.')
+      return
+    }
+    setUploading(true)
+    setError(null)
+    try {
+      const created = await docsApi.upload(pendingFile, {
+        title: uploadTitle.trim() || undefined,
+        category: uploadCat,
+        access: {
+          security_level: uploadSecurity,
+          scope_type: uploadScope,
+          role_codes: uploadScope === 'role' ? uploadRoles : undefined,
+          department_codes:
+            uploadScope === 'department'
+              ? uploadDepartments.split(',').map((s) => s.trim()).filter(Boolean)
+              : undefined,
+          user_ids:
+            uploadScope === 'custom'
+              ? uploadUserIds.split(',').map((s) => s.trim()).filter(Boolean)
+              : undefined,
+        },
+      })
+      setDocs((prev) => [created, ...prev])
+      setUploadOpen(false)
+      setPendingFile(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Tải lên thất bại.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const openDoc = async (doc: DocItem, download = false) => {
+    setBusyId(doc.id)
+    try {
+      const blob = await docsApi.fetchBlob(doc.id)
+      const url = URL.createObjectURL(blob)
+      if (download) {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = doc.original_name
+        a.click()
+      } else {
+        window.open(url, '_blank', 'noopener')
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không mở được tài liệu.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const deleteDoc = async (doc: DocItem) => {
+    if (!confirm(`Xóa tài liệu "${doc.title}"?`)) return
+    setBusyId(doc.id)
+    try {
+      await docsApi.remove(doc.id)
+      setDocs((prev) => prev.filter((d) => d.id !== doc.id))
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Xóa thất bại.')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const canDelete = (doc: DocItem) =>
+    isAdmin || doc.uploaded_by_id === currentUser?.id
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-6 md:p-8 overflow-y-auto">
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.csv"
+        onChange={onFileChosen}
+      />
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
@@ -33,7 +244,7 @@ export default function DocsPage() {
             Tài liệu & Học liệu
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            Tra cứu kho tài nguyên học tập và quy chế đào tạo nội bộ.
+            Tra cứu và tải lên kho tài nguyên học tập, quy chế đào tạo nội bộ.
           </p>
         </div>
 
@@ -50,9 +261,8 @@ export default function DocsPage() {
           </div>
           <button
             type="button"
-            disabled
-            title="Tính năng upload sẽ có khi pipeline ingest sẵn sàng"
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-400 text-sm font-semibold cursor-not-allowed border border-slate-200"
+            onClick={onPickFile}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer shadow-md shadow-blue-600/10 transition-all"
           >
             <Upload size={16} />
             Tải lên
@@ -60,10 +270,19 @@ export default function DocsPage() {
         </div>
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600 cursor-pointer">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-3 gap-3 mb-6 max-w-xl">
         {[
-          { label: 'Tài liệu', value: mockDocs.length, icon: FileText },
-          { label: 'Danh mục', value: categories.length - 1, icon: FolderOpen },
+          { label: 'Tài liệu', value: docs.length, icon: FileText },
+          { label: 'Danh mục', value: Math.max(categories.length - 1, 0), icon: FolderOpen },
           { label: 'Kết quả lọc', value: filteredDocs.length, icon: Filter },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
@@ -93,7 +312,12 @@ export default function DocsPage() {
         ))}
       </div>
 
-      {filteredDocs.length > 0 ? (
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+          <Loader2 className="animate-spin mb-2" size={24} />
+          <p className="text-sm font-medium">Đang tải tài liệu…</p>
+        </div>
+      ) : filteredDocs.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredDocs.map((doc) => (
             <div
@@ -105,44 +329,65 @@ export default function DocsPage() {
                   <FileText size={20} />
                 </div>
                 <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wide">
-                  {doc.type}
+                  {fileTypeLabel(doc.original_name)}
                 </span>
               </div>
 
-              <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1">{doc.category}</span>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">{doc.category}</span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${securityMeta(doc.security_level).badge}`}>
+                  {securityMeta(doc.security_level).label}
+                </span>
+              </div>
               <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
                 {doc.title}
               </h3>
 
               <div className="space-y-1.5 mb-5 text-xs text-slate-400">
                 <div className="flex justify-between">
-                  <span>Phát hành</span>
-                  <span className="font-semibold text-slate-600">{doc.author}</span>
+                  <span>Người tải</span>
+                  <span className="font-semibold text-slate-600 truncate max-w-[60%]">{doc.uploaded_by}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Ngày tạo</span>
-                  <span className="font-semibold text-slate-600">{doc.date}</span>
+                  <span>Ngày tải</span>
+                  <span className="font-semibold text-slate-600">{formatDate(doc.created_at)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Dung lượng</span>
-                  <span className="font-semibold text-slate-600">{doc.size}</span>
+                  <span className="font-semibold text-slate-600">{formatSize(doc.size)}</span>
                 </div>
               </div>
 
               <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer"
+                  onClick={() => openDoc(doc, false)}
+                  disabled={busyId === doc.id}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
                 >
-                  <ExternalLink size={12} />
+                  {busyId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
                   Xem online
                 </button>
                 <button
                   type="button"
-                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer"
+                  onClick={() => openDoc(doc, true)}
+                  disabled={busyId === doc.id}
+                  title="Tải về"
+                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer disabled:opacity-50"
                 >
                   <Download size={13} />
                 </button>
+                {canDelete(doc) && (
+                  <button
+                    type="button"
+                    onClick={() => deleteDoc(doc)}
+                    disabled={busyId === doc.id}
+                    title="Xóa"
+                    className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -150,10 +395,157 @@ export default function DocsPage() {
       ) : (
         <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
           <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mb-3">
-            <Filter size={20} />
+            {docs.length === 0 ? <Upload size={20} /> : <Filter size={20} />}
           </div>
-          <p className="text-slate-600 font-bold text-sm">Không tìm thấy tài liệu phù hợp</p>
-          <p className="text-slate-400 text-xs mt-1">Thử đổi từ khóa hoặc danh mục bộ lọc.</p>
+          <p className="text-slate-600 font-bold text-sm">
+            {docs.length === 0 ? 'Chưa có tài liệu nào' : 'Không tìm thấy tài liệu phù hợp'}
+          </p>
+          <p className="text-slate-400 text-xs mt-1">
+            {docs.length === 0 ? 'Nhấn "Tải lên" để thêm tài liệu đầu tiên.' : 'Thử đổi từ khóa hoặc danh mục bộ lọc.'}
+          </p>
+        </div>
+      )}
+
+      {uploadOpen && pendingFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-slate-800">Tải lên tài liệu</h2>
+              <button
+                type="button"
+                onClick={() => !uploading && setUploadOpen(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-slate-50 border border-slate-100">
+              <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+                <FileText size={18} />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-700 truncate">{pendingFile.name}</p>
+                <p className="text-xs text-slate-400">{formatSize(pendingFile.size)}</p>
+              </div>
+            </div>
+
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Tiêu đề</label>
+            <input
+              type="text"
+              value={uploadTitle}
+              onChange={(e) => setUploadTitle(e.target.value)}
+              className="w-full mb-4 bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.08)] transition-all text-slate-800"
+            />
+
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Danh mục</label>
+            <select
+              value={uploadCat}
+              onChange={(e) => setUploadCat(e.target.value)}
+              className="w-full mb-4 bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all text-slate-800 cursor-pointer"
+            >
+              {UPLOAD_CATEGORIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Mức mật</label>
+                <select
+                  value={uploadSecurity}
+                  onChange={(e) => setUploadSecurity(e.target.value as SecurityLevel)}
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all text-slate-800 cursor-pointer"
+                >
+                  {SECURITY_LEVELS.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Đối tượng được xem</label>
+                <select
+                  value={uploadScope}
+                  onChange={(e) => setUploadScope(e.target.value as AccessScopeType)}
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all text-slate-800 cursor-pointer"
+                >
+                  {SCOPE_TYPES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {uploadScope === 'role' && (
+              <div className="mb-6">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Vai trò được xem</label>
+                <div className="flex flex-wrap gap-2">
+                  {ROLE_OPTIONS.map((r) => (
+                    <button
+                      key={r.code}
+                      type="button"
+                      onClick={() => toggleRole(r.code)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                        uploadRoles.includes(r.code)
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {uploadScope === 'department' && (
+              <div className="mb-6">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Mã đơn vị (phân tách bằng dấu phẩy)</label>
+                <input
+                  type="text"
+                  value={uploadDepartments}
+                  onChange={(e) => setUploadDepartments(e.target.value)}
+                  placeholder="VD: P2, CNTT"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all text-slate-800"
+                />
+              </div>
+            )}
+
+            {uploadScope === 'custom' && (
+              <div className="mb-6">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Mã người dùng (phân tách bằng dấu phẩy)</label>
+                <input
+                  type="text"
+                  value={uploadUserIds}
+                  onChange={(e) => setUploadUserIds(e.target.value)}
+                  placeholder="VD: USR001, USR002"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all text-slate-800"
+                />
+              </div>
+            )}
+
+            {uploadScope === 'all' && <div className="mb-6" />}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setUploadOpen(false)}
+                disabled={uploading}
+                className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={submitUpload}
+                disabled={uploading}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all cursor-pointer disabled:opacity-60"
+              >
+                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                {uploading ? 'Đang tải lên…' : 'Tải lên'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
