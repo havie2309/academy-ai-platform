@@ -18,7 +18,6 @@ Optional:
 """
 
 import argparse
-import hashlib
 import os
 import random
 from datetime import datetime, timedelta
@@ -800,8 +799,15 @@ def generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vie
     }
 
 
-def sha256_hash(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+# Dev IAM password: bcrypt cost 10, plaintext "123456" (matches user-management auth)
+BCRYPT_DEV_PASSWORD_HASH = (
+    "$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2"
+)
+
+
+def bcrypt_dev_hash(_password: str = "123456") -> str:
+    """Fixed bcrypt hash for reproducible dev seed output."""
+    return BCRYPT_DEV_PASSWORD_HASH
 
 
 def generate_iam_data():
@@ -810,8 +816,8 @@ def generate_iam_data():
             "user_id": "USR001",
             "username": "admin",
             "email": "admin@pm2.local",
-            "password_hash": sha256_hash("Admin123!"),
-            "fullname": "PM2 Administrator",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Quản trị viên",
             "department": "Phòng CNTT",
             "max_security_level": 4,
             "status": "active",
@@ -820,7 +826,7 @@ def generate_iam_data():
             "user_id": "USR002",
             "username": "auditor",
             "email": "auditor@pm2.local",
-            "password_hash": sha256_hash("Audit123!"),
+            "password_hash": bcrypt_dev_hash(),
             "fullname": "Kiểm toán viên",
             "department": "Phòng Pháp chế",
             "max_security_level": 3,
@@ -828,22 +834,32 @@ def generate_iam_data():
         },
         {
             "user_id": "USR003",
-            "username": "giangvien",
-            "email": "giangvien@pm2.local",
-            "password_hash": sha256_hash("Teach123!"),
-            "fullname": "Giảng viên mẫu",
-            "department": "Khoa CNTT",
+            "username": "gv001",
+            "email": "gv001@edumind.local",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Nguyễn Văn A",
+            "department": "P2",
             "max_security_level": 2,
             "status": "active",
         },
         {
             "user_id": "USR004",
-            "username": "sinhvien",
-            "email": "sinhvien@pm2.local",
-            "password_hash": sha256_hash("Student123!"),
-            "fullname": "Sinh viên mẫu",
-            "department": "Khoa CNTT",
+            "username": "hv001",
+            "email": "hv001@edumind.local",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Trần Thị B",
+            "department": "P2",
             "max_security_level": 1,
+            "status": "active",
+        },
+        {
+            "user_id": "USR005",
+            "username": "p2",
+            "email": "p2@edumind.local",
+            "password_hash": bcrypt_dev_hash(),
+            "fullname": "Cán bộ P2",
+            "department": "P2",
+            "max_security_level": 3,
             "status": "active",
         },
     ]
@@ -859,10 +875,13 @@ def generate_iam_data():
     ]
 
     roles = [
-        {"id": "RL001", "name": "Administrator", "code": "admin", "description": "Hệ thống quản trị viên"},
-        {"id": "RL002", "name": "Auditor", "code": "auditor", "description": "Người kiểm toán"},
-        {"id": "RL003", "name": "Instructor", "code": "instructor", "description": "Giảng viên"},
-        {"id": "RL004", "name": "Student", "code": "student", "description": "Sinh viên"},
+        {"id": "RL001", "name": "Quản trị viên", "code": "Admin", "description": "Hệ thống quản trị viên"},
+        {"id": "RL002", "name": "Kiểm toán viên", "code": "Auditor", "description": "Người kiểm toán"},
+        {"id": "RL003", "name": "Giảng viên", "code": "GiangVien", "description": "Giảng viên"},
+        {"id": "RL004", "name": "Học viên", "code": "HocVien", "description": "Học viên / sinh viên"},
+        {"id": "RL005", "name": "Cán bộ P2", "code": "P2", "description": "Phòng đào tạo"},
+        {"id": "RL006", "name": "Ban giám đốc", "code": "BGD", "description": "Ban giám đốc"},
+        {"id": "RL007", "name": "Cán bộ P7", "code": "P7", "description": "Phòng khảo thí"},
     ]
 
     role_permissions = [
@@ -880,6 +899,12 @@ def generate_iam_data():
         {"role_id": "RL003", "permission_id": "PM006"},
         {"role_id": "RL003", "permission_id": "PM007"},
         {"role_id": "RL004", "permission_id": "PM001"},
+        {"role_id": "RL005", "permission_id": "PM001"},
+        {"role_id": "RL005", "permission_id": "PM006"},
+        {"role_id": "RL006", "permission_id": "PM001"},
+        {"role_id": "RL006", "permission_id": "PM005"},
+        {"role_id": "RL007", "permission_id": "PM001"},
+        {"role_id": "RL007", "permission_id": "PM006"},
     ]
 
     user_roles = [
@@ -887,6 +912,7 @@ def generate_iam_data():
         {"user_id": "USR002", "role_id": "RL002"},
         {"user_id": "USR003", "role_id": "RL003"},
         {"user_id": "USR004", "role_id": "RL004"},
+        {"user_id": "USR005", "role_id": "RL005"},
     ]
 
     user_permissions = [
