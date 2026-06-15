@@ -60,7 +60,7 @@
 | Dữ liệu | C-03 · Milvus collection và metadata filter                     | M0  |         |          |
 | Dữ liệu | C-04 · Redis session, cache, connection pool                    | M0  |         |          |
 | Dữ liệu | C-05 · RabbitMQ exchange/queue ingest và DLQ                    | M0  |         |          |
-| Dữ liệu | C-06 · Seed dữ liệu nghiệp vụ mẫu và user đa role               | M0  | `[-]`   | **Split seed main**: `11-seed-dimensions.sql`, **`12-seed-iam.sql`** (bcrypt `123456`, roles Admin/GiangVien/HocVien/P2), `13-seed-core.sql`, `14-seed-khao-thi.sql` + `generate_seed.py`; **chưa** sync `generate_seed.py` IAM với bcrypt |
+| Dữ liệu | C-06 · Seed dữ liệu nghiệp vụ mẫu và user đa role               | M0  | `[-]`   | **Split seed main**: `11-seed-dimensions.sql`, **`12-seed-iam.sql`** (bcrypt `123456`, roles Admin/GiangVien/HocVien/P2), `13-seed-core.sql`, `14-seed-khao-thi.sql` + `generate_seed.py` IAM **synced** bcrypt (2026-06-15) |
 | Dữ liệu | C-07 · Bộ tài liệu mẫu `data/sample-docs/` đa định dạng         | M0  |         |          |
 | Bảo mật | C-08 · User `pm2_readonly` cho Text-to-SQL                      | M4  |         |          |
 | Test    | C-09 · Test health và connectivity data platform                | M0  |         |          |
@@ -134,7 +134,7 @@
 | Backend | G-03 · `rbac` — inject `access_scope` cho downstream         | M5  |         |          |
 | Bảo mật | G-04 · Row-level filter (NestJS `rbac` + Postgres policy)    | M5  |         |          |
 | Backend | G-05 · `audit` NestJS — audit log immutable                  | M5  |         |          |
-| Backend | G-06 · `user-management` NestJS — user, profile, đơn vị, IAM | M5  | `[-]`   | `auth/` + `user/`: login/logout/me; JWT + bcrypt; sessions + login_logs; port 3001; `Dockerfile`; E2E login **admin/123456** qua gateway (2026-06-15); **chưa** CRUD user, align role codes với `12-seed-iam.sql` |
+| Backend | G-06 · `user-management` NestJS — user, profile, đơn vị, IAM | M5  | `[x]`   | `auth/` + `user/`: login/logout/me; JWT + bcrypt; sessions + login_logs; port 3001; Docker image build OK; E2E login **admin/gv001/hv001/p2 + 123456** qua gateway (2026-06-15); role codes **Admin/GiangVien/HocVien/P2** khớp `12-seed-iam.sql`; **chưa** CRUD user |
 | Backend | G-07 · Rate limit và throttling theo role (gateway)          | M5  |         |          |
 | Backend | G-08 · `admin-config` NestJS — CRUD prompt/policy có version | M5  |         |          |
 | Backend | G-09 · `workflow` NestJS — luồng phê duyệt / trạng thái      | M5  |         |          |
@@ -198,7 +198,7 @@
 | Loại | Mô tả                                                      | MS  | Tiến độ | Evidence |
 | ---- | ---------------------------------------------------------- | --- | ------- | -------- |
 | UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  | `[x]`   | `services/web-ui/` — Vite 8 + React 19 + Router 7 + Tailwind 4; `ChatLayout`, `Sidebar`; routes `/chat` `/docs` `/admin` `/settings` `/login`; brand **EduMind** |
-| UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[-]`   | JWT E2E qua gateway (`VITE_API_URL` empty → Vite proxy `/api`); login/logout; guard `/admin` Admin/BGD/P2/P7; mock toggle `VITE_MOCK_AUTH`; **chưa** align role codes với seed main (`admin`/`instructor`/`student`) |
+| UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[x]`   | JWT E2E qua gateway (Vite proxy `/api`); login/logout; guard `/admin` **Admin/BGD/P2/P7**; role codes khớp seed; mock toggle `VITE_MOCK_AUTH` (2026-06-15) |
 | UI   | K-03 · Chat page: SSE streaming, markdown, citation links  | M6  | `[-]`   | `ChatPage.tsx` polish (greeting, clear chat, role badge); OpenAI qua `/api/openai`; mock citations; **chưa** SSE, markdown, RAG |
 | UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  | `[-]`   | `DocsPage.tsx` — mock list, search/filter, stats; nút Upload disabled; **chưa** backend ingest |
 | UI   | K-05 · Self-service pages                                  | M6  |         |          |
@@ -221,7 +221,7 @@
 | Nghiệp vụ | UC-KT-01..04 — khảo thí          | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KH-01..04 — KHCN              | M2/M3/M6 |         |          |
 | AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    |         |          |
-| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + admin dashboard prototype (K-02, K-08, G-06) |
+| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + admin dashboard prototype (K-02 `[x]`, K-08, G-06 `[x]`) |
 
 
 ---
