@@ -20,6 +20,8 @@ Optional:
 import argparse
 import os
 import random
+import hashlib
+from pathlib import Path
 from datetime import datetime, timedelta
 from faker import Faker
 
@@ -317,6 +319,43 @@ def score_to_grade_4(score):
     if score >= 4.0:
         return 1.0
     return 0.0
+
+
+def get_file_metadata(file_path):
+    """
+    Get file size and SHA-256 checksum from a local file.
+    
+    Args:
+        file_path: Path to the file (relative to project root or absolute)
+        
+    Returns:
+        tuple: (file_size_bytes, file_checksum)
+    """
+    # Resolve the file path relative to the project root
+    # Assuming the script runs from the project root
+    base_dir = Path.cwd()
+    full_path = base_dir / file_path.lstrip('/')
+    
+    if not full_path.exists():
+        print(f"Warning: File not found: {full_path}")
+        return 0, f"sha256:{'0' * 64}"
+    
+    try:
+        # Get file size
+        file_size = full_path.stat().st_size
+        
+        # Calculate SHA-256 checksum
+        sha256_hash = hashlib.sha256()
+        with open(full_path, "rb") as f:
+            # Read in chunks to handle large files
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        checksum = f"sha256:{sha256_hash.hexdigest()}"
+        
+        return file_size, checksum
+    except Exception as e:
+        print(f"Error reading file {full_path}: {e}")
+        return 0, f"sha256:{'0' * 64}"
 
 
 def sql_value(value):
@@ -961,6 +1000,251 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
         "user_permissions": user_permissions,
     }
 
+def generate_policies():
+    """Generate access policies for document access control"""
+    policies = [
+        {
+            "id": "POL_PUBLIC",
+            "name": "Public Access",
+            "description": "Tất cả người dùng đều có thể truy cập",
+            "scope_type": "all"
+        },
+        {
+            "id": "POL_STUDENT",
+            "name": "Student Access",
+            "description": "Chỉ học viên/sinh viên mới có thể truy cập",
+            "scope_type": "role"
+        },
+        {
+            "id": "POL_TEACHER",
+            "name": "Teacher Access",
+            "description": "Chỉ giảng viên mới có thể truy cập",
+            "scope_type": "role"
+        },
+        {
+            "id": "POL_ADMIN",
+            "name": "Admin Only",
+            "description": "Chỉ quản trị viên mới có thể truy cập",
+            "scope_type": "role"
+        },
+        {
+            "id": "POL_P2",
+            "name": "P2 Access",
+            "description": "Chỉ Phòng Đào tạo mới có thể truy cập",
+            "scope_type": "role"
+        },
+        {
+            "id": "POL_KHAO_THI",
+            "name": "Khao Thi Access",
+            "description": "Chỉ Ban Khảo thí mới có thể truy cập",
+            "scope_type": "role"
+        },
+        {
+            "id": "POL_CUSTOM",
+            "name": "Custom Access",
+            "description": "Chỉ một số người dùng cụ thể",
+            "scope_type": "custom"
+        }
+    ]
+    return policies
+
+
+def generate_policy_roles():
+    """Generate policy to role mappings"""
+    policy_roles = [
+        # Student policy → Học viên
+        {"policy_id": "POL_STUDENT", "role_id": "RL005"},
+        
+        # Teacher policy → Giảng viên
+        {"policy_id": "POL_TEACHER", "role_id": "RL004"},
+        
+        # Admin policy → Admin
+        {"policy_id": "POL_ADMIN", "role_id": "RL001"},
+        
+        # P2 policy → Phòng Đào tạo
+        {"policy_id": "POL_P2", "role_id": "RL003"},
+        
+        # Khao Thi policy → Ban Khảo thí
+        {"policy_id": "POL_KHAO_THI", "role_id": "RL006"},
+    ]
+    return policy_roles
+
+
+def generate_policy_users():
+    """Generate policy to user mappings (custom exceptions)"""
+    policy_users = [
+        # Custom policy → Specific users
+        {"policy_id": "POL_CUSTOM", "user_id": "USR001"},  # Admin
+        {"policy_id": "POL_CUSTOM", "user_id": "USR003"},  # P2
+    ]
+    return policy_users
+
+
+def generate_documents(users):
+    """Generate document metadata for sample documents"""
+    user_id = users[0]["user_id"]  # Use the first user (admin) as uploader for simplicity
+    documents = [
+        {
+            "id": "DOC001",
+            "title": "Quy chế đào tạo đại học - Đại học Quốc gia 2022",
+            "description": "Quy chế đào tạo đại học chính quy của Đại học Quốc gia, ban hành năm 2022. Bao gồm các quy định về chương trình đào tạo, tín chỉ, đánh giá kết quả học tập, tốt nghiệp.",
+            "document_type": "pdf",
+            "source_type": "manual_upload",
+            "source_system": "manual",
+            "source_id": None,
+            "owner_unit_code": "DHDQG",
+            "owner_unit_name": "Đại học Quốc gia",
+            "tags": ['quy chế', 'đào tạo', 'đại học', '2022'],
+            "security_level": "public",
+            "access_policy_id": "POL_PUBLIC",
+            "file_name": "01_quy_che_dao_tao_dai_hoc_quoc_gia_2022.pdf",
+            "file_original_name": "3626_Quy chế đào tạo đại học.pdf",
+            "file_path": "/data/sample-docs/01_quy_che_dao_tao_dai_hoc_quoc_gia_2022.pdf",
+            "version": 1,
+            "is_latest_version": True,
+            "processing_status": "uploaded",
+            "chunk_count": 0,
+            "uploaded_by": user_id,
+        },
+        {
+            "id": "DOC002",
+            "title": "Nghị định 66/2026/NĐ-CP - Hướng dẫn Luật Giáo dục",
+            "description": "Nghị định số 66/2026/NĐ-CP của Chính phủ hướng dẫn thi hành một số điều của Luật Giáo dục. Quy định chi tiết về tổ chức và hoạt động giáo dục.",
+            "document_type": "pdf",
+            "source_type": "manual_upload",
+            "source_system": "manual",
+            "source_id": None,
+            "owner_unit_code": "CP",
+            "owner_unit_name": "Chính phủ Việt Nam",
+            "tags": ['nghị định', '66/2026', 'luật giáo dục', 'hướng dẫn'],
+            "security_level": "public",
+            "access_policy_id": "POL_PUBLIC",
+            "file_name": "02_nghi_dinh_66_2026_nd_cp_huong_dan_luat_giao_duc.pdf",
+            "file_original_name": "Nghị định 66_2026_NĐ-CP_Hướng dẫn luật Giáo dục.pdf",
+            "file_path": "/data/sample-docs/02_nghi_dinh_66_2026_nd_cp_huong_dan_luat_giao_duc.pdf",
+            "version": 1,
+            "is_latest_version": True,
+            "processing_status": "uploaded",
+            "chunk_count": 0,
+            "uploaded_by": user_id,
+        },
+        {
+            "id": "DOC003",
+            "title": "Mẫu đơn xin xét tốt nghiệp - Đại học Sài Gòn",
+            "description": "Mẫu đơn xin xét tốt nghiệp dành cho sinh viên Đại học Sài Gòn. Bao gồm thông tin cá nhân, kết quả học tập và xác nhận của đơn vị.",
+            "document_type": "doc",
+            "source_type": "manual_upload",
+            "source_system": "manual",
+            "source_id": None,
+            "owner_unit_code": "DHSG",
+            "owner_unit_name": "Đại học Sài Gòn",
+            "tags": ['đơn xin', 'xét tốt nghiệp', 'mẫu đơn'],
+            "security_level": "internal",
+            "access_policy_id": "POL_STUDENT",
+            "file_name": "03_mau_don_xin_xet_tot_nghiep_dai_hoc_sai_gon.doc",
+            "file_original_name": "Mẫu đơn xin xét tốt nghiệp_Đại học Sài Gòn.doc",
+            "file_path": "/data/sample-docs/03_mau_don_xin_xet_tot_nghiep_dai_hoc_sai_gon.doc",
+            "version": 1,
+            "is_latest_version": True,
+            "processing_status": "uploaded",
+            "chunk_count": 0,
+            "uploaded_by": user_id,
+        },
+        {
+            "id": "DOC004",
+            "title": "Quy chế đào tạo đại học - Đại học Bách khoa Hà Nội 2025",
+            "description": "Quy chế đào tạo của Đại học Bách khoa Hà Nội, ban hành kèm theo Quyết định số 5445/QĐ-ĐHBK năm 2025. Quy định chi tiết về đào tạo đại học, thạc sĩ, tiến sĩ.",
+            "document_type": "pdf",
+            "source_type": "manual_upload",
+            "source_system": "manual",
+            "source_id": None,
+            "owner_unit_code": "DHBK",
+            "owner_unit_name": "Đại học Bách khoa Hà Nội",
+            "tags": ['quy chế', 'đào tạo', 'đại học', 'bách khoa', '2025'],
+            "security_level": "internal",
+            "access_policy_id": "POL_TEACHER",
+            "file_name": "04_quy_che_dao_tao_dai_hoc_bach_khoa_2025.pdf",
+            "file_original_name": "Quy chế đào tạo đại học_Đại học Bách khoa_2025.pdf",
+            "file_path": "/data/sample-docs/04_quy_che_dao_tao_dai_hoc_bach_khoa_2025.pdf",
+            "version": 1,
+            "is_latest_version": True,
+            "processing_status": "uploaded",
+            "chunk_count": 0,
+            "uploaded_by": user_id,
+        },
+        {
+            "id": "DOC005",
+            "title": "Đơn xin miễn học miễn thi - Đại học Báo chí Tuyên truyền",
+            "description": "Mẫu đơn xin miễn học, miễn thi dành cho sinh viên Đại học Báo chí Tuyên truyền. Áp dụng cho các trường hợp có lý do chính đáng.",
+            "document_type": "docx",
+            "source_type": "manual_upload",
+            "source_system": "manual",
+            "source_id": None,
+            "owner_unit_code": "DHBCTT",
+            "owner_unit_name": "Đại học Báo chí Tuyên truyền",
+            "tags": ['đơn xin', 'miễn học', 'miễn thi', 'mẫu đơn'],
+            "security_level": "internal",
+            "access_policy_id": "POL_STUDENT",
+            "file_name": "05_don_xin_mien_hoc_mien_thi_dai_hoc_bao_chi.docx",
+            "file_original_name": "Đơn xin miễn học miễn thi_Đại học báo chí tuyên truyền.docx",
+            "file_path": "/data/sample-docs/05_don_xin_mien_hoc_mien_thi_dai_hoc_bao_chi.docx",
+            "version": 1,
+            "is_latest_version": True,
+            "processing_status": "uploaded",
+            "chunk_count": 0,
+            "uploaded_by": user_id,
+        },
+        {
+            "id": "DOC006",
+            "title": "Quy chế đào tạo đại học - Đại học Quy Nhơn 2025",
+            "description": "Quy chế đào tạo đại học của Đại học Quy Nhơn, áp dụng từ khóa K48 năm 2025. Quy định về tổ chức đào tạo, đánh giá kết quả, tốt nghiệp.",
+            "document_type": "pdf",
+            "source_type": "manual_upload",
+            "source_system": "manual",
+            "source_id": None,
+            "owner_unit_code": "DHQN",
+            "owner_unit_name": "Đại học Quy Nhơn",
+            "tags": ['quy chế', 'đào tạo', 'đại học', 'quy nhơn', '2025'],
+            "security_level": "restricted",
+            "access_policy_id": "POL_P2",
+            "file_name": "06_quy_che_dao_tao_dai_hoc_quy_nhon_2025.pdf",
+            "file_original_name": "Quy chế đào tạo đại học_Đại học Quy Nhơn_2025.pdf",
+            "file_path": "/data/sample-docs/06_quy_che_dao_tao_dai_hoc_quy_nhon_2025.pdf",
+            "version": 1,
+            "is_latest_version": True,
+            "processing_status": "uploaded",
+            "chunk_count": 0,
+            "uploaded_by": user_id,
+        }
+    ]
+    for doc in documents:
+        file_path = doc["file_path"].lstrip('/')
+        size, checksum = get_file_metadata(file_path)
+        doc["file_size_bytes"] = size
+        doc["file_checksum"] = checksum
+    return documents
+
+
+def generate_document_versions(documents):
+    """Generate initial document versions for each document"""
+    versions = []
+    for i, doc in enumerate(documents, 1):
+        versions.append({
+            "version_id": f"VER-20260616-{i:03d}",
+            "doc_id": doc["id"],
+            "version_number": 1,
+            "title": doc["title"],
+            "description": doc["description"],
+            "file_name": doc["file_name"],
+            "file_path": doc["file_path"],
+            "file_size_bytes": doc["file_size_bytes"],
+            "file_checksum": doc["file_checksum"],
+            "owner_unit_code": doc["owner_unit_code"],
+            "security_level": doc["security_level"],
+            "change_reason": "Initial upload for RAG testing",
+            "changed_by": doc["uploaded_by"],
+        })
+    return versions
 
 def get_output_paths(out_dir):
     return {
@@ -999,7 +1283,7 @@ def write_dimensions_seed(path, nam_hoc_list, hoc_ky_list, don_vi_list, truncate
         write_footer(f)
 
 
-def write_iam_seed(path, iam_data, truncate=False):
+def write_iam_seed(path, iam_data, policies, policy_roles, policy_users, truncate=False):
     with open(path, "w", encoding="utf-8") as f:
         write_header(f)
         if truncate:
@@ -1011,10 +1295,13 @@ def write_iam_seed(path, iam_data, truncate=False):
         write_insert_statement(f, "role_permissions", ["role_id", "permission_id"], iam_data["role_permissions"])
         write_insert_statement(f, "user_roles", ["user_id", "role_id"], iam_data["user_roles"])
         write_insert_statement(f, "user_permissions", ["user_id", "permission_id"], iam_data["user_permissions"])
+        write_insert_statement(f, "access_policies", ["id", "name", "description", "scope_type"], policies)
+        write_insert_statement(f, "policy_roles", ["policy_id", "role_id"], policy_roles)
+        write_insert_statement(f, "policy_users", ["policy_id", "user_id"], policy_users)
         write_footer(f)
 
 
-def write_core_seed(path, giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, truncate=False):
+def write_core_seed(path, giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, documents, document_versions, truncate=False):
     with open(path, "w", encoding="utf-8") as f:
         write_header(f)
         if truncate:
@@ -1026,6 +1313,8 @@ def write_core_seed(path, giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_
         write_insert_statement(f, "lop_hoc_phan", ["id", "ma_lhp", "ten_lhp", "mon_hoc_id", "ma_mon", "ten_mon", "hoc_ky_id", "ten_hoc_ky", "giang_vien_id", "ten_giang_vien", "si_so_toi_da", "phong", "active"], lop_hoc_phan_list)
         write_insert_statement(f, "diem", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "mon_hoc_id", "ma_mon", "ten_mon", "so_tin_chi", "hoc_ky_id", "ten_hoc_ky", "lop_hoc_phan_id", "diem_chuyen_can", "diem_thuong_xuyen", "diem_thi", "diem_tong_ket", "diem_chu", "diem_he4", "dat"], diem_list)
         write_insert_statement(f, "ket_qua_hoc_ky", ["id", "hoc_vien_id", "ma_hv", "ho_ten_hv", "hoc_ky_id", "ten_hoc_ky", "gpa_hoc_ky_he4", "gpa_tich_luy_he4", "gpa_hoc_ky_he10", "so_tc_dang_ky", "so_tc_dat", "so_tc_tich_luy", "xep_loai", "diem_ren_luyen", "muc_canh_bao"], ket_qua_list)
+        write_insert_statement(f, "documents", ["id", "title", "description", "document_type", "source_type", "source_system", "source_id", "owner_unit_code", "owner_unit_name", "tags", "security_level", "access_policy_id", "file_name", "file_original_name", "file_path", "file_size_bytes", "file_checksum", "version", "is_latest_version", "processing_status", "chunk_count", "uploaded_by"], documents)
+        write_insert_statement(f, "document_versions", ["version_id", "doc_id", "version_number", "title", "description", "file_name", "file_path", "file_size_bytes", "file_checksum", "owner_unit_code", "security_level", "change_reason", "changed_by"], document_versions)
         write_footer(f)
 
 
@@ -1135,7 +1424,12 @@ def main():
     diem_list = generate_diem(hoc_vien_list, mon_hoc_list, hoc_ky_list, lop_hoc_phan_list)
     ket_qua_list = generate_ket_qua_hoc_ky(hoc_vien_list, hoc_ky_list)
     khao_thi = generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vien_list)
-    iam_data = generate_iam_data(hoc_vien_list, giang_vien_list)  # You'll need to implement this
+    iam_data = generate_iam_data(hoc_vien_list, giang_vien_list)
+    policies = generate_policies()
+    policy_roles = generate_policy_roles()
+    policy_users = generate_policy_users()
+    documents = generate_documents(iam_data["users"])
+    document_versions = generate_document_versions(documents)
     
     # Validate
     validate_diem_uniqueness(diem_list)
@@ -1148,8 +1442,9 @@ def main():
         paths = get_output_paths(args.out_dir)
         
         write_dimensions_seed(paths["dimensions"], nam_hoc_list, hoc_ky_list, don_vi_list, args.truncate)
-        write_iam_seed(paths["iam"], iam_data, args.truncate)
-        write_core_seed(paths["core"],giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list, diem_list, ket_qua_list, args.truncate)
+        write_iam_seed(paths["iam"], iam_data, policies, policy_roles, policy_users, args.truncate)
+        write_core_seed(paths["core"],giang_vien_list, hoc_vien_list, mon_hoc_list, lop_hoc_phan_list,
+                        diem_list, ket_qua_list, documents, document_versions, args.truncate)
         write_khao_thi_seed(paths["khao_thi"], khao_thi, args.truncate)
         
         print(f"Seed data generated in: {args.out_dir}")

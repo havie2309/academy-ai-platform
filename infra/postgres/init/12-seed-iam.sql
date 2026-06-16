@@ -233,5 +233,25 @@ INSERT INTO user_roles (user_id, role_id) VALUES
     ('USR073', 'RL004'),
     ('USR074', 'RL004');
 
+INSERT INTO access_policies (id, name, description, scope_type) VALUES
+    ('POL_PUBLIC', 'Public Access', 'Tất cả người dùng đều có thể truy cập', 'all'),
+    ('POL_STUDENT', 'Student Access', 'Chỉ học viên/sinh viên mới có thể truy cập', 'role'),
+    ('POL_TEACHER', 'Teacher Access', 'Chỉ giảng viên mới có thể truy cập', 'role'),
+    ('POL_ADMIN', 'Admin Only', 'Chỉ quản trị viên mới có thể truy cập', 'role'),
+    ('POL_P2', 'P2 Access', 'Chỉ Phòng Đào tạo mới có thể truy cập', 'role'),
+    ('POL_KHAO_THI', 'Khao Thi Access', 'Chỉ Ban Khảo thí mới có thể truy cập', 'role'),
+    ('POL_CUSTOM', 'Custom Access', 'Chỉ một số người dùng cụ thể', 'custom');
+
+INSERT INTO policy_roles (policy_id, role_id) VALUES
+    ('POL_STUDENT', 'RL005'),
+    ('POL_TEACHER', 'RL004'),
+    ('POL_ADMIN', 'RL001'),
+    ('POL_P2', 'RL003'),
+    ('POL_KHAO_THI', 'RL006');
+
+INSERT INTO policy_users (policy_id, user_id) VALUES
+    ('POL_CUSTOM', 'USR001'),
+    ('POL_CUSTOM', 'USR003');
+
 SET session_replication_role = 'origin';
 ANALYZE;

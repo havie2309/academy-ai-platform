@@ -85,15 +85,22 @@ CREATE INDEX idx_documents_security_level ON documents(security_level);
 CREATE INDEX idx_documents_processing_status ON documents(processing_status);
 CREATE INDEX idx_documents_uploaded_by ON documents(uploaded_by);
 CREATE INDEX idx_documents_source_system ON documents(source_system, source_id);
-CREATE INDEX idx_documents_category ON documents(category);
 CREATE INDEX idx_documents_tags ON documents USING GIN(tags);
-CREATE INDEX idx_documents_access_department ON documents USING GIN(access_department_codes);
-CREATE INDEX idx_documents_access_role ON documents USING GIN(access_role_codes);
 CREATE INDEX idx_documents_is_latest_version ON documents(is_latest_version) WHERE is_latest_version = true;
 CREATE INDEX idx_documents_deleted_at ON documents(deleted_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_documents_access_policy ON documents(access_policy_id);
+CREATE INDEX idx_documents_owner_security ON documents(owner_unit_code, security_level);
+CREATE INDEX idx_documents_owner_processing ON documents(owner_unit_code, processing_status);
+CREATE INDEX idx_documents_security_processing ON documents(security_level, processing_status);
 
 -- Document versions indexes
 CREATE INDEX idx_document_versions_doc_id ON document_versions(doc_id);
 CREATE INDEX idx_document_versions_changed_by ON document_versions(changed_by);
 CREATE INDEX idx_document_versions_changed_at ON document_versions(changed_at DESC);
 CREATE INDEX idx_document_versions_doc_version ON document_versions(doc_id, version_number);
+
+-- Indexes for junction tables (access policies)
+CREATE INDEX idx_policy_roles_policy ON policy_roles(policy_id);
+CREATE INDEX idx_policy_roles_role ON policy_roles(role_id);
+CREATE INDEX idx_policy_users_policy ON policy_users(policy_id);
+CREATE INDEX idx_policy_users_user ON policy_users(user_id);

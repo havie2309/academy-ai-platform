@@ -108,3 +108,27 @@ CREATE TABLE audit_log (
     reason TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Access policies (reusable access rules)
+CREATE TABLE access_policies (
+    id VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    scope_type VARCHAR(20) NOT NULL CHECK (scope_type IN ('all', 'role', 'custom')),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Junction: Policy → Roles
+CREATE TABLE policy_roles (
+    policy_id VARCHAR(20) REFERENCES access_policies(id) ON DELETE CASCADE,
+    role_id VARCHAR(20) REFERENCES roles(id) ON DELETE CASCADE,
+    PRIMARY KEY (policy_id, role_id)
+);
+
+-- Junction: Policy → Users (custom exceptions)
+CREATE TABLE policy_users (
+    policy_id VARCHAR(20) REFERENCES access_policies(id) ON DELETE CASCADE,
+    user_id VARCHAR(20) REFERENCES users(user_id) ON DELETE CASCADE,
+    PRIMARY KEY (policy_id, user_id)
+);
