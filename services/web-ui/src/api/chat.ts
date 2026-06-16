@@ -1,12 +1,5 @@
 import { authApi } from './auth'
-
-const API_BASE =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? '' : 'http://localhost:3000')
-
-function apiUrl(path: string) {
-  return `${API_BASE}${path}`
-}
+import { apiUrl } from './base'
 
 function authHeaders(json = true): Record<string, string> {
   const token = authApi.getToken()

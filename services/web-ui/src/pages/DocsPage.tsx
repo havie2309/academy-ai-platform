@@ -15,6 +15,7 @@ import {
 import {
   docsApi,
   type DocItem,
+  type IngestStatus,
   type SecurityLevel,
   type AccessScopeType,
 } from '../api/docs'
@@ -50,6 +51,19 @@ const ROLE_OPTIONS: { code: string; label: string }[] = [
 
 function securityMeta(level: SecurityLevel) {
   return SECURITY_LEVELS.find((s) => s.value === level) ?? SECURITY_LEVELS[1]
+}
+
+function ingestMeta(status?: IngestStatus) {
+  switch (status) {
+    case 'completed':
+      return { label: 'Đã index', badge: 'bg-emerald-50 text-emerald-600 border-emerald-200' }
+    case 'processing':
+      return { label: 'Đang xử lý', badge: 'bg-amber-50 text-amber-600 border-amber-200' }
+    case 'failed':
+      return { label: 'Lỗi index', badge: 'bg-red-50 text-red-600 border-red-200' }
+    default:
+      return { label: 'Chờ xử lý', badge: 'bg-slate-50 text-slate-500 border-slate-200' }
+  }
 }
 
 function formatSize(bytes: number): string {
@@ -112,6 +126,48 @@ export default function DocsPage() {
   useEffect(() => {
     loadDocs()
   }, [])
+
+  const pendingIngestIds = useMemo(
+    () =>
+      docs
+        .filter(
+          (d) =>
+            d.ingest_status === 'pending' || d.ingest_status === 'processing',
+        )
+        .map((d) => d.id),
+    [docs],
+  )
+
+  useEffect(() => {
+    if (pendingIngestIds.length === 0) return
+
+    const timer = window.setInterval(async () => {
+      try {
+        const updates = await Promise.all(
+          pendingIngestIds.map(async (id) => {
+            const s = await docsApi.ingestStatus(id)
+            return {
+              id,
+              ingest_status: s.status,
+              ingest_stage: s.stage,
+              chunk_count: s.chunk_count,
+              ingest_error: s.error,
+            }
+          }),
+        )
+        setDocs((prev) =>
+          prev.map((doc) => {
+            const u = updates.find((x) => x.id === doc.id)
+            return u ? { ...doc, ...u } : doc
+          }),
+        )
+      } catch {
+        // ignore polling errors
+      }
+    }, 3000)
+
+    return () => window.clearInterval(timer)
+  }, [pendingIngestIds])
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -338,6 +394,9 @@ export default function DocsPage() {
                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${securityMeta(doc.security_level).badge}`}>
                   {securityMeta(doc.security_level).label}
                 </span>
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${ingestMeta(doc.ingest_status).badge}`}>
+                  {ingestMeta(doc.ingest_status).label}
+                </span>
               </div>
               <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
                 {doc.title}
@@ -356,6 +415,21 @@ export default function DocsPage() {
                   <span>Dung lượng</span>
                   <span className="font-semibold text-slate-600">{formatSize(doc.size)}</span>
                 </div>
+                {doc.ingest_status === 'completed' && (doc.chunk_count ?? 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span>Chunks</span>
+                    <span className="font-semibold text-emerald-600">{doc.chunk_count}</span>
+                  </div>
+                )}
+                {doc.ingest_status === 'processing' && doc.ingest_stage && (
+                  <div className="flex justify-between">
+                    <span>Giai đoạn</span>
+                    <span className="font-semibold text-amber-600">{doc.ingest_stage}</span>
+                  </div>
+                )}
+                {doc.ingest_status === 'failed' && doc.ingest_error && (
+                  <p className="text-red-500 text-[11px] leading-snug">{doc.ingest_error}</p>
+                )}
               </div>
 
               <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">

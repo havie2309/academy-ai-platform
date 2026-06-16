@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config'
 import { existsSync } from 'node:fs'
 import { unlink } from 'node:fs/promises'
 import { Collection, Db, MongoClient } from 'mongodb'
+import { IngestQueueService } from '../ingest/ingest-queue.service'
 
 export interface UploadedFileLike {
   originalname: string
@@ -41,6 +42,8 @@ export interface AccessMeta {
   userIds: string[]
 }
 
+type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
 interface DocumentDoc {
   docId: string
   title: string
@@ -58,6 +61,11 @@ interface DocumentDoc {
   uploadedById: string
   uploadedByName: string
   createdAt: Date
+  ingestStatus?: IngestStatus
+  ingestStage?: string
+  chunkCount?: number
+  ingestError?: string | null
+  ingestUpdatedAt?: Date
 }
 
 const DEFAULT_CATEGORY = 'Khác'
@@ -81,7 +89,10 @@ export class DocumentsService implements OnModuleInit {
   private db!: Db
   private documents!: Collection<DocumentDoc>
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly ingestQueue: IngestQueueService,
+  ) {}
 
   async onModuleInit() {
     const uri =
@@ -108,6 +119,7 @@ export class DocumentsService implements OnModuleInit {
   ) {
     this.ensureReady()
     const access = meta.access
+    const now = new Date()
     const doc: DocumentDoc = {
       docId: file.filename.replace(/\.[^.]+$/, ''),
       title: meta.title?.trim() || file.originalname,
@@ -125,9 +137,45 @@ export class DocumentsService implements OnModuleInit {
       accessUserIds: access.scopeType === 'custom' ? access.userIds : [],
       uploadedById: user.userId,
       uploadedByName: user.name,
-      createdAt: new Date(),
+      createdAt: now,
+      ingestStatus: 'pending',
+      ingestStage: 'queued',
+      ingestUpdatedAt: now,
     }
     await this.documents.insertOne(doc)
+
+    try {
+      await this.ingestQueue.enqueue({
+        documentId: doc.docId,
+        storagePath: doc.storagePath,
+        title: doc.title,
+        mimeType: doc.mimeType,
+        securityLevel: doc.securityLevel,
+        scopeType: doc.scopeType,
+        accessRoleCodes: doc.accessRoleCodes,
+        accessDepartmentCodes: doc.accessDepartmentCodes,
+        accessUserIds: doc.accessUserIds,
+        uploadedById: doc.uploadedById,
+      })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Không gửi được job ingest.'
+      await this.documents.updateOne(
+        { docId: doc.docId },
+        {
+          $set: {
+            ingestStatus: 'failed',
+            ingestStage: 'queue',
+            ingestError: message.slice(0, 500),
+            ingestUpdatedAt: new Date(),
+          },
+        },
+      )
+      doc.ingestStatus = 'failed'
+      doc.ingestStage = 'queue'
+      doc.ingestError = message.slice(0, 500)
+    }
+
     return this.toDto(doc)
   }
 
@@ -193,6 +241,23 @@ export class DocumentsService implements OnModuleInit {
     return doc
   }
 
+  async getIngestStatus(docId: string, user: RequestUser) {
+    this.ensureReady()
+    const doc = await this.documents.findOne({ docId })
+    if (!doc) throw new NotFoundException('Không tìm thấy tài liệu.')
+    if (!this.canView(doc, user)) {
+      throw new ForbiddenException('Bạn không có quyền xem tài liệu này.')
+    }
+    return {
+      document_id: doc.docId,
+      status: doc.ingestStatus ?? 'pending',
+      stage: doc.ingestStage ?? null,
+      chunk_count: doc.chunkCount ?? 0,
+      error: doc.ingestError ?? null,
+      updated_at: doc.ingestUpdatedAt?.toISOString() ?? null,
+    }
+  }
+
   async remove(docId: string, user: RequestUser): Promise<{ deleted: true }> {
     this.ensureReady()
     const doc = await this.documents.findOne({ docId })
@@ -204,6 +269,8 @@ export class DocumentsService implements OnModuleInit {
     }
 
     await this.documents.deleteOne({ docId })
+    await this.db.collection('document_chunks').deleteMany({ documentId: docId })
+    await this.db.collection('processing_jobs').deleteMany({ documentId: docId })
     if (existsSync(doc.storagePath)) {
       await unlink(doc.storagePath).catch(() => {})
     }
@@ -226,6 +293,10 @@ export class DocumentsService implements OnModuleInit {
       uploaded_by: d.uploadedByName,
       uploaded_by_id: d.uploadedById,
       created_at: d.createdAt.toISOString(),
+      ingest_status: d.ingestStatus ?? 'pending',
+      ingest_stage: d.ingestStage ?? null,
+      chunk_count: d.chunkCount ?? 0,
+      ingest_error: d.ingestError ?? null,
     }
   }
 }

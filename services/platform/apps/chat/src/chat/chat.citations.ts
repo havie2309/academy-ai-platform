@@ -5,9 +5,11 @@ export interface ChatCitationDto {
   page?: number
   snippet: string
   source: string
+  /** Full chunk text used as LLM grounding context. Stripped before sending to the client. */
+  text?: string
 }
 
-/** Stub retrieval until E-08 rag-engine — server-side only, never trust client. */
+/** Stub retrieval fallback when RAG engine is unavailable. */
 export function resolveCitations(query: string): ChatCitationDto[] {
   const q = query.toLowerCase()
   if (q.includes('thi') || q.includes('lịch') || q.includes('khảo thí') || q.includes('hk2')) {
