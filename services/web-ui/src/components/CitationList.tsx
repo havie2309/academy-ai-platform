@@ -7,6 +7,16 @@ interface CitationListProps {
 
 export default function CitationList({ citations }: CitationListProps) {
   if (!citations.length) return null
+  const deduped = citations.filter((cit, idx, arr) => {
+    const key = cit.doc_id?.trim().toLowerCase() || `${cit.title}|${cit.source}`.toLowerCase()
+    return (
+      idx ===
+      arr.findIndex((x) => {
+        const other = x.doc_id?.trim().toLowerCase() || `${x.title}|${x.source}`.toLowerCase()
+        return other === key
+      })
+    )
+  })
 
   return (
     <div className="mt-2 px-1">
@@ -15,7 +25,7 @@ export default function CitationList({ citations }: CitationListProps) {
         <span>Nguồn tham khảo</span>
       </div>
       <div className="flex flex-wrap gap-2">
-        {citations.map((cit) => (
+        {deduped.map((cit) => (
           <div
             key={`${cit.doc_id}-${cit.chunk_id}`}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50/50 hover:bg-blue-50 border border-blue-100/60 text-xs text-blue-700 font-medium transition-all max-w-full"

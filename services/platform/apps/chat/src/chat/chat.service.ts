@@ -185,6 +185,9 @@ export class ChatService implements OnModuleInit {
       answer = await this.callLlm(history, citations)
       clientCitations = this.toClientCitations(citations)
     }
+    if (this.isNoInfoAnswer(answer)) {
+      clientCitations = []
+    }
 
     const assistantMsg = await this.persistAssistantMessage(
       userId,
@@ -270,6 +273,9 @@ export class ChatService implements OnModuleInit {
         answer = await this.streamLlm(history, citations, (delta) => {
           writeSseEvent(res, 'token', { delta })
         })
+      }
+      if (this.isNoInfoAnswer(answer)) {
+        clientCitations = []
       }
 
       const assistantMsg = await this.persistAssistantMessage(
@@ -619,6 +625,15 @@ export class ChatService implements OnModuleInit {
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }))
+  }
+
+  private isNoInfoAnswer(answer: string): boolean {
+    const text = answer.trim().toLowerCase()
+    return (
+      text.includes('không tìm thấy thông tin') ||
+      text.includes('khong tim thay thong tin') ||
+      text.includes('không có thông tin')
+    )
   }
 
   private toSessionDto(s: ChatSessionDoc) {
