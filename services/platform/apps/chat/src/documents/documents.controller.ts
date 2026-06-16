@@ -121,6 +121,11 @@ export class DocumentsController {
     )
   }
 
+  @Get(':id/ingest-status')
+  ingestStatus(@Req() req: { user: AuthUser }, @Param('id') id: string) {
+    return this.docs.getIngestStatus(id, toRequestUser(req.user))
+  }
+
   @Get(':id/file')
   async download(
     @Req() req: { user: AuthUser },

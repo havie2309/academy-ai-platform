@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   OnModuleInit,
   ServiceUnavailableException,
@@ -9,14 +10,52 @@ import { ConfigService } from '@nestjs/config'
 import type { Response } from 'express'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
-import { resolveCitations, type ChatCitationDto } from './chat.citations'
+import { type ChatCitationDto } from './chat.citations'
 import { initSse, writeSseError, writeSseEvent } from './chat-sse.util'
+import {
+  RagService,
+  type RagMessage,
+  type RagUserContext,
+} from '../rag/rag.service'
 
-const SYSTEM_PROMPT =
-  'Bạn là trợ lý ảo của học viện, hỗ trợ cán bộ, giảng viên và học viên tra cứu thông tin đào tạo, khảo thí, nghiên cứu khoa học. Trả lời bằng tiếng Việt, ngắn gọn và chính xác.'
+const SYSTEM_PROMPT = `
+Bạn là trợ lý ảo của học viện, hỗ trợ cán bộ, giảng viên và học viên tra cứu thông tin đào tạo, khảo thí, nghiên cứu khoa học.
 
-const TITLE_SYSTEM_PROMPT =
-  'Đặt tiêu đề ngắn cho cuộc hội thoại. Chỉ trả về 3–6 từ tiếng Việt, không dấu ngoặc, không giải thích, không lặp nguyên câu hỏi.'
+Nguyên tắc trả lời:
+- Luôn trả lời bằng tiếng Việt.
+- Trả lời ngắn gọn, rõ ràng, đúng trọng tâm.
+- Chỉ dùng thông tin có trong tài liệu được cung cấp.
+- Không bịa thông tin ngoài tài liệu.
+- Nếu không tìm thấy thông tin trong tài liệu, trả lời: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+
+Định dạng câu trả lời:
+- Không chèn mã tài liệu, phiên bản, ngày ban hành, metadata vào giữa câu trả lời.
+- Nếu câu trả lời có nhiều ý, dùng danh sách bullet.
+- Không viết phần "Ghi chú kiểm thử" cho người dùng.
+- Không lặp lại nguồn nhiều lần trong từng bullet.
+- Phần nguồn tham khảo phải đặt riêng ở cuối câu trả lời.
+
+Ví dụ format tốt:
+"Khi đi thi, sinh viên cần mang theo:
+
+- Thẻ sinh viên
+- Giấy tờ tùy thân
+
+Nguồn tham khảo: DOC-HK2-2026-REG-001"
+
+Ví dụ format xấu cần tránh:
+"Giấy tờ tùy thân (tài liệu 1) [1]: Mã tài liệu: DOC-HK2-2026-REG-001; Phiên bản: 1.0; Ngày ban hành: 01/06/2026"
+`
+
+const TITLE_SYSTEM_PROMPT = `
+Đặt tiêu đề ngắn cho cuộc hội thoại.
+Tiêu đề phải mô tả chủ đề cuộc hội thoại, không tiết lộ đáp án chi tiết.
+Chỉ trả về 3–6 từ tiếng Việt.
+Không dùng dấu ngoặc.
+Không giải thích.
+Không lặp nguyên văn câu hỏi.
+Không thêm dấu chấm cuối câu.
+`
 
 const MAX_HISTORY = 20
 const MAX_TITLE_LENGTH = 48
@@ -44,12 +83,16 @@ interface ChatMessageDoc {
 
 @Injectable()
 export class ChatService implements OnModuleInit {
+  private readonly logger = new Logger(ChatService.name)
   private client!: MongoClient
   private db!: Db
   private sessions!: Collection<ChatSessionDoc>
   private messages!: Collection<ChatMessageDoc>
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly rag: RagService,
+  ) {}
 
   async onModuleInit() {
     const uri =
@@ -111,19 +154,43 @@ export class ChatService implements OnModuleInit {
     return rows.map((m) => this.toMessageDto(m))
   }
 
-  async sendMessage(userId: string, sessionId: string, content: string) {
+  async sendMessage(
+    userId: string,
+    sessionId: string,
+    content: string,
+    ragUser: RagUserContext,
+  ) {
     const { session, userMsg, history, text } = await this.prepareUserMessage(
       userId,
       sessionId,
       content,
     )
-    const citations = resolveCitations(text)
-    const answer = await this.callLlm(history, citations)
+    let answer: string
+    let clientCitations: ChatCitationDto[]
+    try {
+      // Primary: rag-engine owns the full RAG turn (retrieve + grounded answer).
+      const result = await this.rag.chat(
+        text,
+        this.toRagMessages(history),
+        ragUser,
+      )
+      answer = result.answer
+      clientCitations = result.citations
+    } catch (err) {
+      // Fallback: rag-engine down -> retrieve + local LLM here.
+      this.logger.warn(
+        `rag-engine /v1/chat lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
+      )
+      const citations = await this.rag.retrieveCitations(text, ragUser)
+      answer = await this.callLlm(history, citations)
+      clientCitations = this.toClientCitations(citations)
+    }
+
     const assistantMsg = await this.persistAssistantMessage(
       userId,
       sessionId,
       answer,
-      citations,
+      clientCitations,
       'rag',
     )
     const titleUpdate = await this.maybeUpdateSessionTitle(
@@ -142,7 +209,7 @@ export class ChatService implements OnModuleInit {
       },
       user_message: this.toMessageDto(userMsg),
       assistant_message: this.toMessageDto(assistantMsg),
-      citations,
+      citations: clientCitations,
       route: 'rag' as const,
     }
   }
@@ -151,6 +218,7 @@ export class ChatService implements OnModuleInit {
     userId: string,
     sessionId: string,
     content: string,
+    ragUser: RagUserContext,
     res: Response,
   ): Promise<void> {
     initSse(res)
@@ -161,23 +229,54 @@ export class ChatService implements OnModuleInit {
         sessionId,
         content,
       )
-      const citations = resolveCitations(text)
-
-      writeSseEvent(res, 'meta', {
-        user_message: this.toMessageDto(userMsg),
-        citations,
-        route: 'rag',
-      })
-
-      const answer = await this.streamLlm(history, citations, (delta) => {
-        writeSseEvent(res, 'token', { delta })
-      })
+      let answer = ''
+      let clientCitations: ChatCitationDto[] = []
+      let streamed = false
+      try {
+        // Primary: rag-engine streams the grounded answer (meta -> tokens).
+        const result = await this.rag.chatStream(
+          text,
+          this.toRagMessages(history),
+          ragUser,
+          (citations) => {
+            streamed = true
+            writeSseEvent(res, 'meta', {
+              user_message: this.toMessageDto(userMsg),
+              citations,
+              route: 'rag',
+            })
+          },
+          (delta) => {
+            streamed = true
+            writeSseEvent(res, 'token', { delta })
+          },
+        )
+        answer = result.answer
+        clientCitations = result.citations
+      } catch (err) {
+        // If anything was already streamed to the client we cannot fall back
+        // cleanly (meta/tokens already sent) — surface the error instead.
+        if (streamed) throw err
+        this.logger.warn(
+          `rag-engine /v1/chat/stream lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
+        )
+        const citations = await this.rag.retrieveCitations(text, ragUser)
+        clientCitations = this.toClientCitations(citations)
+        writeSseEvent(res, 'meta', {
+          user_message: this.toMessageDto(userMsg),
+          citations: clientCitations,
+          route: 'rag',
+        })
+        answer = await this.streamLlm(history, citations, (delta) => {
+          writeSseEvent(res, 'token', { delta })
+        })
+      }
 
       const assistantMsg = await this.persistAssistantMessage(
         userId,
         sessionId,
         answer,
-        citations,
+        clientCitations,
         'rag',
       )
       const titleUpdate = await this.maybeUpdateSessionTitle(
@@ -195,7 +294,7 @@ export class ChatService implements OnModuleInit {
           updated_at: assistantMsg.createdAt.toISOString(),
         },
         assistant_message: this.toMessageDto(assistantMsg),
-        citations,
+        citations: clientCitations,
         route: 'rag',
       })
       res.end()
@@ -403,7 +502,7 @@ export class ChatService implements OnModuleInit {
         ? `\n\nNgữ cảnh tham khảo (trích từ kho tài liệu):\n${citations
             .map(
               (c, i) =>
-                `[${i + 1}] ${c.title} (${c.source}): ${c.snippet}`,
+                `[${i + 1}] ${c.title} (${c.source}): ${c.text ?? c.snippet}`,
             )
             .join('\n')}\n\nTrả lời bằng markdown ngắn gọn. Khi dùng thông tin từ ngữ cảnh, ghi rõ nguồn.`
         : ''
@@ -502,6 +601,24 @@ export class ChatService implements OnModuleInit {
     const content = data.choices?.[0]?.message?.content
     if (!content) throw new ServiceUnavailableException('LLM trả về rỗng.')
     return content
+  }
+
+  /**
+   * Drop the full chunk `text` (LLM grounding context) so it is never persisted
+   * or sent to the client — the UI only needs title/snippet/source.
+   */
+  private toClientCitations(
+    citations: ChatCitationDto[],
+  ): ChatCitationDto[] {
+    return citations.map(({ text: _text, ...rest }) => rest)
+  }
+
+  /** Map stored history docs to the role/content shape rag-engine expects. */
+  private toRagMessages(history: ChatMessageDoc[]): RagMessage[] {
+    return history.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }))
   }
 
   private toSessionDto(s: ChatSessionDoc) {

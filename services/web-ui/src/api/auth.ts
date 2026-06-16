@@ -1,6 +1,4 @@
-const API_BASE =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? '' : 'http://localhost:3000');
+import { apiUrl } from './base';
 const USE_MOCK_AUTH = import.meta.env.VITE_MOCK_AUTH === 'true';
 
 export interface LoginResponse {
@@ -20,10 +18,6 @@ const mockUsers: Record<string, LoginResponse> = {
   hv001: { access_token: 'mock', user: { id: '3', username: 'hv001', full_name: 'Trần Thị B', roles: ['HocVien'], unit_id: 'P2' } },
   p2:    { access_token: 'mock', user: { id: '4', username: 'p2', full_name: 'Cán bộ P2', roles: ['P2'], unit_id: 'P2' } },
 };
-
-function apiUrl(path: string) {
-  return `${API_BASE}${path}`;
-}
 
 export const authApi = {
   async login(username: string, password: string): Promise<LoginResponse> {

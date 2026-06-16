@@ -85,7 +85,8 @@ INSERT INTO users (user_id, username, email, password_hash, fullname, department
     ('USR071', 'GV3885', 'phamhaiquan@pm2.edu.vn', '$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2', 'Phạm Hải Quân', 'Bộ môn Công nghệ phần mềm', 2, 'active'),
     ('USR072', 'GV9915', 'lytuanbinh@pm2.edu.vn', '$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2', 'Lý Tuấn Bình', 'Bộ môn Viễn thông', 2, 'active'),
     ('USR073', 'GV3055', 'phamvanxuan@pm2.edu.vn', '$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2', 'Phạm Văn Xuân', 'Bộ môn Tin học cơ bản', 2, 'active'),
-    ('USR074', 'GV3704', 'phamquanghoa@pm2.edu.vn', '$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2', 'Phạm Quang Hoa', 'Bộ môn Công nghệ phần mềm', 2, 'active');
+    ('USR074', 'GV3704', 'phamquanghoa@pm2.edu.vn', '$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2', 'Phạm Quang Hoa', 'Bộ môn Công nghệ phần mềm', 2, 'active')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO permissions (id, code, resource, action, description) VALUES
     ('PM001', 'users:read', 'users', 'read', 'Xem tài khoản người dùng'),
@@ -103,7 +104,8 @@ INSERT INTO permissions (id, code, resource, action, description) VALUES
     ('PM013', 'surveys:write', 'surveys', 'write', 'Tạo/cập nhật khảo sát'),
     ('PM014', 'documents:read', 'documents', 'read', 'Xem metadata tài liệu'),
     ('PM015', 'documents:write', 'documents', 'write', 'Tạo/cập nhật metadata tài liệu'),
-    ('PM016', 'reports:read', 'reports', 'read', 'Xem báo cáo tổng hợp');
+    ('PM016', 'reports:read', 'reports', 'read', 'Xem báo cáo tổng hợp')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO roles (id, name, code, description) VALUES
     ('RL001', 'Administrator', 'ADMIN', 'Quản trị toàn hệ thống'),
@@ -111,7 +113,8 @@ INSERT INTO roles (id, name, code, description) VALUES
     ('RL003', 'Phòng Đào tạo', 'P2', 'Quản lý đào tạo'),
     ('RL004', 'Giảng viên', 'GIANG_VIEN', 'Tài khoản giảng viên'),
     ('RL005', 'Học viên', 'HOC_VIEN', 'Tài khoản học viên'),
-    ('RL006', 'Ban Khảo thí', 'KHAO_THI', 'Quản lý khảo thí');
+    ('RL006', 'Ban Khảo thí', 'KHAO_THI', 'Quản lý khảo thí')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO role_permissions (role_id, permission_id) VALUES
     ('RL001', 'PM001'),
@@ -155,7 +158,8 @@ INSERT INTO role_permissions (role_id, permission_id) VALUES
     ('RL006', 'PM011'),
     ('RL006', 'PM012'),
     ('RL006', 'PM013'),
-    ('RL006', 'PM014');
+    ('RL006', 'PM014')
+ON CONFLICT DO NOTHING;
 
 INSERT INTO user_roles (user_id, role_id) VALUES
     ('USR001', 'RL001'),
@@ -231,7 +235,8 @@ INSERT INTO user_roles (user_id, role_id) VALUES
     ('USR071', 'RL004'),
     ('USR072', 'RL004'),
     ('USR073', 'RL004'),
-    ('USR074', 'RL004');
+    ('USR074', 'RL004')
+ON CONFLICT DO NOTHING;
 
 SET session_replication_role = 'origin';
 ANALYZE;

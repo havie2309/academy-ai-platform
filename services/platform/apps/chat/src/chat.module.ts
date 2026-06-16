@@ -6,8 +6,10 @@ import { CommonModule } from '../../../src/common/common.module'
 import { JwtStrategy } from './auth/jwt.strategy'
 import { ChatController } from './chat/chat.controller'
 import { ChatService } from './chat/chat.service'
+import { IngestQueueService } from './ingest/ingest-queue.service'
 import { DocumentsController } from './documents/documents.controller'
 import { DocumentsService } from './documents/documents.service'
+import { RagService } from './rag/rag.service'
 
 @Module({
   imports: [
@@ -22,6 +24,12 @@ import { DocumentsService } from './documents/documents.service'
     CommonModule,
   ],
   controllers: [ChatController, DocumentsController],
-  providers: [ChatService, DocumentsService, JwtStrategy],
+  providers: [
+    ChatService,
+    DocumentsService,
+    IngestQueueService,
+    RagService,
+    JwtStrategy,
+  ],
 })
 export class ChatModule {}

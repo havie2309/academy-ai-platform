@@ -13,7 +13,22 @@ import { AuthGuard } from '@nestjs/passport'
 import type { Response } from 'express'
 import { ChatService } from './chat.service'
 
-type AuthUser = { userId: string; username: string; roles: string[] }
+type AuthUser = {
+  userId: string
+  username: string
+  roles: string[]
+  department: string | null
+  maxSecurityLevel: number
+}
+
+function toRagUser(u: AuthUser) {
+  return {
+    userId: u.userId,
+    roles: u.roles ?? [],
+    department: u.department ?? null,
+    maxSecurityLevel: u.maxSecurityLevel ?? 1,
+  }
+}
 
 @Controller('chat')
 @UseGuards(AuthGuard('jwt'))
@@ -63,7 +78,12 @@ export class ChatController {
     @Param('sessionId') sessionId: string,
     @Body() body: { content: string },
   ) {
-    return this.chat.sendMessage(req.user.userId, sessionId, body.content)
+    return this.chat.sendMessage(
+      req.user.userId,
+      sessionId,
+      body.content,
+      toRagUser(req.user),
+    )
   }
 
   @Post('sessions/:sessionId/messages/stream')
@@ -77,6 +97,7 @@ export class ChatController {
       req.user.userId,
       sessionId,
       body.content,
+      toRagUser(req.user),
       res,
     )
   }

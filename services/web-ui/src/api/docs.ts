@@ -1,12 +1,5 @@
 import { authApi } from './auth'
-
-const API_BASE =
-  import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? '' : 'http://localhost:3000')
-
-function apiUrl(path: string) {
-  return `${API_BASE}${path}`
-}
+import { apiUrl } from './base'
 
 function authHeader(): Record<string, string> {
   const token = authApi.getToken()
@@ -34,6 +27,8 @@ export interface AccessConfig {
   user_ids?: string[]
 }
 
+export type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
 export interface DocItem {
   id: string
   title: string
@@ -49,6 +44,19 @@ export interface DocItem {
   uploaded_by: string
   uploaded_by_id: string
   created_at: string
+  ingest_status?: IngestStatus
+  ingest_stage?: string | null
+  chunk_count?: number
+  ingest_error?: string | null
+}
+
+export interface IngestStatusResponse {
+  document_id: string
+  status: IngestStatus
+  stage: string | null
+  chunk_count: number
+  error: string | null
+  updated_at: string | null
 }
 
 export const docsApi = {
@@ -102,5 +110,13 @@ export const docsApi = {
     })
     if (!res.ok) throw new Error(await parseError(res))
     return res.blob()
+  },
+
+  async ingestStatus(id: string): Promise<IngestStatusResponse> {
+    const res = await fetch(apiUrl(`/api/documents/${id}/ingest-status`), {
+      headers: { ...authHeader(), Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
   },
 }

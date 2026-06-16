@@ -97,7 +97,26 @@ npm install   # lần đầu
 npm run dev   # mở http://localhost:5173
 ```
 
-### 6. Truy cập
+### 6. RAG pipeline (tùy chọn — để chat trích dẫn tài liệu đã upload)
+
+```powershell
+# Bật MongoDB + RabbitMQ + Milvus (Milvus cần etcd + minio)
+docker compose --profile code up -d mongodb rabbitmq milvus etcd minio
+
+# Khởi động 4 Python service (mở 4 cửa sổ riêng)
+./scripts/start-rag.ps1
+```
+
+| Service | Cổng | Vai trò |
+|---|---|---|
+| embedding-server | 8001 | Vector hóa chunk (fastembed, 384 chiều dev) |
+| rerank-server | 8002 | Cross-encoder rerank (chọn context top-k) |
+| rag-engine | 8000 | Truy xuất chunk + filter phân quyền + rerank |
+| document-processor | 8003 | Extract → chunk → embed → Milvus + Mongo |
+
+Sau khi upload tài liệu (`.txt`, `.md`, `.pdf`) trên trang **Tài liệu**, badge **Đã index** xuất hiện khi ingest xong. Chat sẽ dùng citation thật từ kho tài liệu.
+
+### 7. Truy cập
 
 - Web UI: **http://localhost:5173**
 - API Gateway: **http://localhost:3000** (frontend gọi `/api/*` qua proxy của Vite/Gateway)
@@ -111,8 +130,12 @@ npm run dev   # mở http://localhost:5173
 | Web UI (Vite) | 5173 | `npm run dev` trong `services/web-ui` |
 | API Gateway | 3000 | proxy `/api/auth`, `/api/chat` |
 | User Management / Auth | 3001 | cần Postgres |
-| Chat + RAG | 3002 | cần MongoDB + Ollama |
+| Chat + RAG | 3002 | cần MongoDB + Ollama (+ RAG services cho citation thật) |
 | Ollama (LLM) | 11434 | `qwen2.5:3b` |
+| embedding-server | 8001 | vector hóa chunk |
+| rerank-server | 8002 | cross-encoder rerank |
+| rag-engine | 8000 | retrieval + phân quyền + rerank |
+| document-processor | 8003 | ingest pipeline |
 | Postgres | 5433 | map ra `5432` trong container |
 | MongoDB | 27017 | hội thoại & tin nhắn chat |
 
@@ -127,6 +150,7 @@ npm run dev   # mở http://localhost:5173
 | `./scripts/logs.ps1` | Xem logs realtime |
 | `./scripts/health.ps1` | Kiểm tra trạng thái container |
 | `./scripts/seed-iam.ps1` | Seed tài khoản đăng nhập vào Postgres |
+| `./scripts/start-rag.ps1` | Khởi động embedding + rag-engine + document-processor |
 
 ---
 
