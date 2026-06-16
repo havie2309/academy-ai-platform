@@ -86,6 +86,12 @@ function fileTypeLabel(name: string): string {
   return ext ? ext.toUpperCase() : 'FILE'
 }
 
+const PDF_ONLY_UPLOAD_MESSAGE = 'Chỉ hỗ trợ tải lên file PDF (.pdf).'
+
+function isPdfFile(file: File): boolean {
+  return file.name.toLowerCase().endsWith('.pdf')
+}
+
 export default function DocsPage() {
   const currentUser = authApi.getUser()
   const isAdmin = currentUser?.roles?.some((r) =>
@@ -192,6 +198,13 @@ export default function DocsPage() {
   const onFileChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!isPdfFile(file)) {
+      setPendingFile(null)
+      setUploadOpen(false)
+      setError(PDF_ONLY_UPLOAD_MESSAGE)
+      e.target.value = ''
+      return
+    }
     setPendingFile(file)
     setUploadTitle(file.name.replace(/\.[^.]+$/, ''))
     setUploadCat(UPLOAD_CATEGORIES[0])
@@ -212,6 +225,10 @@ export default function DocsPage() {
 
   const submitUpload = async () => {
     if (!pendingFile) return
+    if (!isPdfFile(pendingFile)) {
+      setError(PDF_ONLY_UPLOAD_MESSAGE)
+      return
+    }
     if (uploadScope === 'role' && uploadRoles.length === 0) {
       setError('Vui lòng chọn ít nhất một vai trò được xem.')
       return
@@ -289,7 +306,7 @@ export default function DocsPage() {
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.csv"
+        accept=".pdf,application/pdf"
         onChange={onFileChosen}
       />
 
@@ -301,6 +318,9 @@ export default function DocsPage() {
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Tra cứu và tải lên kho tài nguyên học tập, quy chế đào tạo nội bộ.
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Chỉ nhận file PDF để tải.
           </p>
         </div>
 

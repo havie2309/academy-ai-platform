@@ -1,4 +1,4 @@
-def chunk_text(text: str, max_size: int = 1000, overlap_ratio: float = 0.1) -> list[str]:
+def chunk_text(text: str, max_size: int = 400, overlap_ratio: float = 0.1) -> list[str]:
     cleaned = text.replace("\r\n", "\n").strip()
     if not cleaned:
         return []

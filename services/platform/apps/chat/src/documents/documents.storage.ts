@@ -1,11 +1,12 @@
+import { BadRequestException } from '@nestjs/common'
 import { existsSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { diskStorage } from 'multer'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
- * Thư mục lưu file upload. Mặc định: <repo>/data/uploads
- * (chat service chạy với cwd = services/platform nên ../../ là gốc repo).
+ * Thu muc luu file upload. Mac dinh: <repo>/data/uploads
+ * (chat service chay voi cwd = services/platform nen ../../ la goc repo).
  */
 export function resolveUploadDir(): string {
   const dir =
@@ -15,20 +16,12 @@ export function resolveUploadDir(): string {
   return dir
 }
 
-export const ALLOWED_EXT = [
-  '.pdf',
-  '.doc',
-  '.docx',
-  '.ppt',
-  '.pptx',
-  '.xls',
-  '.xlsx',
-  '.txt',
-  '.md',
-  '.csv',
-]
+export const ALLOWED_EXT = ['.pdf']
 
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+
+export const PDF_ONLY_UPLOAD_MESSAGE =
+  'Hien chi ho tro tai len file PDF (.pdf).'
 
 export const documentMulterOptions = {
   storage: diskStorage({
@@ -46,7 +39,10 @@ export const documentMulterOptions = {
   ) => {
     const ext = path.extname(file.originalname).toLowerCase()
     if (!ALLOWED_EXT.includes(ext)) {
-      cb(new Error(`Định dạng không hỗ trợ: ${ext || 'không rõ'}`), false)
+      cb(
+        new BadRequestException(PDF_ONLY_UPLOAD_MESSAGE) as unknown as Error,
+        false,
+      )
       return
     }
     cb(null, true)

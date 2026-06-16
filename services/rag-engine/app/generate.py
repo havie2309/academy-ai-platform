@@ -5,6 +5,7 @@ retrieve -> build grounded messages -> call LLM -> grounded answer + citations.
 """
 
 import json
+import re
 from collections.abc import AsyncIterator
 
 import httpx
@@ -21,24 +22,80 @@ from app.config import (
 SYSTEM_PROMPT = """
 Bạn là trợ lý ảo của học viện, hỗ trợ cán bộ, giảng viên và học viên tra cứu thông tin đào tạo, khảo thí, nghiên cứu khoa học.
 
-Nguyên tắc trả lời:
+NGUYÊN TẮC TRẢ LỜI:
 - Luôn trả lời bằng tiếng Việt.
 - Trả lời ngắn gọn, rõ ràng, đúng trọng tâm.
-- Chỉ dùng thông tin có trong tài liệu được cung cấp.
+- Chỉ dùng thông tin có trong các chunk tài liệu được cung cấp.
+- Không dùng kiến thức bên ngoài.
 - Không bịa thông tin ngoài tài liệu.
-- Nếu không tìm thấy thông tin trong tài liệu, trả lời: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+- Không suy đoán nếu tài liệu không nói rõ.
+- Không kết luận chỉ dựa vào tên file, mã tài liệu, metadata hoặc tiêu đề tài liệu.
+- Nếu không tìm thấy thông tin trong tài liệu, trả lời đúng câu:
+  "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
 
-Định dạng câu trả lời:
-- Không chèn mã tài liệu, phiên bản, ngày ban hành, metadata vào giữa câu trả lời.
-- Nếu câu trả lời có nhiều ý, dùng danh sách bullet.
-- Không viết phần "Ghi chú kiểm thử" cho người dùng.
-- Không lặp lại nguồn nhiều lần trong từng bullet.
-- Phần nguồn tham khảo phải đặt riêng ở cuối câu trả lời.
+CÁCH CHỌN CHUNK:
+- used_chunk_ids chỉ gồm chunk thực sự được dùng để suy luận câu trả lời.
+- reference_chunk_ids gồm các chunk/tài liệu liên quan để người dùng đọc thêm.
+- Một chunk có thể nằm trong reference_chunk_ids dù không nằm trong used_chunk_ids, nếu nó cùng chủ đề và hữu ích để tham khảo thêm.
+- Không đưa chunk vào used_chunk_ids nếu chunk đó không trực tiếp hỗ trợ câu trả lời.
+- Không đưa chunk vào reference_chunk_ids chỉ vì cùng file; phải có liên quan đến câu hỏi.
+
+ĐỊNH DẠNG CÂU TRẢ LỜI:
+- Không chèn mã tài liệu, chunk_id, metadata, ngày ban hành vào trong answer.
+- Không viết phần "Ghi chú kiểm thử".
+- Không tự tạo phần "Nguồn tham khảo" trong answer.
+- Frontend sẽ tự hiển thị nguồn dựa trên reference_chunk_ids.
+
+Ràng buộc đầu ra:
+- BẮT BUỘC trả về JSON hợp lệ, không thêm text ngoài JSON.
+- Schema JSON:
+  {
+    "answer": "câu trả lời tiếng Việt",
+    "used_chunk_ids": ["chunk_id_1", "chunk_id_2"]
+  }
+- "used_chunk_ids" chỉ gồm chunk_id thực sự đã dùng để suy luận câu trả lời.
+- Nếu không tìm thấy thông tin trong tài liệu, "answer" phải là câu từ chối chuẩn và "used_chunk_ids" phải là [].
 """.strip()
 
 
 class LlmError(RuntimeError):
     """Raised when the upstream LLM call fails."""
+
+
+def _extract_json_object(text: str) -> dict | None:
+    raw = text.strip()
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else None
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback for fenced markdown JSON blocks.
+    fence = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw, flags=re.I)
+    if fence:
+        try:
+            parsed = json.loads(fence.group(1))
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def parse_llm_structured_output(raw: str) -> tuple[str, list[str]]:
+    parsed = _extract_json_object(raw)
+    if not parsed:
+        # Fallback: keep content as answer, empty used ids -> backend heuristic fallback.
+        return raw.strip(), []
+
+    answer = str(parsed.get("answer", "")).strip()
+    ids = parsed.get("used_chunk_ids", [])
+    if isinstance(ids, list):
+        used_ids = [str(x).strip() for x in ids if str(x).strip()]
+    else:
+        used_ids = []
+    return answer, used_ids
 
 
 def _llm_target() -> tuple[str, str, dict[str, str]]:
@@ -77,7 +134,7 @@ def build_messages(
     """
     if citations:
         context = "\n\nNgữ cảnh tham khảo (trích từ kho tài liệu):\n" + "\n".join(
-            f"[{i + 1}] {c.get('title', 'Tài liệu')} ({c.get('source', 'Kho tài liệu')}): "
+            f"[{i + 1}] chunk_id={c.get('chunk_id', '')} | {c.get('title', 'Tài liệu')} ({c.get('source', 'Kho tài liệu')}): "
             f"{c.get('text') or c.get('snippet', '')}"
             for i, c in enumerate(citations)
         )
@@ -96,8 +153,8 @@ def build_messages(
     return [{"role": "system", "content": system}, *convo]
 
 
-async def complete_chat(history: list[dict], citations: list[dict]) -> str:
-    """Non-streaming grounded answer."""
+async def complete_chat_raw(history: list[dict], citations: list[dict]) -> str:
+    """Non-streaming grounded answer (raw LLM content)."""
     url, model, headers = _llm_target()
     messages = build_messages(history, citations)
     async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
@@ -111,6 +168,16 @@ async def complete_chat(history: list[dict], citations: list[dict]) -> str:
     if not content or not content.strip():
         raise LlmError("LLM trả về rỗng.")
     return content
+
+
+async def complete_chat_structured(
+    history: list[dict], citations: list[dict]
+) -> tuple[str, list[str]]:
+    raw = await complete_chat_raw(history, citations)
+    answer, used_chunk_ids = parse_llm_structured_output(raw)
+    if not answer:
+        raise LlmError("LLM trả về rỗng.")
+    return answer, used_chunk_ids
 
 
 async def stream_chat(

@@ -25,9 +25,9 @@
 | Hạ tầng  | A-02 · `docker-compose.yml` + profile `code` (Máy nền tảng) kèm healthcheck      | M0  | `[-]`   | profile `code`, 7 data services + `user-management` (3001); Postgres **5433**; Mongo mount init; `user-management` **Dockerfile build OK** (Node 22); **chưa** verify `up-code.ps1` full stack với container `user-management` |
 | Hạ tầng  | A-03 · `.env.example` Máy nền tảng: DB, MQ, `LLM_BASE_URL`, `EMBEDDING_BASE_URL` | M0  | `[x]`   | DB/MQ/Redis/Milvus + `LLM_*`, `EMBEDDING_*`, `RERANK_*`; `JWT_*`, `CHAT_*`, `OPENAI_*` (server-only); `services/platform/.env.example` |
 | Hạ tầng  | A-04 · Logging JSON và correlation ID middleware (shared lib)                    | M0  | `[x]`   | `src/common/logger.middleware.ts` + `common.module.ts`; `CommonModule` import vào 8 Nest apps; `npm run build` pass |
-| Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  | `[-]`   | `scripts/up-code.ps1`, `down.ps1`, `logs.ps1`, `health.ps1`, **`seed-iam.ps1`** (docker cp UTF-8), **`start-app.ps1`** (1 lệnh bật Postgres/Mongo + 3 backend + static web-ui từ build), **`start-rag.ps1`** (bootstrap 3 Python RAG services + venv/Python 3.12); vẫn thiếu `up-ai.ps1`, `health.ps1` mới dừng ở mức container |
+| Hạ tầng  | A-05 · Scripts: `up-code`, `up-ai`, `down`, `logs`, `health`                     | M0  | `[-]`   | `scripts/up-code.ps1`, `down.ps1`, `logs.ps1`, **`health.ps1`** (HTTP health web-ui/gateway/user-management/chat/Ollama, có `-IncludeDocker`), **`smoke-app.ps1`** (smoke E2E qua gateway/login/chat), **`seed-iam.ps1`** (docker cp UTF-8), **`start-app.ps1`** (1 lệnh bật Postgres/Mongo + 3 backend + static web-ui từ build), **`start-rag.ps1`** (bootstrap `embedding-server` `:8001`, `rerank-server` `:8002`, `rag-engine` `:8000` + venv/Python 3.12); vẫn thiếu `up-ai.ps1` |
 | Tài liệu | A-06 · Quickstart 2 máy (README): Máy nền tảng + hướng dẫn Máy mô hình           | M0  | `[-]`   | `README.md` **dev 1 máy chi tiết** (prereq, clone, env, cài Ollama `qwen2.5:3b`, Docker infra, BE/FE startup, port map, troubleshooting) (PR #14); topology 2 máy ghi chú ngắn; thiếu hướng dẫn chi tiết Máy mô hình |
-| Test     | A-07 · Smoke test profile `code` — bootstrap Máy nền tảng end-to-end             | M0  | `[-]`   | Dev smoke **pass** (2026-06-16): `start-app.ps1` bật Postgres + Mongo + gateway `:3000` + user-management `:3001` + chat `:3002` + web-ui `:5173`; `GET /api/health` ok, login `admin/123456` ok; vẫn chưa có smoke script/assert tự động |
+| Test     | A-07 · Smoke test profile `code` — bootstrap Máy nền tảng end-to-end             | M0  | `[x]`   | Dev smoke **pass** (2026-06-16): `scripts/smoke-app.ps1` verify web-ui `:5173`, `GET /api/health`, login `admin/123456`, `GET /api/users/me`, `GET /api/chat/sessions`, create/delete smoke session, logout; `scripts/health.ps1` tóm tắt health HTTP app local |
 | Hạ tầng  | A-08 · Profile `ai` (Máy mô hình): compose services AI, `.env.ai.example`        | M1  |         |          |
 | Test     | A-09 · Smoke test cross-host: Máy nền tảng → Máy mô hình (embed + chat)          | M1  |         |          |
 
@@ -78,11 +78,11 @@
 | AI      | D-03 · Adapter PyMuPDF — PDF text-native                | M2  | `[-]`   | `document-processor/app/extract.py` dùng `fitz` (PyMuPDF) để extract text PDF text-native; đã hỗ trợ `.pdf`, `.txt`, `.md`, `.csv`; chưa có fallback scan/OCR |
 | AI      | D-04 · Adapter MinerU + PaddleOCR — PDF scan/ảnh        | M2  |         |          |
 | AI      | D-05 · Adapter DOCX, PPTX, XLSX                         | M2  |         |          |
-| AI      | D-06 · Hybrid chunking, overlap, giữ cấu trúc           | M2  | `[-]`   | `document-processor/app/chunker.py` đã chunk theo `max_size` + overlap; pipeline dùng thật; chưa giữ heading/section/table theo kiểu hybrid structure-aware |
+| AI      | D-06 · Hybrid chunking, overlap, giữ cấu trúc           | M2  | `[-]`   | `document-processor/app/chunker.py` đã chunk theo `max_size` + overlap; pipeline dùng thật; mặc định `CHUNK_MAX_SIZE=400` trong `document-processor/app/config.py`; đã verify reindex thủ công `DOC01_quy_dinh_thi_hk2_2025_2026` từ **2 → 4 chunks**; chưa giữ heading/section/table theo kiểu hybrid structure-aware |
 | AI      | D-07 · Prefix ngữ cảnh trước khi embed                  | M2  |         |          |
 | AI      | D-08 · Batch embed, upsert Milvus, sync catalog MongoDB | M2  | `[-]`   | `document-processor/app/pipeline.py` embed batch qua `embedding-server`, xóa vector cũ theo `document_id`, insert Milvus và sync `document_chunks` Mongo + `milvusVectorId`; chưa có retry/batch tuning/eval |
 | Backend | D-09 · Pipeline status machine và API poll status       | M2  | `[-]`   | `processing_jobs` + fields `ingestStatus/ingestStage/chunkCount/ingestError` đã cập nhật trong Mongo; có `GET /api/documents/:id/ingest-status`; `DocsPage` poll mỗi 3s để cập nhật badge/trạng thái/chunk count |
-| Backend | D-10 · API upload multipart, enqueue, lưu File Storage  | M2  | `[x]`   | **REST documents** trong app `chat`: upload multipart (Multer, whitelist ext + 50MB), file lưu `data/uploads/`, metadata Mongo; sau upload gọi `IngestQueueService` submit job sang `document-processor` `/v1/process`, lỗi queue được phản ánh vào `ingestStatus=failed`; list/download/delete + JWT guard + phân quyền (PR #15) |
+| Backend | D-10 · API upload multipart, enqueue, lưu File Storage  | M2  | `[x]`   | **REST documents** trong app `chat`: upload multipart (Multer, **PDF-only** + 50MB), file lưu `data/uploads/`, metadata Mongo; sau upload gọi `IngestQueueService` submit job sang `document-processor` `/v1/process`, lỗi queue được phản ánh vào `ingestStatus=failed`; list/download/delete + JWT guard + phân quyền (PR #15) |
 | Backend | D-11 · Versioning file gốc và checksum                  | M2  |         |          |
 | Test    | D-12 · Regression ingest và eval OCR                    | M2  |         |          |
 
@@ -98,7 +98,7 @@
 | AI      | E-02 · Query embed, Milvus top-k, Mongo fetch chunk   | M3  | `[-]`   | `rag-engine/app/retrieval.py` đã embed query qua `embedding-server`, search Milvus top-k, fetch `document_chunks` từ Mongo và trả citations |
 | AI      | E-03 · Access filter trước retrieval                  | M3  | `[-]`   | `rag-engine/app/access.py` enforce `securityLevel` + `scopeType` + owner/role/department/custom trước khi trả chunk; chưa có row-filter đồng bộ với Postgres policy |
 | AI      | E-04 · Rerank cross-encoder và chọn context           | M3  | `[-]`   | `rerank-server` (`POST /v1/rerank`, fastembed `TextCrossEncoder`); `rag-engine/app/rerank.py` gọi rerank sau Milvus+access filter, chọn top `RERANK_TOP_K` chunk cho LLM; fallback vector order khi rerank lỗi; `start-rag.ps1` khởi động `:8002` |
-| AI      | E-05 · Grounding prompt và sinh đáp án có citation    | M3  | `[-]`   | Grounding + sinh đáp án nằm trong `rag-engine/app/generate.py` (SYSTEM_PROMPT tiếng Việt, chỉ dùng tài liệu, safe refusal); LLM nhận **toàn bộ chunk `text`** sau rerank (E-04); stream/non-stream persist citations + route `rag` |
+| AI      | E-05 · Grounding prompt và sinh đáp án có citation    | M3  | `[-]`   | Grounding + sinh đáp án nằm trong `rag-engine/app/generate.py` (SYSTEM_PROMPT tiếng Việt, chỉ dùng tài liệu, safe refusal); LLM nhận **toàn bộ chunk `text`** sau rerank (E-04); stream/non-stream persist citations + route `rag`; **còn** cần siết parser/output contract vì model đôi lúc trả lẫn prose + JSON làm raw JSON lọt lên UI |
 | AI      | E-06 · Multi-turn context Redis                       | M3  |         |          |
 | Bảo mật | E-07 · Safe refusal và blacklist từ `admin-config`    | M3  |         |          |
 | Backend | E-08 · `rag-engine` Python service, health, chat API  | M3  | `[x]`   | FastAPI `rag-engine` orchestrate full RAG: `/health`, `/v1/retrieve`, **`/v1/chat`** (retrieve→grounding→LLM→`{answer, citations}`) và **`/v1/chat/stream`** (SSE meta→token→done); LLM provider ollama/openai trong `app/generate.py` + grounding prompt + safe refusal; `app/config.py` load `services/platform/.env`. `chat` app gọi `RagService.chat`/`chatStream` rồi proxy SSE, giữ session/history/title ở NestJS, fallback LLM nội bộ khi engine lỗi; citations strip `text` (chỉ dùng cho LLM, không lộ ra client) |
@@ -201,8 +201,8 @@
 | UI   | K-01 · Scaffold Vite + React + React Router, layout, theme | M6  | `[x]`   | `services/web-ui/` — Vite 8 + React 19 + Router 7 + Tailwind 4; `ChatLayout`, `Sidebar`; routes `/chat` `/docs` `/admin` `/settings` `/login`; brand **EduMind** |
 | UI   | K-02 · Auth pages, JWT storage, route guard theo role      | M6  | `[x]`   | JWT E2E qua gateway; login/logout; guard Admin/BGD/P2/P7; role codes khớp seed; PR **#9** (2026-06-15) |
 | UI   | K-12 · Chat history — session list, resume, persist        | M6  | `[x]`   | `ChatSessionContext` + `Sidebar` list/delete; `/chat/:sessionId`; `ChatPage` load/send; auto-title qua G-12; bỏ ephemeral state + proxy OpenAI client. **Ổn định (PR #13):** sidebar optimistic (`upsertSession`), giữ list khi list API lỗi tạm, dedupe refresh + guard stale, bỏ reload thừa sau khi gửi (skip-load), không văng về home khi load lỗi; `npm run build` pass (2026-06-15). **Chưa:** smoke/E2E tự động (K-11) |
-| UI   | K-03 · Chat page: SSE streaming, markdown, citation RAG    | M6  | `[-]`   | **UI done:** SSE client (`chatApi.streamMessage`), markdown sanitize (`react-markdown`+`remark-gfm`+`rehype-sanitize`, `ChatMarkdown.tsx`), citation chips (`CitationList.tsx`); **stream error UX**: giữ câu hỏi user + bubble lỗi đỏ khi stream lỗi; SSE chạy ổn với LLM local sau fix keep-alive. Citation hiện lấy từ `rag-engine` khi có, fallback stub khi engine lỗi/chưa chạy; chưa có citation quality/rerank hoàn chỉnh |
-| UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  | `[-]`   | `DocsPage.tsx` + `api/docs.ts` gọi REST thật — list/upload/xem/tải/xóa; modal upload chọn danh mục + tiêu đề + **mức mật** + **đối tượng được xem**; có badge ingest status, stage, chunk count và poll `ingest-status`; chưa có timeline chi tiết/chunk preview |
+| UI   | K-03 · Chat page: SSE streaming, markdown, citation RAG    | M6  | `[-]`   | **UI done:** SSE client (`chatApi.streamMessage`), markdown sanitize (`react-markdown`+`remark-gfm`+`rehype-sanitize`, `ChatMarkdown.tsx`), citation chips (`CitationList.tsx`); **stream error UX**: giữ câu hỏi user + bubble lỗi đỏ khi stream lỗi; SSE chạy ổn với LLM local sau fix keep-alive. Citation hiện lấy từ `rag-engine` khi có, fallback stub khi engine lỗi/chưa chạy; **còn** case raw JSON từ model bị render ra UI nếu parser structured output trượt, và citation quality/rerank chưa hoàn chỉnh |
+| UI   | K-04 · Doc workspace: upload, ingest timeline              | M6  | `[-]`   | `DocsPage.tsx` + `api/docs.ts` gọi REST thật — list/upload/xem/tải/xóa; modal upload chọn danh mục + tiêu đề + **mức mật** + **đối tượng được xem**; **chỉ nhận PDF** ở cả frontend (`accept=.pdf`, validate trước submit) và backend (`documents.storage.ts`); có badge ingest status, stage, chunk count và poll `ingest-status`; chưa có timeline chi tiết/chunk preview |
 | UI   | K-05 · Self-service pages                                  | M6  |         |          |
 | UI   | K-06 · Quiz và summary UI                                  | M6  |         |          |
 | UI   | K-07 · Admin audit viewer và export                        | M6  |         |          |
@@ -222,7 +222,7 @@
 | Nghiệp vụ | UC-DT-01..04 — đào tạo           | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KT-01..04 — khảo thí          | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KH-01..04 — KHCN              | M2/M3/M6 |         |          |
-| AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    | `[-]`   | Phase 1 **done:** chat LLM local (`qwen2.5:3b`) + history (**G-12** `[x]`, **K-12** `[x]`); Phase 2 **partial:** embedding + retrieve + access filter + ingest/index pipeline (B-02, D-08, E-02, E-03, E-08) |
+| AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    | `[-]`   | Phase 1 **done:** chat LLM local (`qwen2.5:3b`) + history (**G-12** `[x]`, **K-12** `[x]`); Phase 2 **partial:** embedding + retrieve + rerank + grounded chat + access filter + ingest/index pipeline (B-02, D-08, E-02, E-03, E-04, E-05, E-08) |
 | Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + admin dashboard prototype (K-02 `[x]`, K-08 `[-]`, G-06 `[x]`); PR #9 merged |
 
 
@@ -237,7 +237,7 @@
 | Nghiệp vụ | Nhóm Khảo thí & ĐBCL    | M6  | I          | `[-]`   | Schema + seed (`14-seed-khao-thi.sql`); chưa API/UI |
 | Nghiệp vụ | Nhóm KHCN               | M6  | I, D       |         |          |
 | Nghiệp vụ | Nhóm Thư viện           | M6  | I          |         |          |
-| UI        | Nhóm Tự phục vụ HV/SV   | M6  | K, I       | `[-]`   | K-01 `[x]`, K-02 `[x]`, **K-12** `[x]`; K-04 docs workspace đã upload/list/download/delete + ingest status poll |
+| UI        | Nhóm Tự phục vụ HV/SV   | M6  | K, I       | `[-]`   | K-01 `[x]`, K-02 `[x]`, **K-12** `[x]`; K-04 docs workspace đã upload/list/download/delete + ingest status poll + chặn file ngoài PDF ở FE/BE |
 | AI        | Nhóm Trợ lý ảo nâng cao | M6  | J, K       | `[-]`   | Phase 1 chat+history `[x]` (G-12, K-12); Phase 2 partial: K-03/E citations qua `rag-engine`, ingest/index đang nối tiếp |
 
 
@@ -258,9 +258,9 @@
 | - | ---- | ---------- |
 | ~~C1~~ | ~~**G-12**~~ | `[x]` chat service + LLM local `qwen2.5:3b` (switch Ollama↔OpenAI) |
 | ~~C2~~ | ~~**K-12**~~ | `[x]` UI history sidebar/route/load/send/delete |
-| ~~C3~~ | ~~**K-03 UI**~~ | `[-]` SSE + markdown sanitize + citation chips (đã hook `rag-engine`, vẫn còn fallback stub) |
+| ~~C3~~ | ~~**K-03 UI**~~ | `[-]` SSE + markdown sanitize + citation chips (đã hook `rag-engine`; còn parse structured output/citation polish) |
 | **C4** | **G-01** | JWT verify gateway; proxy `rag-engine` sau |
-| **Sau** | **E-08** | Ingest/RAG → citation thật thay stub trong K-03/G-12 |
+| **C5** | **E-05 / K-03** | Siết structured output parse, tránh lộ raw JSON và làm gọn nguồn tham khảo |
 
 **Lộ trình chat**
 
@@ -276,8 +276,8 @@
 | # | Task | Mô tả ngắn |
 | - | ---- | ---------- |
 | 1 | **A-02** | Verify `.\scripts\up-code.ps1` full stack — `user-management` container + Postgres |
-| 2 | **A-07** | Script smoke tự động: health gateway, login, `GET /users/me` |
-| 3 | **A-05** | Bổ sung `up-ai.ps1`; hoàn thiện `health.ps1` |
+| ~~2~~ | ~~**A-07**~~ | `[x]` script smoke tự động qua gateway + chat session cleanup |
+| 3 | **A-05** | Bổ sung `up-ai.ps1`; health app local đã xong |
 | 4 | **A-06** | README quickstart 2 máy (Máy nền tảng + Máy mô hình) |
 | 5 | **C-09** | Test connectivity: Mongo, Redis, RabbitMQ, Milvus |
 | 6 | **C-06** | Chạy thử `generate_seed.py` → validate output 11–14 không regress IAM |
@@ -292,7 +292,7 @@
 | 10 | **K-04** | Doc workspace Phase 2: timeline chi tiết, chunk preview, UX ingest tốt hơn |
 | 11 | **K-08** | Admin health — bỏ mock stats, hiển thị services thật |
 | 12 | **G-06** (mở rộng) | CRUD user, profile, đơn vị |
-| 13 | **K-03** | RAG chat (SSE, markdown, citation) — **sau** ingest + E-08 |
+| 13 | **K-03** | RAG chat polish: structured-output cleanup, citation quality, bỏ raw JSON leak |
 | 14 | **K-11** | E2E UI smoke (login → chat history → send message) |
 
 ### Sau — AI pipeline (M1–M3)
@@ -306,8 +306,11 @@
 
 ### Đã xong gần đây
 
-- **Phase 2 ingest/RAG local** (2026-06-16) — `embedding-server` có `/v1/embeddings`; `rag-engine` có `/v1/retrieve`; `document-processor` extract → chunk → embed → Milvus + Mongo; `chat` đã gọi `rag-engine` với fallback stub; `DocsPage` poll `ingest-status`
+- **Phase 2 ingest/RAG local** (2026-06-16) — `embedding-server` có `/v1/embeddings`; `rerank-server` có `/v1/rerank`; `rag-engine` có `/v1/retrieve`, `/v1/chat`, `/v1/chat/stream`; `document-processor` extract → chunk(`400`) → embed → Milvus + Mongo; `chat` đã đi qua `rag-engine` full turn (fallback LLM nội bộ khi engine lỗi); `DocsPage` poll `ingest-status`
+- **Chunk config + reindex verify** (2026-06-16) — `document-processor` dùng mặc định `CHUNK_MAX_SIZE=400`; reindex thủ công `DOC01_quy_dinh_thi_hk2_2025_2026` đã tăng từ **2** lên **4** chunks
+- **Docs upload PDF-only** (2026-06-16) — frontend `DocsPage` và backend `documents.storage.ts` đều chặn file không phải `.pdf`; tài liệu `.docx` cũ giữ trạng thái ingest lỗi như kỳ vọng
 - **Scripts vận hành local** (2026-06-16) — thêm `start-app.ps1` (1 lệnh bật stack từ build, seed tùy chọn) và `start-rag.ps1` (bootstrap 3 Python services)
+- **A-07 smoke automation** (2026-06-16) — thêm `health.ps1` (HTTP app health) và `smoke-app.ps1` (web-ui, gateway health, login, `/users/me`, chat session create/delete, logout)
 - **PR #14 merged → main** (2026-06-16) — chat dùng **LLM local Ollama `qwen2.5:3b`** (provider switch Ollama↔OpenAI), **stream error UX** (giữ câu hỏi + bubble lỗi đỏ), **fix lỗi 400 chập chờn SSE** (tắt upstream keep-alive ở gateway + Vite), README dev 1 máy chi tiết
 - **PR #15 open** (`feat/phan-quyen-tai-lieu`) — trang **Tài liệu functional**: REST upload/list/xem/tải/xóa (Multer, `data/uploads/` + Mongo metadata), **phân quyền 2 trục** (mức mật + đối tượng được xem) enforce ở list/download/delete; upload đã submit ingest job + có trạng thái xử lý/chunk count trên UI; JWT enrich `department` + `max_security_level`
 - PR **#12/#13 merged** — chat service + SSE + UI history; **K-03 UI** (SSE/markdown/citation chips) `[-]`; fix ổn định chat (sidebar optimistic, dedupe refresh, bỏ reload thừa, không văng về home); gateway proxy qua `ExpressAdapter`; scaffold `models/` + `training/` + `.gitignore` (2026-06-15)

@@ -121,6 +121,13 @@ Sau khi upload tài liệu (`.txt`, `.md`, `.pdf`) trên trang **Tài liệu**, 
 - Web UI: **http://localhost:5173**
 - API Gateway: **http://localhost:3000** (frontend gọi `/api/*` qua proxy của Vite/Gateway)
 
+Smoke test nhanh sau khi app đã chạy:
+
+```powershell
+./scripts/health.ps1
+./scripts/smoke-app.ps1
+```
+
 ---
 
 ## Bản đồ cổng (dev)
@@ -148,8 +155,9 @@ Sau khi upload tài liệu (`.txt`, `.md`, `.pdf`) trên trang **Tài liệu**, 
 | `./scripts/up-code.ps1` | Bật stack Docker (profile `code`) |
 | `./scripts/down.ps1` | Tắt toàn bộ stack |
 | `./scripts/logs.ps1` | Xem logs realtime |
-| `./scripts/health.ps1` | Kiểm tra trạng thái container |
+| `./scripts/health.ps1` | Kiểm tra health HTTP của web-ui/gateway/user-management/chat/Ollama (`-IncludeDocker` để xem thêm `docker compose ps`) |
 | `./scripts/seed-iam.ps1` | Seed tài khoản đăng nhập vào Postgres |
+| `./scripts/smoke-app.ps1` | Smoke test end-to-end qua gateway: health, login, `/users/me`, chat session create/delete, logout |
 | `./scripts/start-rag.ps1` | Khởi động embedding + rag-engine + document-processor |
 
 ---
