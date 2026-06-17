@@ -95,9 +95,14 @@ export class DocumentsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    const mongoHost =
+      this.config.get<string>('MONGO_HOST')?.trim() === 'localhost'
+        ? '127.0.0.1'
+        : (this.config.get<string>('MONGO_HOST')?.trim() ?? '127.0.0.1')
+
     const uri =
       this.config.get<string>('MONGO_URI') ??
-      `mongodb://${this.config.get('MONGO_USER', 'pm2_user')}:${this.config.get('MONGO_PASSWORD', 'pm2pass')}@${this.config.get('MONGO_HOST', 'localhost')}:${this.config.get('MONGO_PORT', '27017')}/${this.config.get('MONGO_DB', 'pm2')}?authSource=admin`
+      `mongodb://${this.config.get('MONGO_USER', 'pm2_user')}:${this.config.get('MONGO_PASSWORD', 'pm2pass')}@${mongoHost}:${this.config.get('MONGO_PORT', '27017')}/${this.config.get('MONGO_DB', 'pm2')}?authSource=admin`
 
     this.client = new MongoClient(uri)
     await this.client.connect()

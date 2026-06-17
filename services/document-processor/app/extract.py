@@ -21,17 +21,9 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
         finally:
             doc.close()
 
-    # DOCX: dùng python-docx, lấy cả đoạn văn lẫn nội dung trong bảng
     if ext == ".docx" or "wordprocessingml" in mime_type:
-        import docx
+        import docx2txt
 
-        d = docx.Document(str(path))
-        parts = [p.text for p in d.paragraphs if p.text.strip()]
-        for table in d.tables:
-            for row in table.rows:
-                cells = [c.text.strip() for c in row.cells if c.text.strip()]
-                if cells:
-                    parts.append(" | ".join(cells))
-        return "\n".join(parts).strip()
-    
+        return (docx2txt.process(str(path)) or "").strip()
+
     raise ValueError(f"Định dạng chưa hỗ trợ ingest: {ext or mime_type}")

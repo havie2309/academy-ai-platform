@@ -16,12 +16,12 @@ export function resolveUploadDir(): string {
   return dir
 }
 
-export const ALLOWED_EXT = ['.pdf']
+export const ALLOWED_EXT = ['.pdf', '.docx']
 
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
-export const PDF_ONLY_UPLOAD_MESSAGE =
-  'Hien chi ho tro tai len file PDF (.pdf).'
+export const SUPPORTED_UPLOAD_MESSAGE =
+  'Hien chi ho tro tai len file PDF (.pdf) va Word (.docx).'
 
 export const documentMulterOptions = {
   storage: diskStorage({
@@ -40,7 +40,7 @@ export const documentMulterOptions = {
     const ext = path.extname(file.originalname).toLowerCase()
     if (!ALLOWED_EXT.includes(ext)) {
       cb(
-        new BadRequestException(PDF_ONLY_UPLOAD_MESSAGE) as unknown as Error,
+        new BadRequestException(SUPPORTED_UPLOAD_MESSAGE) as unknown as Error,
         false,
       )
       return
