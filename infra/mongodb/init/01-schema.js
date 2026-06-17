@@ -3,6 +3,7 @@
 // ============================================
 
 // Collections
+db.createCollection("documents");
 db.createCollection("document_chunks");
 db.createCollection("processing_jobs");
 db.createCollection("chat_sessions");
