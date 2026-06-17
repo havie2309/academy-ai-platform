@@ -7,9 +7,11 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
         raise FileNotFoundError(f"File not found: {storage_path}")
 
     ext = path.suffix.lower()
+    # File text thuần: đọc trực tiếp
     if ext in (".txt", ".md", ".csv"):
         return path.read_text(encoding="utf-8", errors="replace")
 
+    # PDF: Dùng PyMuPDF 
     if ext == ".pdf" or "pdf" in mime_type:
         import fitz
 
@@ -24,4 +26,4 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
 
         return (docx2txt.process(str(path)) or "").strip()
 
-    raise ValueError(f"Dinh dang chua ho tro ingest: {ext or mime_type}")
+    raise ValueError(f"Định dạng chưa hỗ trợ ingest: {ext or mime_type}")
