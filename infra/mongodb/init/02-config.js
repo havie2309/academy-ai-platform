@@ -18,13 +18,13 @@ if (db.system_configs.countDocuments() === 0) {
         },
         {
             key: "rag.retrieval.top_k",
-            value: { default: 20, max: 50, min: 5 },
+            value: { default: 30, max: 50, min: 5 },
             description: "Số lượng chunk truy xuất mặc định",
             createdAt: new Date()
         },
         {
             key: "rag.retrieval.rerank_top_k",
-            value: { default: 10, max: 20, min: 3 },
+            value: { default: 8, max: 20, min: 3 },
             description: "Số lượng chunk sau khi rerank",
             createdAt: new Date()
         },

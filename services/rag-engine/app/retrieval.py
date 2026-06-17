@@ -3,8 +3,10 @@ import re
 from pymongo import MongoClient
 
 from app.access import can_view_chunk
+from app.citation_select import limit_chunks_per_doc
 from app.config import (
     EMBEDDING_BASE_URL,
+    MAX_CHUNKS_PER_DOC,
     MONGO_DB,
     MONGO_URI,
     RERANK_SCORE_DELTA,
@@ -45,7 +47,7 @@ def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dic
     meta = row.get("metadata", {})
     text = row.get("chunkText", "")
     snippet = text[:280] + ("…" if len(text) > 280 else "")
-    return {
+    citation = {
         "doc_id": row.get("documentId", ""),
         "chunk_id": chunk_id,
         "title": meta.get("title", "Tài liệu"),
@@ -54,6 +56,10 @@ def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dic
         "source": meta.get("title", "Kho tài liệu"),
         "score": vector_score,
     }
+    section_path = meta.get("sectionPath")
+    if section_path:
+        citation["section_path"] = section_path
+    return citation
 
 
 def _is_compare_query(query: str) -> bool:
@@ -81,30 +87,6 @@ def _doc_text(c: dict) -> str:
             str(c.get("snippet", "")),
         ]
     ).lower()
-
-
-def _doc_key(c: dict) -> str:
-    doc_id = str(c.get("doc_id", "")).strip().lower()
-    if doc_id:
-        return f"doc:{doc_id}"
-    title = str(c.get("title", "")).strip().lower()
-    source = str(c.get("source", "")).strip().lower()
-    return f"title:{title}|source:{source}"
-
-
-def _pick_best_per_doc(citations: list[dict]) -> list[dict]:
-    best: dict[str, dict] = {}
-    for c in citations:
-        key = _doc_key(c)
-        prev = best.get(key)
-        if prev is None:
-            best[key] = c
-            continue
-        prev_score = float(prev.get("rerank_score", prev.get("score", -9999)))
-        cur_score = float(c.get("rerank_score", c.get("score", -9999)))
-        if cur_score > prev_score:
-            best[key] = c
-    return list(best.values())
 
 
 def _apply_year_policy(query: str, citations: list[dict]) -> list[dict]:
@@ -226,10 +208,9 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     selected = _apply_score_thresholds(reranked)
     selected = _filter_old_conflict_docs(query, selected)
     selected = _apply_year_policy(query, selected)
-    selected = _pick_best_per_doc(selected)
-    # Preserve ranking (rerank_score/score desc) after dedupe/filter.
     selected.sort(
         key=lambda c: float(c.get("rerank_score", c.get("score", -9999))),
         reverse=True,
     )
+    selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
     return selected

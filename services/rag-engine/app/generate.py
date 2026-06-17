@@ -23,8 +23,11 @@ SYSTEM_PROMPT = """
 Bạn là trợ lý ảo của học viện, hỗ trợ cán bộ, giảng viên và học viên tra cứu thông tin đào tạo, khảo thí, nghiên cứu khoa học.
 
 NGUYÊN TẮC TRẢ LỜI:
-- Luôn trả lời bằng tiếng Việt.
-- Trả lời ngắn gọn, rõ ràng, đúng trọng tâm.
+- Luôn trả lời bằng tiếng Việt, không được dùng ngôn ngữ khác (không dùng tiếng Anh, tiếng Trung hoặc ký tự lạ trong phần trả lời).
+- Nếu nội dung trong tài liệu có tiếng nước ngoài, hãy diễn giải lại đầy đủ bằng tiếng Việt, không trích nguyên văn cả câu dài bằng ngoại ngữ.
+- Tóm tắt các điều kiện, quy định và ngoại lệ quan trọng trong các chunk được sử dụng.
+- Khi tài liệu có đủ thông tin, cố gắng trả lời tương đối đầy đủ trong khoảng 2–5 câu, nêu rõ kết luận chính và lý do (dựa trên điều, mục, chương liên quan).
+- Chỉ trả lời cực ngắn khi tài liệu cũng chỉ chứa một thông tin duy nhất và không có thêm chi tiết quan trọng nào khác.
 - Chỉ dùng thông tin có trong các chunk tài liệu được cung cấp.
 - Không dùng kiến thức bên ngoài.
 - Không bịa thông tin ngoài tài liệu.
@@ -69,6 +72,31 @@ def _is_no_info_answer(text: str) -> bool:
         or "khong tim thay thong tin" in t
         or "không có thông tin" in t
     )
+
+
+def _sentence_count(text: str) -> int:
+    parts = [p.strip() for p in re.split(r"[.!?;\n]+", text) if p.strip()]
+    return len(parts)
+
+
+def _is_too_brief_answer(text: str) -> bool:
+    t = text.strip()
+    if not t:
+        return True
+    # Typical overly-brief outputs from smaller models:
+    # "Không.", "Có.", "Được.", "Không được."
+    short_tokens = {
+        "không",
+        "có",
+        "được",
+        "không được",
+        "co",
+        "khong",
+    }
+    if t.lower().rstrip(".!?") in short_tokens:
+        return True
+    # Guardrail: with available context, require at least a modest explanation.
+    return len(t) < 40 or _sentence_count(t) < 2
 
 
 def _extract_first_json_candidate(raw: str) -> str | None:
@@ -240,6 +268,7 @@ def build_messages(
     *,
     require_json: bool = True,
     force_answer_from_context: bool = False,
+    force_expand_answer: bool = False,
 ) -> list[dict]:
     """System prompt (+ retrieved context) followed by the conversation history.
 
@@ -272,7 +301,15 @@ def build_messages(
             "- Chỉ được suy luận từ các điều kiện xuất hiện rõ trong chunk tài liệu. Không bổ sung điều kiện ngoài tài liệu.\n"
             '- Nếu ngữ cảnh không đủ căn cứ trực tiếp, vẫn trả lời: "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."'
         )
-    system = SYSTEM_PROMPT + context + output_contract + anti_refusal
+    expand_answer = ""
+    if force_expand_answer:
+        expand_answer = (
+            "\n\nYêu cầu bổ sung bắt buộc:\n"
+            "- Không trả lời một từ hoặc một câu cụt.\n"
+            "- Trả lời tối thiểu 2 câu tiếng Việt, gồm: (1) kết luận chính, (2) lý do/điều kiện áp dụng từ ngữ cảnh.\n"
+            "- Nếu có điều kiện ngoại lệ trong ngữ cảnh thì nêu ngắn gọn."
+        )
+    system = SYSTEM_PROMPT + context + output_contract + anti_refusal + expand_answer
     convo = [
         {"role": m["role"], "content": m["content"]}
         for m in history
@@ -287,6 +324,7 @@ async def complete_chat_raw(
     *,
     require_json: bool = True,
     force_answer_from_context: bool = False,
+    force_expand_answer: bool = False,
 ) -> str:
     """Non-streaming grounded answer (raw LLM content)."""
     url, model, headers = _llm_target()
@@ -295,10 +333,14 @@ async def complete_chat_raw(
         citations,
         require_json=require_json,
         force_answer_from_context=force_answer_from_context,
+        force_expand_answer=force_expand_answer,
     )
     async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
         res = await client.post(
-            url, headers=headers, json={"model": model, "messages": messages}
+            url, headers=headers, json={
+                "model": model, 
+                "messages": messages, 
+                "temperature": 0.3}
         )
         if res.status_code >= 400:
             raise LlmError(f"LLM API lỗi ({res.status_code}): {res.text[:200]}")
@@ -325,6 +367,19 @@ async def complete_chat_structured(
             citations,
             require_json=False,
             force_answer_from_context=True,
+        )
+        retry_answer = retry_raw.strip()
+        if retry_answer and not _is_no_info_answer(retry_answer):
+            return retry_answer, []
+    # qwen2.5:3b may answer too briefly ("Không.") despite relevant context.
+    # Retry once with an explicit minimum explanation constraint.
+    if citations and not _is_no_info_answer(answer) and _is_too_brief_answer(answer):
+        retry_raw = await complete_chat_raw(
+            history,
+            citations,
+            require_json=False,
+            force_answer_from_context=True,
+            force_expand_answer=True,
         )
         retry_answer = retry_raw.strip()
         if retry_answer and not _is_no_info_answer(retry_answer):
