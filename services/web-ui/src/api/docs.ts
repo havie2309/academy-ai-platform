@@ -59,6 +59,83 @@ export interface IngestStatusResponse {
   updated_at: string | null
 }
 
+// ============================================================
+// VÙNG DỮ LIỆU - Types
+// ============================================================
+
+export interface VungDuLieuUser {
+  userId: string
+  roles: string[]
+  department: string | null
+  maxSecurityLevel: number
+}
+
+export interface VungDuLieuSummary {
+  total: number
+  accessible: number
+  inaccessible: number
+  rate: number
+}
+
+export interface VungDuLieuSecurityLevel {
+  level: string
+  name: string
+  total: number
+  accessible: number
+  inaccessible: number
+}
+
+export interface VungDuLieuCategory {
+  category: string
+  total: number
+  accessible: number
+  inaccessible: number
+}
+
+export interface VungDuLieuScope {
+  scope: string
+  total: number
+  accessible: number
+  inaccessible: number
+}
+
+export interface VungDuLieuSourceStats {
+  total: number
+  accessible: number
+  inaccessible: number
+}
+
+export interface VungDuLieuInaccessibleReasons {
+  bySecurityLevel: Record<string, number>
+  byRole: Record<string, number>
+  byDepartment: Record<string, number>
+}
+
+export interface VungDuLieuInaccessibleItem {
+  id: string
+  title: string
+  securityLevel: string
+  reason: string
+}
+
+export interface VungDuLieuData {
+  user: VungDuLieuUser
+  summary: VungDuLieuSummary
+  bySecurityLevel: VungDuLieuSecurityLevel[]
+  byCategory: VungDuLieuCategory[]
+  byScope: VungDuLieuScope[]
+  sampleDocs: VungDuLieuSourceStats
+  uploadDocs: VungDuLieuSourceStats
+  inaccessibleReasons: VungDuLieuInaccessibleReasons
+  inaccessibleList: VungDuLieuInaccessibleItem[]
+  // Optional: only for admins
+  allInaccessible?: VungDuLieuInaccessibleItem[]
+}
+
+// ============================================================
+// API Methods
+// ============================================================
+
 export const docsApi = {
   async list(): Promise<DocItem[]> {
     const res = await fetch(apiUrl('/api/documents'), {
@@ -114,6 +191,57 @@ export const docsApi = {
 
   async ingestStatus(id: string): Promise<IngestStatusResponse> {
     const res = await fetch(apiUrl(`/api/documents/${id}/ingest-status`), {
+      headers: { ...authHeader(), Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  // ============================================================
+  // VÙNG DỮ LIỆU - NEW API Method
+  // ============================================================
+
+  /**
+   * Get Vùng Dữ Liệu (Data Region) information.
+   * Shows what documents the current user can and cannot access,
+   * with breakdowns by security level, category, and reasons for denial.
+   */
+  async getVungDuLieu(): Promise<VungDuLieuData> {
+    const res = await fetch(apiUrl('/api/documents/vung-du-lieu'), {
+      headers: { ...authHeader(), Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  // ============================================================
+  // OPTIONAL: Additional stats endpoints
+  // ============================================================
+
+  /**
+   * Get simplified security level statistics.
+   * Useful for smaller dashboard widgets.
+   */
+  async getSecurityLevelStats(): Promise<VungDuLieuSecurityLevel[]> {
+    const res = await fetch(apiUrl('/api/documents/security-level-stats'), {
+      headers: { ...authHeader(), Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  /**
+   * Preview what a specific role can access (Admin only).
+   */
+  async previewRoleAccess(role: string): Promise<{
+    role: string
+    total: number
+    accessible: number
+    inaccessible: number
+    rate: number
+    documents: DocItem[]
+  }> {
+    const res = await fetch(apiUrl(`/api/documents/preview/${encodeURIComponent(role)}`), {
       headers: { ...authHeader(), Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
