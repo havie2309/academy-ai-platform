@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 import httpx
 from pymongo import MongoClient
 
-from app.chunker import chunk_text
+from app.chunker import chunk_document
 from app.config import (
     CHUNK_MAX_SIZE,
     CHUNK_OVERLAP,
@@ -93,12 +93,12 @@ async def process_document(job: dict) -> dict:
             raise ValueError("Không trích xuất được nội dung từ file.")
 
         _update_job(db, document_id, status="processing", stage="chunk")
-        chunks = chunk_text(raw_text, CHUNK_MAX_SIZE, CHUNK_OVERLAP)
+        chunks = chunk_document(raw_text, CHUNK_MAX_SIZE, CHUNK_OVERLAP)
         if not chunks:
             raise ValueError("Không tạo được chunk từ nội dung.")
 
         _update_job(db, document_id, status="processing", stage="embed")
-        vectors = await embed_texts(chunks)
+        vectors = await embed_texts([c.text for c in chunks])
 
         security_level = job.get("securityLevel", "internal")
         security_rank = SECURITY_RANK.get(security_level, 2)
@@ -112,26 +112,29 @@ async def process_document(job: dict) -> dict:
         security_ranks: list[int] = []
         mongo_docs: list[dict] = []
 
-        for idx, (chunk_text_value, vector) in enumerate(zip(chunks, vectors)):
+        for idx, (chunk, vector) in enumerate(zip(chunks, vectors)):
             chunk_id = str(uuid.uuid4())
             chunk_ids.append(chunk_id)
             document_ids.append(document_id)
             security_ranks.append(security_rank)
+            metadata = {
+                "title": title,
+                "securityLevel": security_level,
+                "scopeType": job.get("scopeType", "all"),
+                "accessRoleCodes": job.get("accessRoleCodes", []),
+                "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
+                "accessUserIds": job.get("accessUserIds", []),
+                "uploadedById": job.get("uploadedById", ""),
+            }
+            if chunk.section_path:
+                metadata["sectionPath"] = chunk.section_path
             mongo_docs.append(
                 {
                     "chunkId": chunk_id,
                     "documentId": document_id,
                     "chunkIndex": idx,
-                    "chunkText": chunk_text_value,
-                    "metadata": {
-                        "title": title,
-                        "securityLevel": security_level,
-                        "scopeType": job.get("scopeType", "all"),
-                        "accessRoleCodes": job.get("accessRoleCodes", []),
-                        "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
-                        "accessUserIds": job.get("accessUserIds", []),
-                        "uploadedById": job.get("uploadedById", ""),
-                    },
+                    "chunkText": chunk.text,
+                    "metadata": metadata,
                     "createdAt": _utcnow(),
                 }
             )
