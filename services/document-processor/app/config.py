@@ -19,7 +19,7 @@ RABBITMQ_USER = os.getenv("RABBITMQ_USER", "pm2_user")
 RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "pm2pass")
 INGEST_QUEUE = os.getenv("INGEST_QUEUE", "ingest.jobs")
 
-CHUNK_MAX_SIZE = int(os.getenv("CHUNK_MAX_SIZE", "400"))
+CHUNK_MAX_SIZE = int(os.getenv("CHUNK_MAX_SIZE", "1000"))
 CHUNK_OVERLAP = float(os.getenv("CHUNK_OVERLAP", "0.1"))
 
 SECURITY_RANK = {"public": 1, "internal": 2, "restricted": 3, "confidential": 4}

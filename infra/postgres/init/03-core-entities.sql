@@ -126,12 +126,10 @@ CREATE TABLE documents (
     source_id VARCHAR(100),
     owner_unit_code VARCHAR(50),
     owner_unit_name VARCHAR(255),
-    category VARCHAR(100),
+    zone_code VARCHAR(50) REFERENCES data_zones(zone_code) ON DELETE SET NULL,
+    category_code VARCHAR(50) REFERENCES data_categories(category_code) ON DELETE SET NULL,
     tags TEXT[],
     security_level VARCHAR(20) DEFAULT 'internal' CHECK (security_level IN ('public', 'internal', 'restricted', 'confidential')),
-    access_scope_type VARCHAR(20) DEFAULT 'department' CHECK (access_scope_type IN ('all', 'department', 'role', 'custom')),
-    access_department_codes TEXT[],
-    access_role_codes TEXT[],
     access_user_ids VARCHAR(50)[],
     file_name VARCHAR(255) NOT NULL,
     file_original_name VARCHAR(500),
@@ -165,4 +163,15 @@ CREATE TABLE document_versions (
     change_reason TEXT,
     changed_by VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
     changed_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Policy table
+CREATE TABLE role_category_policies (
+    role_id       VARCHAR(20) REFERENCES roles(id),
+    category_code VARCHAR(50) REFERENCES data_categories(category_code),
+    allow_read    BOOLEAN DEFAULT false,
+    allow_write   BOOLEAN DEFAULT false,
+    dept_scope    VARCHAR(20) DEFAULT 'all'
+                  CHECK (dept_scope IN ('all', 'own_department')),
+    PRIMARY KEY (role_id, category_code)
 );

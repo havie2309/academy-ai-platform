@@ -233,5 +233,70 @@ INSERT INTO user_roles (user_id, role_id) VALUES
     ('USR073', 'RL004'),
     ('USR074', 'RL004');
 
+-- ============================================
+-- ROLE × CATEGORY POLICY MATRIX
+-- dept_scope: 'all' = toàn trường, 'own_department' = chỉ khoa/đơn vị của mình
+-- ============================================
+
+INSERT INTO role_category_policies (role_id, category_code, allow_read, allow_write, dept_scope) VALUES
+    -- ADMIN: toàn quyền mọi nơi
+    ('RL001', 'giao_an',          TRUE,  TRUE,  'all'),
+    ('RL001', 'bai_giang',        TRUE,  TRUE,  'all'),
+    ('RL001', 'tai_lieu_hoc_tap', TRUE,  TRUE,  'all'),
+    ('RL001', 'thong_tu',         TRUE,  TRUE,  'all'),
+    ('RL001', 'quyet_dinh',       TRUE,  TRUE,  'all'),
+    ('RL001', 'bao_cao',          TRUE,  TRUE,  'all'),
+    ('RL001', 'de_thi',           TRUE,  TRUE,  'all'),
+    ('RL001', 'ket_qua_thi',      TRUE,  TRUE,  'all'),
+    ('RL001', 'bai_bao',          TRUE,  TRUE,  'all'),
+    ('RL001', 'de_tai',           TRUE,  TRUE,  'all'),
+    ('RL001', 'thong_bao',        TRUE,  TRUE,  'all'),
+    ('RL001', 'lich_hoc',         TRUE,  TRUE,  'all'),
+
+    -- BGD: đọc tất cả, không ghi
+    ('RL002', 'giao_an',          TRUE,  FALSE, 'all'),
+    ('RL002', 'bai_giang',        TRUE,  FALSE, 'all'),
+    ('RL002', 'tai_lieu_hoc_tap', TRUE,  FALSE, 'all'),
+    ('RL002', 'thong_tu',         TRUE,  FALSE, 'all'),
+    ('RL002', 'quyet_dinh',       TRUE,  FALSE, 'all'),
+    ('RL002', 'bao_cao',          TRUE,  FALSE, 'all'),
+    ('RL002', 'de_thi',           TRUE,  FALSE, 'all'),
+    ('RL002', 'ket_qua_thi',      TRUE,  FALSE, 'all'),
+    ('RL002', 'bai_bao',          TRUE,  FALSE, 'all'),
+    ('RL002', 'de_tai',           TRUE,  FALSE, 'all'),
+    ('RL002', 'thong_bao',        TRUE,  FALSE, 'all'),
+    ('RL002', 'lich_hoc',         TRUE,  FALSE, 'all'),
+
+    -- P2 (Phòng Đào tạo): quản lý tài liệu giảng dạy + công khai
+    ('RL003', 'giao_an',          TRUE,  TRUE,  'all'),
+    ('RL003', 'bai_giang',        TRUE,  TRUE,  'all'),
+    ('RL003', 'tai_lieu_hoc_tap', TRUE,  TRUE,  'all'),
+    ('RL003', 'thong_tu',         TRUE,  FALSE, 'all'),
+    ('RL003', 'quyet_dinh',       TRUE,  FALSE, 'all'),
+    ('RL003', 'bao_cao',          TRUE,  TRUE,  'all'),
+    ('RL003', 'thong_bao',        TRUE,  TRUE,  'all'),
+    ('RL003', 'lich_hoc',         TRUE,  TRUE,  'all'),
+
+    -- GIANG_VIEN: đọc+ghi giảng dạy của khoa mình, đọc công khai
+    ('RL004', 'giao_an',          TRUE,  TRUE,  'own_department'),
+    ('RL004', 'bai_giang',        TRUE,  TRUE,  'own_department'),
+    ('RL004', 'tai_lieu_hoc_tap', TRUE,  TRUE,  'own_department'),
+    ('RL004', 'thong_tu',         TRUE,  FALSE, 'all'),
+    ('RL004', 'bai_bao',          TRUE,  TRUE,  'own_department'),
+    ('RL004', 'de_tai',           TRUE,  TRUE,  'own_department'),
+    ('RL004', 'thong_bao',        TRUE,  FALSE, 'all'),
+    ('RL004', 'lich_hoc',         TRUE,  FALSE, 'all'),
+
+    -- HOC_VIEN: chỉ đọc tài liệu học tập + công khai, KHÔNG xem giáo án/đề thi
+    ('RL005', 'tai_lieu_hoc_tap', TRUE,  FALSE, 'all'),
+    ('RL005', 'thong_bao',        TRUE,  FALSE, 'all'),
+    ('RL005', 'lich_hoc',         TRUE,  FALSE, 'all'),
+
+    -- KHAO_THI: toàn quyền zone khảo thí
+    ('RL006', 'de_thi',           TRUE,  TRUE,  'all'),
+    ('RL006', 'ket_qua_thi',      TRUE,  TRUE,  'all'),
+    ('RL006', 'thong_bao',        TRUE,  FALSE, 'all'),
+    ('RL006', 'lich_hoc',         TRUE,  FALSE, 'all');
+
 SET session_replication_role = 'origin';
 ANALYZE;

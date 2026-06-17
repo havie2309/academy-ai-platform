@@ -8,6 +8,31 @@
 SET session_replication_role = 'replica';
 
 -- ============================================
+-- ZONE & CATEGORY MASTER DATA
+-- ============================================
+
+INSERT INTO data_zones (zone_code, zone_name, description) VALUES
+    ('ZONE_GIANG_DAY',   'Giảng dạy',              'Tài liệu phục vụ hoạt động giảng dạy và học tập'),
+    ('ZONE_QUAN_LY',     'Quản lý',                 'Văn bản, quyết định, báo cáo nội bộ'),
+    ('ZONE_KHAO_THI',    'Khảo thí',                'Đề thi, kết quả, ngân hàng câu hỏi'),
+    ('ZONE_NGHIEN_CUU',  'Nghiên cứu khoa học',     'Bài báo, đề tài, công trình khoa học'),
+    ('ZONE_CONG_KHAI',   'Công khai',               'Thông báo, lịch học, thông tin chung cho mọi người');
+
+INSERT INTO data_categories (category_code, category_name, zone_code, description) VALUES
+    ('giao_an',            'Giáo án',                  'ZONE_GIANG_DAY',  'Kế hoạch bài giảng của giảng viên'),
+    ('bai_giang',          'Bài giảng / Slide',        'ZONE_GIANG_DAY',  'Slide, video bài giảng'),
+    ('tai_lieu_hoc_tap',   'Tài liệu học tập',         'ZONE_GIANG_DAY',  'Giáo trình, tài liệu tham khảo cho học viên'),
+    ('thong_tu',           'Thông tư / Văn bản PL',    'ZONE_QUAN_LY',    'Thông tư, nghị định, văn bản pháp lý'),
+    ('quyet_dinh',         'Quyết định nội bộ',        'ZONE_QUAN_LY',    'Quyết định của Ban Giám đốc'),
+    ('bao_cao',            'Báo cáo',                  'ZONE_QUAN_LY',    'Báo cáo tổng kết, thống kê nội bộ'),
+    ('de_thi',             'Đề thi',                   'ZONE_KHAO_THI',   'Đề thi chính thức và đề thi thử'),
+    ('ket_qua_thi',        'Kết quả thi',              'ZONE_KHAO_THI',   'Bảng điểm, kết quả thi'),
+    ('bai_bao',            'Bài báo khoa học',         'ZONE_NGHIEN_CUU', 'Công bố khoa học trong và ngoài nước'),
+    ('de_tai',             'Đề tài nghiên cứu',        'ZONE_NGHIEN_CUU', 'Đề tài NCKH các cấp'),
+    ('thong_bao',          'Thông báo',                'ZONE_CONG_KHAI',  'Thông báo chung toàn trường'),
+    ('lich_hoc',           'Lịch học / Lịch thi',      'ZONE_CONG_KHAI',  'Thời khóa biểu, lịch thi');
+
+-- ============================================
 -- DIMENSION TABLES
 -- ============================================
 

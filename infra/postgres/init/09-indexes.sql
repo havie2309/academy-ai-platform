@@ -85,12 +85,16 @@ CREATE INDEX idx_documents_security_level ON documents(security_level);
 CREATE INDEX idx_documents_processing_status ON documents(processing_status);
 CREATE INDEX idx_documents_uploaded_by ON documents(uploaded_by);
 CREATE INDEX idx_documents_source_system ON documents(source_system, source_id);
-CREATE INDEX idx_documents_category ON documents(category);
+CREATE INDEX idx_documents_zone_code ON documents(zone_code);
+CREATE INDEX idx_documents_category_code ON documents(category_code);
+CREATE INDEX idx_documents_zone_category ON documents(zone_code, category_code, security_level);
 CREATE INDEX idx_documents_tags ON documents USING GIN(tags);
-CREATE INDEX idx_documents_access_department ON documents USING GIN(access_department_codes);
-CREATE INDEX idx_documents_access_role ON documents USING GIN(access_role_codes);
 CREATE INDEX idx_documents_is_latest_version ON documents(is_latest_version) WHERE is_latest_version = true;
 CREATE INDEX idx_documents_deleted_at ON documents(deleted_at) WHERE deleted_at IS NULL;
+
+-- Role-category policy indexes
+CREATE INDEX idx_role_category_policies_role_id ON role_category_policies(role_id);
+CREATE INDEX idx_role_category_policies_category_code ON role_category_policies(category_code);
 
 -- Document versions indexes
 CREATE INDEX idx_document_versions_doc_id ON document_versions(doc_id);

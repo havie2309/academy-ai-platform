@@ -248,7 +248,7 @@ export default function ChatPage() {
                 Xin chào, {displayName}!
               </h2>
               <p className="text-slate-500 mt-2 text-sm md:text-base leading-relaxed font-medium">
-                Trợ lý AI học viện — thông tin đáng tin cậy từ kho tri thức nội bộ.
+                Hỏi về đào tạo, khảo thí, tài liệu học tập — câu trả lời có nguồn tham khảo.
               </p>
             </div>
 
