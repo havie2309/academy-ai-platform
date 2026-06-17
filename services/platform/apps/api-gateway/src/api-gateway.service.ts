@@ -4,8 +4,8 @@ import { Injectable } from '@nestjs/common';
 export class ApiGatewayService {
   async getHealth() {
     const userMgmtUrl =
-      process.env.USER_MANAGEMENT_URL ?? 'http://localhost:3001';
-    const chatUrl = process.env.CHAT_URL ?? 'http://localhost:3002';
+      process.env.USER_MANAGEMENT_URL ?? 'http://127.0.0.1:3001';
+    const chatUrl = process.env.CHAT_URL ?? 'http://127.0.0.1:3002';
 
     let userManagement: 'up' | 'down' = 'down';
     let chat: 'up' | 'down' = 'down';

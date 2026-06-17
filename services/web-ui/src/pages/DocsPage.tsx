@@ -88,8 +88,12 @@ function fileTypeLabel(name: string): string {
 
 const PDF_ONLY_UPLOAD_MESSAGE = 'Chỉ hỗ trợ tải lên file PDF (.pdf).'
 
+const SUPPORTED_UPLOAD_MESSAGE =
+  `${PDF_ONLY_UPLOAD_MESSAGE.slice(0, -1)} và Word (.docx).`
+
 function isPdfFile(file: File): boolean {
-  return file.name.toLowerCase().endsWith('.pdf')
+  const name = file.name.toLowerCase()
+  return name.endsWith('.pdf') || name.endsWith('.docx')
 }
 
 export default function DocsPage() {
@@ -201,7 +205,7 @@ export default function DocsPage() {
     if (!isPdfFile(file)) {
       setPendingFile(null)
       setUploadOpen(false)
-      setError(PDF_ONLY_UPLOAD_MESSAGE)
+      setError(SUPPORTED_UPLOAD_MESSAGE)
       e.target.value = ''
       return
     }
@@ -226,7 +230,7 @@ export default function DocsPage() {
   const submitUpload = async () => {
     if (!pendingFile) return
     if (!isPdfFile(pendingFile)) {
-      setError(PDF_ONLY_UPLOAD_MESSAGE)
+      setError(SUPPORTED_UPLOAD_MESSAGE)
       return
     }
     if (uploadScope === 'role' && uploadRoles.length === 0) {
@@ -306,7 +310,7 @@ export default function DocsPage() {
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,application/pdf"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         onChange={onFileChosen}
       />
 
@@ -320,7 +324,7 @@ export default function DocsPage() {
             Tra cứu và tải lên kho tài nguyên học tập, quy chế đào tạo nội bộ.
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Chỉ nhận file PDF để tải.
+            Hỗ trợ file PDF và DOCX để tải lên.
           </p>
         </div>
 

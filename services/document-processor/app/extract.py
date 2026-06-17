@@ -19,4 +19,9 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
         finally:
             doc.close()
 
-    raise ValueError(f"Định dạng chưa hỗ trợ ingest: {ext or mime_type}")
+    if ext == ".docx" or "wordprocessingml" in mime_type:
+        import docx2txt
+
+        return (docx2txt.process(str(path)) or "").strip()
+
+    raise ValueError(f"Dinh dang chua ho tro ingest: {ext or mime_type}")

@@ -6,8 +6,13 @@ export class UsersService implements OnModuleInit {
   private pool: Pool
 
   onModuleInit() {
+    const postgresHost =
+      process.env.POSTGRES_HOST?.trim() === 'localhost'
+        ? '127.0.0.1'
+        : (process.env.POSTGRES_HOST?.trim() ?? '127.0.0.1')
+
     this.pool = new Pool({
-      host:     process.env.POSTGRES_HOST     ?? 'localhost',
+      host:     postgresHost,
       port:     Number(process.env.POSTGRES_PORT ?? 5432),
       database: process.env.POSTGRES_DB       ?? 'pm2',
       user:     process.env.POSTGRES_USER     ?? 'pm2_user',
