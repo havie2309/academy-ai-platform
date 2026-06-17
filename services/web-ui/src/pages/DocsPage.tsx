@@ -11,6 +11,13 @@ import {
   Trash2,
   X,
   Loader2,
+  BarChart3,
+  Shield,
+  Users,
+  Lock,
+  Eye,
+  EyeOff,
+  Info,
 } from 'lucide-react'
 import {
   docsApi,
@@ -48,6 +55,380 @@ const ROLE_OPTIONS: { code: string; label: string }[] = [
   { code: 'GIANG_VIEN', label: 'Giảng viên' },
   { code: 'HOC_VIEN', label: 'Học viên' },
 ]
+
+interface VungDuLieuData {
+  user: {
+    userId: string
+    roles: string[]
+    department: string | null
+    maxSecurityLevel: number
+  }
+  summary: {
+    total: number
+    accessible: number
+    inaccessible: number
+    rate: number
+  }
+  bySecurityLevel: Array<{
+    level: string
+    name: string
+    total: number
+    accessible: number
+    inaccessible: number
+  }>
+  byCategory: Array<{
+    category: string
+    total: number
+    accessible: number
+    inaccessible: number
+  }>
+  byScope: Array<{
+    scope: string
+    total: number
+    accessible: number
+    inaccessible: number
+  }>
+  sampleDocs: {
+    total: number
+    accessible: number
+    inaccessible: number
+  }
+  uploadDocs: {
+    total: number
+    accessible: number
+    inaccessible: number
+  }
+  inaccessibleReasons: {
+    bySecurityLevel: Record<string, number>
+    byRole: Record<string, number>
+    byDepartment: Record<string, number>
+  }
+  inaccessibleList: Array<{
+    id: string
+    title: string
+    securityLevel: string
+    reason: string
+  }>
+}
+
+function VungDuLieuTab() {
+  const [data, setData] = useState<VungDuLieuData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [showInaccessible, setShowInaccessible] = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await docsApi.getVungDuLieu()
+        setData(response)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu vùng')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+        <Loader2 className="animate-spin mb-2" size={24} />
+        <p className="text-sm font-medium">Đang tải vùng dữ liệu…</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {error}
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const levelColors: Record<string, string> = {
+    public: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    internal: 'bg-blue-100 text-blue-700 border-blue-200',
+    restricted: 'bg-amber-100 text-amber-700 border-amber-200',
+    confidential: 'bg-red-100 text-red-700 border-red-200',
+  }
+
+  const levelIcons: Record<string, React.ReactNode> = {
+    public: '🟢',
+    internal: '🔵',
+    restricted: '🟠',
+    confidential: '🔴',
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* User Profile Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2 mb-3">
+          <Shield size={16} />
+          Hồ sơ truy cập
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div>
+            <span className="text-slate-400 text-xs">Vai trò</span>
+            <p className="font-semibold text-slate-700">
+              {data.user.roles?.join(', ') || 'Không có'}
+            </p>
+          </div>
+          <div>
+            <span className="text-slate-400 text-xs">Đơn vị</span>
+            <p className="font-semibold text-slate-700">
+              {data.user.department || 'Không có'}
+            </p>
+          </div>
+          <div>
+            <span className="text-slate-400 text-xs">Mức mật tối đa</span>
+            <p className="font-semibold text-slate-700">
+              {data.user.maxSecurityLevel}
+            </p>
+          </div>
+          <div>
+            <span className="text-slate-400 text-xs">User ID</span>
+            <p className="font-semibold text-slate-700 text-xs truncate">
+              {data.user.userId}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Stats - 4 cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200/60 p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-blue-600">{data.summary.total}</div>
+          <div className="text-xs text-slate-400 font-medium">Tổng tài liệu</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-emerald-600">{data.summary.accessible}</div>
+          <div className="text-xs text-slate-400 font-medium">Có thể truy cập</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-red-600">{data.summary.inaccessible}</div>
+          <div className="text-xs text-slate-400 font-medium">Không thể truy cập</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200/60 p-4 text-center shadow-sm">
+          <div className="text-2xl font-bold text-purple-600">{data.summary.rate}%</div>
+          <div className="text-xs text-slate-400 font-medium">Tỷ lệ truy cập</div>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+        <div className="flex justify-between text-sm mb-1">
+          <span className="font-medium text-slate-600">Tỷ lệ truy cập</span>
+          <span className="font-bold text-slate-800">{data.summary.rate}%</span>
+        </div>
+        <div className="w-full bg-slate-100 rounded-full h-3">
+          <div
+            className="bg-emerald-500 h-3 rounded-full transition-all duration-700"
+            style={{ width: `${data.summary.rate}%` }}
+          />
+        </div>
+        <div className="flex justify-between text-xs text-slate-400 mt-1">
+          <span className="text-emerald-600">✅ {data.summary.accessible} có thể</span>
+          <span className="text-red-600">❌ {data.summary.inaccessible} không thể</span>
+        </div>
+      </div>
+
+      {/* By Security Level */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2 mb-4">
+          <Lock size={16} />
+          Theo mức mật
+        </h3>
+        <div className="space-y-3">
+          {data.bySecurityLevel.map((item) => {
+            const accessiblePct = item.total > 0 ? (item.accessible / item.total) * 100 : 0
+            const inaccessiblePct = item.total > 0 ? (item.inaccessible / item.total) * 100 : 0
+            const isFullAccess = accessiblePct === 100 && item.total > 0
+            const isNoAccess = accessiblePct === 0 && item.total > 0
+
+            return (
+              <div key={item.level}>
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium text-slate-700">
+                    {levelIcons[item.level]} {item.name}
+                  </span>
+                  <span className="text-slate-500">
+                    {item.accessible} / {item.total}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2 mt-1 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${
+                      isFullAccess ? 'bg-emerald-500' :
+                      isNoAccess ? 'bg-red-500' :
+                      'bg-amber-500'
+                    }`}
+                    style={{ width: `${accessiblePct}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* By Category */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2 mb-4">
+          <FolderOpen size={16} />
+          Theo danh mục
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {data.byCategory.map((item) => {
+            const pct = item.total > 0 ? Math.round((item.accessible / item.total) * 100) : 0
+            return (
+              <div key={item.category} className="border border-slate-200 rounded-xl p-3">
+                <div className="font-medium text-sm text-slate-700 truncate">{item.category}</div>
+                <div className="flex justify-between text-xs mt-1">
+                  <span className="text-emerald-600">{item.accessible} có thể</span>
+                  <span className="text-red-600">{item.inaccessible} không</span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1">
+                  <div
+                    className="bg-blue-500 h-1.5 rounded-full transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Source: Sample vs Upload */}
+      <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2 mb-4">
+          <Users size={16} />
+          Nguồn tài liệu
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="border border-slate-200 rounded-xl p-4 text-center">
+            <div className="text-sm font-medium text-slate-600">📁 Tải lên</div>
+            <div className="flex justify-center gap-4 mt-2 text-sm">
+              <span className="text-emerald-600">{data.uploadDocs.accessible}</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-slate-600">{data.uploadDocs.total}</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-blue-500 h-1.5 rounded-full transition-all"
+                style={{
+                  width: data.uploadDocs.total > 0
+                    ? `${(data.uploadDocs.accessible / data.uploadDocs.total) * 100}%`
+                    : '0%'
+                }}
+              />
+            </div>
+          </div>
+          <div className="border border-slate-200 rounded-xl p-4 text-center">
+            <div className="text-sm font-medium text-slate-600">📚 Mẫu (sample)</div>
+            <div className="flex justify-center gap-4 mt-2 text-sm">
+              <span className="text-emerald-600">{data.sampleDocs.accessible}</span>
+              <span className="text-slate-300">/</span>
+              <span className="text-slate-600">{data.sampleDocs.total}</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1">
+              <div
+                className="bg-purple-500 h-1.5 rounded-full transition-all"
+                style={{
+                  width: data.sampleDocs.total > 0
+                    ? `${(data.sampleDocs.accessible / data.sampleDocs.total) * 100}%`
+                    : '0%'
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Why Can't I Access? */}
+      {(data.inaccessibleReasons.bySecurityLevel &&
+        Object.keys(data.inaccessibleReasons.bySecurityLevel).length > 0) && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm border-l-4 border-l-red-500">
+          <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2 mb-3">
+            <EyeOff size={16} />
+            Tại sao không thể truy cập?
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(data.inaccessibleReasons.bySecurityLevel).map(([level, count]) => (
+              <span
+                key={level}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${levelColors[level] || 'bg-slate-100 text-slate-600 border-slate-200'}`}
+              >
+                {levelIcons[level]} Mức {level}: {count} tài liệu
+              </span>
+            ))}
+            {Object.entries(data.inaccessibleReasons.byRole).map(([role, count]) => (
+              <span
+                key={role}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-orange-50 text-orange-600 border border-orange-200"
+              >
+                👤 Vai trò {role}: {count} tài liệu
+              </span>
+            ))}
+            {Object.entries(data.inaccessibleReasons.byDepartment).map(([dept, count]) => (
+              <span
+                key={dept}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-yellow-50 text-yellow-600 border border-yellow-200"
+              >
+                🏢 Đơn vị {dept}: {count} tài liệu
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Inaccessible Documents List (collapsible) */}
+      {data.inaccessibleList && data.inaccessibleList.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/60 p-5 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowInaccessible(!showInaccessible)}
+            className="w-full flex items-center justify-between text-sm font-bold text-slate-500 uppercase tracking-wide hover:text-slate-700 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <EyeOff size={16} />
+              Tài liệu không thể truy cập ({data.inaccessibleList.length})
+            </span>
+            <span className="text-slate-400">
+              {showInaccessible ? '▼' : '▶'}
+            </span>
+          </button>
+
+          {showInaccessible && (
+            <div className="mt-3 space-y-1 max-h-60 overflow-y-auto">
+              {data.inaccessibleList.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex justify-between items-center py-2 px-3 border-b border-slate-100 text-sm hover:bg-slate-50 rounded-lg transition-colors"
+                >
+                  <span className="text-slate-700 truncate flex-1 mr-2">
+                    {doc.title}
+                  </span>
+                  <span className="text-xs text-slate-400 whitespace-nowrap">
+                    {doc.reason}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function securityMeta(level: SecurityLevel) {
   return SECURITY_LEVELS.find((s) => s.value === level) ?? SECURITY_LEVELS[1]
@@ -101,6 +482,8 @@ export default function DocsPage() {
   const isAdmin = currentUser?.roles?.some((r) =>
     ['Admin', 'BGD', 'P2'].includes(r),
   )
+
+  const [activeTab, setActiveTab] = useState<'documents' | 'vungdulieu'>('documents')
 
   const [docs, setDocs] = useState<DocItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -328,180 +711,231 @@ export default function DocsPage() {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-          <div className="relative w-full md:w-72 shrink-0">
-            <input
-              type="text"
-              placeholder="Tìm kiếm tài liệu..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.08)] transition-all text-slate-800 placeholder-slate-400 shadow-sm"
-            />
-            <Search className="absolute left-3.5 top-3 text-slate-400" size={16} />
-          </div>
-          <button
-            type="button"
-            onClick={onPickFile}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer shadow-md shadow-blue-600/10 transition-all"
-          >
-            <Upload size={16} />
-            Tải lên
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-3">
-          <span>{error}</span>
-          <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600 cursor-pointer">
-            <X size={16} />
-          </button>
-        </div>
-      )}
-
-      <div className="grid grid-cols-3 gap-3 mb-6 max-w-xl">
-        {[
-          { label: 'Tài liệu', value: docs.length, icon: FileText },
-          { label: 'Danh mục', value: Math.max(categories.length - 1, 0), icon: FolderOpen },
-          { label: 'Kết quả lọc', value: filteredDocs.length, icon: Filter },
-        ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
-            <div className="flex items-center gap-2 text-slate-400 mb-1">
-              <Icon size={14} />
-              <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
+        {/* Only show Upload button on Documents tab */}
+        {activeTab === 'documents' && (
+          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+            <div className="relative w-full md:w-72 shrink-0">
+              <input
+                type="text"
+                placeholder="Tìm kiếm tài liệu..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-sm outline-none focus:border-blue-500 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.08)] transition-all text-slate-800 placeholder-slate-400 shadow-sm"
+              />
+              <Search className="absolute left-3.5 top-3 text-slate-400" size={16} />
             </div>
-            <p className="text-xl font-extrabold text-slate-800">{value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => setSelectedCat(cat)}
-            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
-              selectedCat === cat
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
-                : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300'
-            }`}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-          <Loader2 className="animate-spin mb-2" size={24} />
-          <p className="text-sm font-medium">Đang tải tài liệu…</p>
-        </div>
-      ) : filteredDocs.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredDocs.map((doc) => (
-            <div
-              key={doc.id}
-              className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-200/60 transition-all group"
+            <button
+              type="button"
+              onClick={onPickFile}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold cursor-pointer shadow-md shadow-blue-600/10 transition-all"
             >
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
-                  <FileText size={20} />
-                </div>
-                <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wide">
-                  {fileTypeLabel(doc.original_name)}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">{doc.category}</span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${securityMeta(doc.security_level).badge}`}>
-                  {securityMeta(doc.security_level).label}
-                </span>
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${ingestMeta(doc.ingest_status).badge}`}>
-                  {ingestMeta(doc.ingest_status).label}
-                </span>
-              </div>
-              <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
-                {doc.title}
-              </h3>
-
-              <div className="space-y-1.5 mb-5 text-xs text-slate-400">
-                <div className="flex justify-between">
-                  <span>Người tải</span>
-                  <span className="font-semibold text-slate-600 truncate max-w-[60%]">{doc.uploaded_by}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Ngày tải</span>
-                  <span className="font-semibold text-slate-600">{formatDate(doc.created_at)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Dung lượng</span>
-                  <span className="font-semibold text-slate-600">{formatSize(doc.size)}</span>
-                </div>
-                {doc.ingest_status === 'completed' && (doc.chunk_count ?? 0) > 0 && (
-                  <div className="flex justify-between">
-                    <span>Chunks</span>
-                    <span className="font-semibold text-emerald-600">{doc.chunk_count}</span>
-                  </div>
-                )}
-                {doc.ingest_status === 'processing' && doc.ingest_stage && (
-                  <div className="flex justify-between">
-                    <span>Giai đoạn</span>
-                    <span className="font-semibold text-amber-600">{doc.ingest_stage}</span>
-                  </div>
-                )}
-                {doc.ingest_status === 'failed' && doc.ingest_error && (
-                  <p className="text-red-500 text-[11px] leading-snug">{doc.ingest_error}</p>
-                )}
-              </div>
-
-              <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => openDoc(doc, false)}
-                  disabled={busyId === doc.id}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {busyId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                  Xem online
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDoc(doc, true)}
-                  disabled={busyId === doc.id}
-                  title="Tải về"
-                  className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer disabled:opacity-50"
-                >
-                  <Download size={13} />
-                </button>
-                {canDelete(doc) && (
-                  <button
-                    type="button"
-                    onClick={() => deleteDoc(doc)}
-                    disabled={busyId === doc.id}
-                    title="Xóa"
-                    className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
-          <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mb-3">
-            {docs.length === 0 ? <Upload size={20} /> : <Filter size={20} />}
+              <Upload size={16} />
+              Tải lên
+            </button>
           </div>
-          <p className="text-slate-600 font-bold text-sm">
-            {docs.length === 0 ? 'Chưa có tài liệu nào' : 'Không tìm thấy tài liệu phù hợp'}
-          </p>
-          <p className="text-slate-400 text-xs mt-1">
-            {docs.length === 0 ? 'Nhấn "Tải lên" để thêm tài liệu đầu tiên.' : 'Thử đổi từ khóa hoặc danh mục bộ lọc.'}
-          </p>
-        </div>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActiveTab('documents')}
+          className={`px-4 py-2.5 text-sm font-semibold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'documents'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <FileText size={16} />
+            Tài liệu
+            <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+              {docs.length}
+            </span>
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('vungdulieu')}
+          className={`px-4 py-2.5 text-sm font-semibold transition-all border-b-2 cursor-pointer ${
+            activeTab === 'vungdulieu'
+              ? 'border-blue-600 text-blue-600'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <BarChart3 size={16} />
+            Vùng Dữ Liệu
+          </span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'documents' ? (
+        // ============================================================
+        // DOCUMENTS TAB (your existing content)
+        // ============================================================
+        <>
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-center justify-between gap-3">
+              <span>{error}</span>
+              <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600 cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-3 gap-3 mb-6 max-w-xl">
+            {[
+              { label: 'Tài liệu', value: docs.length, icon: FileText },
+              { label: 'Danh mục', value: Math.max(categories.length - 1, 0), icon: FolderOpen },
+              { label: 'Kết quả lọc', value: filteredDocs.length, icon: Filter },
+            ].map(({ label, value, icon: Icon }) => (
+              <div key={label} className="bg-white border border-slate-200/60 rounded-xl px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2 text-slate-400 mb-1">
+                  <Icon size={14} />
+                  <span className="text-[10px] font-bold uppercase tracking-wide">{label}</span>
+                </div>
+                <p className="text-xl font-extrabold text-slate-800">{value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCat(cat)}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all cursor-pointer ${
+                  selectedCat === cat
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/10'
+                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+              <Loader2 className="animate-spin mb-2" size={24} />
+              <p className="text-sm font-medium">Đang tải tài liệu…</p>
+            </div>
+          ) : filteredDocs.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredDocs.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-200/60 transition-all group"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
+                      <FileText size={20} />
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wide">
+                      {fileTypeLabel(doc.original_name)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">{doc.category}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${securityMeta(doc.security_level).badge}`}>
+                      {securityMeta(doc.security_level).label}
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${ingestMeta(doc.ingest_status).badge}`}>
+                      {ingestMeta(doc.ingest_status).label}
+                    </span>
+                  </div>
+                  <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
+                    {doc.title}
+                  </h3>
+
+                  <div className="space-y-1.5 mb-5 text-xs text-slate-400">
+                    <div className="flex justify-between">
+                      <span>Người tải</span>
+                      <span className="font-semibold text-slate-600 truncate max-w-[60%]">{doc.uploaded_by}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Ngày tải</span>
+                      <span className="font-semibold text-slate-600">{formatDate(doc.created_at)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Dung lượng</span>
+                      <span className="font-semibold text-slate-600">{formatSize(doc.size)}</span>
+                    </div>
+                    {doc.ingest_status === 'completed' && (doc.chunk_count ?? 0) > 0 && (
+                      <div className="flex justify-between">
+                        <span>Chunks</span>
+                        <span className="font-semibold text-emerald-600">{doc.chunk_count}</span>
+                      </div>
+                    )}
+                    {doc.ingest_status === 'processing' && doc.ingest_stage && (
+                      <div className="flex justify-between">
+                        <span>Giai đoạn</span>
+                        <span className="font-semibold text-amber-600">{doc.ingest_stage}</span>
+                      </div>
+                    )}
+                    {doc.ingest_status === 'failed' && doc.ingest_error && (
+                      <p className="text-red-500 text-[11px] leading-snug">{doc.ingest_error}</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => openDoc(doc, false)}
+                      disabled={busyId === doc.id}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {busyId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                      Xem online
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDoc(doc, true)}
+                      disabled={busyId === doc.id}
+                      title="Tải về"
+                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Download size={13} />
+                    </button>
+                    {canDelete(doc) && (
+                      <button
+                        type="button"
+                        onClick={() => deleteDoc(doc)}
+                        disabled={busyId === doc.id}
+                        title="Xóa"
+                        className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center mb-3">
+                {docs.length === 0 ? <Upload size={20} /> : <Filter size={20} />}
+              </div>
+              <p className="text-slate-600 font-bold text-sm">
+                {docs.length === 0 ? 'Chưa có tài liệu nào' : 'Không tìm thấy tài liệu phù hợp'}
+              </p>
+              <p className="text-slate-400 text-xs mt-1">
+                {docs.length === 0 ? 'Nhấn "Tải lên" để thêm tài liệu đầu tiên.' : 'Thử đổi từ khóa hoặc danh mục bộ lọc.'}
+              </p>
+            </div>
+          )}
+        </>
+      ) : (
+        // ============================================================
+        // VÙNG DỮ LIỆU TAB (NEW)
+        // ============================================================
+        <VungDuLieuTab />
       )}
 
       {uploadOpen && pendingFile && (

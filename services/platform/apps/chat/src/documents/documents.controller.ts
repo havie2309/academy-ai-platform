@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -144,5 +145,29 @@ export class DocumentsController {
   @Delete(':id')
   remove(@Req() req: { user: AuthUser }, @Param('id') id: string) {
     return this.docs.remove(id, toRequestUser(req.user))
+  }
+
+  @Get('vung-du-lieu')
+  async getVungDuLieu(@Req() req: { user: AuthUser }) {
+    return this.docs.getVungDuLieu(toRequestUser(req.user));
+  }
+
+  @Get('security-level-stats')
+  async getSecurityLevelStats(@Req() req: { user: AuthUser }) {
+    return this.docs.getSecurityLevelStats(toRequestUser(req.user));
+  }
+
+  @Get('preview/:role')
+  @UseGuards(AuthGuard('jwt'))
+  async previewRoleAccess(
+    @Req() req: { user: AuthUser },
+    @Param('role') role: string
+  ) {
+    // Only admins can preview other roles
+    const user = toRequestUser(req.user);
+    if (!user.roles?.some(r => ['ADMIN', 'Admin', 'BGD'].includes(r))) {
+      throw new ForbiddenException('Chỉ quản trị viên mới có thể xem trước vai trò khác.');
+    }
+    return this.docs.previewRoleAccess(role);
   }
 }

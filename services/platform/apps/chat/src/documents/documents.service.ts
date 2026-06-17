@@ -304,4 +304,259 @@ export class DocumentsService implements OnModuleInit {
       ingest_error: d.ingestError ?? null,
     }
   }
+
+  /**
+   * Get comprehensive Vùng Dữ Liệu (Data Region) information
+   * Shows what documents the user can and cannot access with reasons
+   */
+  async getVungDuLieu(user: RequestUser) {
+    this.ensureReady();
+    
+    // Get ALL documents (no filtering)
+    const allDocs = await this.documents.find({}).toArray();
+    
+    // Split into accessible and inaccessible
+    const accessibleDocs = allDocs.filter(d => this.canView(d, user));
+    const inaccessibleDocs = allDocs.filter(d => !this.canView(d, user));
+    
+    // Count by security level
+    const levels: SecurityLevel[] = ['public', 'internal', 'restricted', 'confidential'];
+    const levelNames: Record<SecurityLevel, string> = {
+      public: 'Công khai',
+      internal: 'Nội bộ',
+      restricted: 'Hạn chế',
+      confidential: 'Mật'
+    };
+    
+    const bySecurityLevel = levels.map(level => {
+      const docsAtLevel = allDocs.filter(d => (d.securityLevel || 'internal') === level);
+      const accessible = docsAtLevel.filter(d => this.canView(d, user)).length;
+      return {
+        level,
+        name: levelNames[level],
+        total: docsAtLevel.length,
+        accessible,
+        inaccessible: docsAtLevel.length - accessible
+      };
+    });
+    
+    // Count by category
+    const allCategories = [...new Set(allDocs.map(d => d.category || 'Khác'))];
+    const byCategory = allCategories.map(cat => {
+      const docsInCat = allDocs.filter(d => (d.category || 'Khác') === cat);
+      const accessible = docsInCat.filter(d => this.canView(d, user)).length;
+      return {
+        category: cat,
+        total: docsInCat.length,
+        accessible,
+        inaccessible: docsInCat.length - accessible
+      };
+    });
+    
+    // Count by source (sample vs upload)
+    const sampleDocs = allDocs.filter(d => (d as any).isSample === true);
+    const uploadDocs = allDocs.filter(d => (d as any).isSample !== true);
+    
+    // Build inaccessible reasons summary
+    const reasonSummary = {
+      bySecurityLevel: {} as Record<string, number>,
+      byRole: {} as Record<string, number>,
+      byDepartment: {} as Record<string, number>,
+    };
+    
+    inaccessibleDocs.forEach(doc => {
+      const level = doc.securityLevel || 'internal';
+      reasonSummary.bySecurityLevel[level] = (reasonSummary.bySecurityLevel[level] || 0) + 1;
+      
+      if (doc.scopeType === 'role') {
+        doc.accessRoleCodes?.forEach(role => {
+          reasonSummary.byRole[role] = (reasonSummary.byRole[role] || 0) + 1;
+        });
+      }
+      
+      if (doc.scopeType === 'department') {
+        doc.accessDepartmentCodes?.forEach(dept => {
+          reasonSummary.byDepartment[dept] = (reasonSummary.byDepartment[dept] || 0) + 1;
+        });
+      }
+    });
+    
+    // Build list of inaccessible docs with reasons (limited to 20 for performance)
+    const inaccessibleList = inaccessibleDocs.slice(0, 20).map(d => ({
+      id: d.docId,
+      title: d.title,
+      securityLevel: d.securityLevel || 'internal',
+      reason: this.getInaccessibleReason(d, user)
+    }));
+    
+    // Count by scope type
+    const scopeTypes: AccessScopeType[] = ['all', 'role', 'department', 'custom'];
+    const byScope = scopeTypes.map(scope => {
+      const docsWithScope = allDocs.filter(d => (d.scopeType || 'all') === scope);
+      const accessible = docsWithScope.filter(d => this.canView(d, user)).length;
+      return {
+        scope,
+        total: docsWithScope.length,
+        accessible,
+        inaccessible: docsWithScope.length - accessible
+      };
+    });
+    
+    return {
+      user: {
+        userId: user.userId,
+        roles: user.roles || [],
+        department: user.department || null,
+        maxSecurityLevel: user.maxSecurityLevel || 1
+      },
+      summary: {
+        total: allDocs.length,
+        accessible: accessibleDocs.length,
+        inaccessible: inaccessibleDocs.length,
+        rate: allDocs.length > 0 
+          ? Math.round((accessibleDocs.length / allDocs.length) * 100) 
+          : 0
+      },
+      bySecurityLevel,
+      byCategory,
+      byScope,
+      sampleDocs: {
+        total: sampleDocs.length,
+        accessible: sampleDocs.filter(d => this.canView(d, user)).length,
+        inaccessible: sampleDocs.length - sampleDocs.filter(d => this.canView(d, user)).length
+      },
+      uploadDocs: {
+        total: uploadDocs.length,
+        accessible: uploadDocs.filter(d => this.canView(d, user)).length,
+        inaccessible: uploadDocs.length - uploadDocs.filter(d => this.canView(d, user)).length
+      },
+      inaccessibleReasons: reasonSummary,
+      inaccessibleList,
+      // Only show full inaccessible count breakdown if admin
+      ...(this.isPrivileged(user) ? {
+        allInaccessible: inaccessibleDocs.map(d => ({
+          id: d.docId,
+          title: d.title,
+          securityLevel: d.securityLevel,
+          scopeType: d.scopeType,
+          uploadedBy: d.uploadedByName,
+          reason: this.getInaccessibleReason(d, user)
+        }))
+      } : {})
+    };
+  }
+
+  /**
+   * Get statistics by security level (simplified version for dashboard)
+   */
+  async getSecurityLevelStats(user: RequestUser) {
+    this.ensureReady();
+    
+    const allDocs = await this.documents.find({}).toArray();
+    const levels: SecurityLevel[] = ['public', 'internal', 'restricted', 'confidential'];
+    const levelNames: Record<SecurityLevel, string> = {
+      public: 'Công khai',
+      internal: 'Nội bộ',
+      restricted: 'Hạn chế',
+      confidential: 'Mật'
+    };
+    
+    return levels.map(level => {
+      const docsAtLevel = allDocs.filter(d => (d.securityLevel || 'internal') === level);
+      const accessible = docsAtLevel.filter(d => this.canView(d, user)).length;
+      return {
+        level,
+        name: levelNames[level],
+        total: docsAtLevel.length,
+        accessible,
+        inaccessible: docsAtLevel.length - accessible,
+        userCanAccess: (user.maxSecurityLevel || 1) >= (SECURITY_RANK[level] || 2)
+      };
+    });
+  }
+
+  /**
+   * Preview what a specific role can see (Admin only)
+   */
+  async previewRoleAccess(role: string) {
+    this.ensureReady();
+    
+    // Create a fake user with the specified role
+    const fakeUser: RequestUser = {
+      userId: 'preview-user',
+      roles: [role],
+      department: null,
+      maxSecurityLevel: role === 'Admin' || role === 'BGD' || role === 'P2' ? 4 : 2
+    };
+    
+    const allDocs = await this.documents.find({}).toArray();
+    const accessibleDocs = allDocs.filter(d => this.canView(d, fakeUser));
+    
+    return {
+      role,
+      total: allDocs.length,
+      accessible: accessibleDocs.length,
+      inaccessible: allDocs.length - accessibleDocs.length,
+      rate: allDocs.length > 0 
+        ? Math.round((accessibleDocs.length / allDocs.length) * 100) 
+        : 0,
+      documents: accessibleDocs.slice(0, 50).map(d => this.toDto(d))
+    };
+  }
+
+  /**
+   * Helper: Get explanation for why a user can't access a document
+   */
+  private getInaccessibleReason(doc: DocumentDoc, user: RequestUser): string {
+    const level = doc.securityLevel || 'internal';
+    const userLevel = user.maxSecurityLevel || 1;
+    
+    // Check security level first
+    if (SECURITY_RANK[level] > userLevel) {
+      return `Yêu cầu mức "${this.getLevelName(level)}" (bạn có mức "${this.getLevelNameByRank(userLevel)}")`;
+    }
+    
+    // Check scope type
+    if (doc.scopeType === 'role') {
+      const roles = doc.accessRoleCodes?.join(', ') || 'không có';
+      return `Chỉ dành cho vai trò: ${roles}`;
+    }
+    
+    if (doc.scopeType === 'department') {
+      const depts = doc.accessDepartmentCodes?.join(', ') || 'không có';
+      return `Chỉ dành cho đơn vị: ${depts}`;
+    }
+    
+    if (doc.scopeType === 'custom') {
+      return 'Chỉ dành cho người dùng cụ thể';
+    }
+    
+    return 'Không có quyền truy cập';
+  }
+
+  /**
+   * Helper: Get Vietnamese name for security level
+   */
+  private getLevelName(level: SecurityLevel): string {
+    const names: Record<SecurityLevel, string> = {
+      public: 'Công khai',
+      internal: 'Nội bộ',
+      restricted: 'Hạn chế',
+      confidential: 'Mật'
+    };
+    return names[level] || level;
+  }
+
+  /**
+   * Helper: Get Vietnamese name for security rank
+   */
+  private getLevelNameByRank(rank: number): string {
+    const names: Record<number, string> = {
+      1: 'Công khai',
+      2: 'Nội bộ',
+      3: 'Hạn chế',
+      4: 'Mật'
+    };
+    return names[rank] || 'Không xác định';
+  }
 }
