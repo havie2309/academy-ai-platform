@@ -2,6 +2,25 @@
 -- DIMENSION TABLES
 -- ============================================
 
+-- data_zones - Vùng dữ liệu (nhóm nghiệp vụ lớn)
+CREATE TABLE data_zones (
+    zone_code VARCHAR(50) PRIMARY KEY,
+    zone_name VARCHAR(200) NOT NULL,
+    description TEXT,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- data_categories - Loại tài liệu, thuộc về một zone
+CREATE TABLE data_categories (
+    category_code VARCHAR(50) PRIMARY KEY,
+    category_name VARCHAR(200) NOT NULL,
+    zone_code VARCHAR(50) NOT NULL REFERENCES data_zones(zone_code) ON DELETE RESTRICT,
+    description TEXT,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- nam_hoc - Năm học
 CREATE TABLE nam_hoc (
     id VARCHAR(20) PRIMARY KEY,
