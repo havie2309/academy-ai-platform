@@ -452,7 +452,8 @@ if (db.documents.countDocuments() === 0) {
         "createdAt": new Date("{now_str}"),
         "ingestStatus": "pending",
         "ingestStage": "queued",
-        "ingestUpdatedAt": new Date("{now_str}")
+        "ingestUpdatedAt": new Date("{now_str}"),
+        "isSample": true
     }}"""
         
         if i < len(documents) - 1:
@@ -520,7 +521,7 @@ def main():
             title = f"{type_name} {random.randint(1, 100)}"
         
         doc_info = {
-            "doc_id": f"DOC-{datetime.now().strftime('%Y%m%d')}-{doc_id:04d}",
+            "doc_id": f"DOC-{doc_id:04d}",
             "title": title,
             "category": category,
             "department_code": dept["code"],
