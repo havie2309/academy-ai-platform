@@ -41,7 +41,7 @@ async def consume_sample_jobs(limit: int = 50) -> dict:
     ).limit(limit))
 
     if not jobs:
-        logger.info("📭 No queued sample jobs found")
+        logger.info("No queued sample jobs found")
         return {"processed": 0, "completed": 0, "failed": 0}
 
     logger.info(f"Found {len(jobs)} queued sample jobs")
