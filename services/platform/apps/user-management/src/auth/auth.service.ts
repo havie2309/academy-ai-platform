@@ -41,7 +41,8 @@ export class AuthService {
     }
     return this.jwt.sign(payload, {
       expiresIn: this.accessExpiresIn() as JwtSignOptions['expiresIn'],
-    })  }
+    })
+  }
 
   private toUserDto(user: {
     user_id: string
@@ -145,11 +146,5 @@ export class AuthService {
     }
     await this.users.logLogin(userId, 'logout', ip, userAgent, true)
     return { message: 'Đăng xuất thành công.' }
-  }
-
-  async logoutAll(userId: string, ip: string, userAgent: string) {
-    await this.users.revokeAllSessions(userId)
-    await this.users.logLogin(userId, 'logout', ip, userAgent, true)
-    return { message: 'Đã đăng xuất tất cả thiết bị.' }
   }
 }

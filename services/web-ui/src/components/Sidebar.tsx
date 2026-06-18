@@ -1,5 +1,14 @@
 import { type MouseEvent } from 'react'
-import { MessageSquare, FileText, LayoutDashboard, Settings, Plus, GraduationCap, LogOut, Trash2 } from 'lucide-react'
+import {
+  MessageSquare,
+  FileText,
+  LayoutDashboard,
+  Settings,
+  Plus,
+  GraduationCap,
+  LogOut,
+  Trash2,
+} from 'lucide-react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { authApi } from '../api/auth'
 import { useChatSessions } from '../contexts/ChatSessionContext'
@@ -14,7 +23,7 @@ export default function Sidebar() {
   const displayName = user?.full_name ?? 'Khách'
   const displayEmail = user?.username ? `${user.username}@academy.edu` : ''
   const avatarLetter = displayName.charAt(0).toUpperCase()
-  const isAdmin = user?.roles.some(r => ['Admin', 'BGD', 'P2', 'P7'].includes(r)) ?? false
+  const isAdmin = user?.roles.some((r) => ['Admin', 'BGD', 'P2', 'P7'].includes(r)) ?? false
 
   const navItems = [
     { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
@@ -48,7 +57,9 @@ export default function Sidebar() {
           </div>
           <div>
             <p className="text-slate-800 font-bold text-base leading-tight tracking-tight">EduMind</p>
-            <p className="text-slate-400 text-[11px] font-medium tracking-wide uppercase">Trợ lý ảo nội bộ</p>
+            <p className="text-slate-400 text-[11px] font-medium tracking-wide uppercase">
+              Trợ lý ảo nội bộ
+            </p>
           </div>
         </div>
       </div>
@@ -66,7 +77,9 @@ export default function Sidebar() {
 
       <div className="px-3 space-y-2">
         {navItems.map(({ icon: Icon, label, href }) => {
-          const isActive = location.pathname === href || (href === '/chat' && location.pathname.startsWith('/chat'))
+          const isActive =
+            location.pathname === href ||
+            (href === '/chat' && location.pathname.startsWith('/chat'))
           return (
             <button
               key={href}
@@ -87,12 +100,12 @@ export default function Sidebar() {
 
       <div className="flex-1 overflow-y-auto px-3 mt-6">
         <div className="px-3 py-2">
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Hội thoại gần đây</p>
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
+            Hội thoại gần đây
+          </p>
         </div>
         <div className="space-y-1">
-          {loading && (
-            <p className="px-3 py-2 text-xs text-slate-400">Đang tải…</p>
-          )}
+          {loading && <p className="px-3 py-2 text-xs text-slate-400">Đang tải…</p>}
           {!loading && sessions.length === 0 && (
             <p className="px-3 py-2 text-xs text-slate-400">Chưa có hội thoại</p>
           )}
@@ -132,24 +145,21 @@ export default function Sidebar() {
             {avatarLetter}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-slate-800 text-sm font-semibold leading-tight truncate">{displayName}</p>
+            <p className="text-slate-800 text-sm font-semibold leading-tight truncate">
+              {displayName}
+            </p>
             <p className="text-slate-400 text-[11px] truncate">{displayEmail}</p>
           </div>
           <button
             type="button"
-            onClick={async () => { await authApi.logout(); navigate('/login') }}
+            onClick={async () => {
+              await authApi.logout()
+              navigate('/login')
+            }}
             className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all shrink-0"
             title="Đăng xuất"
           >
             <LogOut size={15} />
-          </button>
-          <button
-            type="button"
-            onClick={async () => { await authApi.logoutAll(); navigate('/login') }}
-            className="text-[10px] text-slate-400 hover:text-red-500 underline shrink-0"
-            title="Đăng xuất tất cả thiết bị"
-          >
-            Tất cả
           </button>
         </div>
       </div>

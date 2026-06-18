@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 
 from app.generate import LlmError, complete_chat_structured
 from app.retrieval import retrieve_citations
+from app.router import classify_route
+from app.sql_pipeline import SqlPipelineError, run_sql_query
 
 
 @asynccontextmanager
@@ -21,6 +23,7 @@ app = FastAPI(title="RAG Engine", version="0.3.0", lifespan=lifespan)
 
 class RetrieveUser(BaseModel):
     userId: str
+    username: str = ""
     roles: list[str] = []
     department: str | None = None
     maxSecurityLevel: int = 1
@@ -65,6 +68,7 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
 
     return RetrieveUser(
         userId=user_id,
+        username=username,
         roles=roles,
         department=department,
         maxSecurityLevel=max_security_level,
@@ -243,10 +247,31 @@ async def retrieve(body: RetrieveRequest, request: Request):
         raise HTTPException(503, f"retrieval failed: {exc}") from exc
 
 
+@app.post("/v1/sql")
+async def sql_query(body: ChatRequest, request: Request):
+    """Text-to-SQL: NL -> generate -> guardrail -> scope -> execute -> markdown."""
+    user = _resolved_user(body.user, request)
+    try:
+        return await run_sql_query(body.query, user)
+    except SqlPipelineError as exc:
+        code = 403 if exc.status == "deny" else 502
+        raise HTTPException(code, str(exc)) from exc
+
+
 @app.post("/v1/chat")
 async def chat(body: ChatRequest, request: Request):
-    """Full RAG turn: retrieve -> grounded prompt -> LLM -> answer + citations."""
+    """RAG or SQL turn based on lightweight intent router."""
     user = _resolved_user(body.user, request)
+    route = classify_route(body.query)
+    if route == "sql":
+        try:
+            return await run_sql_query(body.query, user)
+        except SqlPipelineError as exc:
+            raise HTTPException(
+                403 if exc.status == "deny" else 502,
+                str(exc),
+            ) from exc
+
     history = [m.model_dump() for m in body.messages]
     try:
         citations = await retrieve_citations(body.query, user)
@@ -273,11 +298,26 @@ async def chat(body: ChatRequest, request: Request):
 
 @app.post("/v1/chat/stream")
 async def chat_stream(body: ChatRequest, request: Request):
-    """Streaming RAG turn over SSE: meta (selected citations) -> token deltas -> done."""
+    """Streaming turn: SQL streams markdown answer; RAG streams citations + tokens."""
     user = _resolved_user(body.user, request)
-    history = [m.model_dump() for m in body.messages]
+    route = classify_route(body.query)
 
     async def event_source():
+        if route == "sql":
+            try:
+                result = await run_sql_query(body.query, user)
+            except SqlPipelineError as exc:
+                yield _sse("error", {"message": str(exc)})
+                return
+            answer = result.get("answer", "")
+            yield _sse("meta", {"citations": [], "route": "sql"})
+            step = 24
+            for i in range(0, len(answer), step):
+                yield _sse("token", {"delta": answer[i : i + step]})
+            yield _sse("done", {"answer": answer, "route": "sql"})
+            return
+
+        history = [m.model_dump() for m in body.messages]
         try:
             citations = await retrieve_citations(body.query, user)
         except Exception as exc:

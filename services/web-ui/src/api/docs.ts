@@ -197,8 +197,8 @@ export const docsApi = {
    * with breakdowns by security level, category, and reasons for denial.
    */
   async getVungDuLieu(): Promise<VungDuLieuData> {
-    const res = await fetch(apiUrl('/api/documents/vung-du-lieu'), {
-      headers: { ...authHeader(), Accept: 'application/json' },
+    const res = await fetchWithAuth('/api/documents/vung-du-lieu', {
+      headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
@@ -213,8 +213,8 @@ export const docsApi = {
    * Useful for smaller dashboard widgets.
    */
   async getSecurityLevelStats(): Promise<VungDuLieuSecurityLevel[]> {
-    const res = await fetch(apiUrl('/api/documents/security-level-stats'), {
-      headers: { ...authHeader(), Accept: 'application/json' },
+    const res = await fetchWithAuth('/api/documents/security-level-stats', {
+      headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
@@ -231,9 +231,10 @@ export const docsApi = {
     rate: number
     documents: DocItem[]
   }> {
-    const res = await fetch(apiUrl(`/api/documents/preview/${encodeURIComponent(role)}`), {
-      headers: { ...authHeader(), Accept: 'application/json' },
-    })
+    const res = await fetchWithAuth(
+      `/api/documents/preview/${encodeURIComponent(role)}`,
+      { headers: { Accept: 'application/json' } },
+    )
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },

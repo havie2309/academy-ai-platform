@@ -41,3 +41,19 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
 SECURITY_RANK = {"public": 1, "internal": 2, "restricted": 3, "confidential": 4}
 ADMIN_ROLES = {"ADMIN", "Admin", "BGD", "P2"}
+
+# --- Text-to-SQL (Postgres read-only + audit) --------------------------------
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "127.0.0.1")
+POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5433"))
+POSTGRES_DB = os.getenv("POSTGRES_DB", "pm2")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "pm2_user")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "pm2pass")
+SQL_READONLY_USER = os.getenv("SQL_READONLY_USER", "pm2_readonly")
+SQL_READONLY_PASSWORD = os.getenv("SQL_READONLY_PASSWORD", "pm2_readonly_pass")
+SQL_STATEMENT_TIMEOUT_MS = int(os.getenv("SQL_STATEMENT_TIMEOUT_MS", "10000"))
+SQL_DEFAULT_LIMIT = int(os.getenv("SQL_DEFAULT_LIMIT", "100"))
+SQL_MAX_LIMIT = int(os.getenv("SQL_MAX_LIMIT", "100"))
+SQL_AUDIT_ENABLED = os.getenv("SQL_AUDIT_ENABLED", "true").lower() != "false"
+
+STAFF_SQL_ROLES = {"ADMIN", "BGD", "P2"}
+SELF_SCOPE_ROLES = {"HOC_VIEN", "GIANG_VIEN"}
