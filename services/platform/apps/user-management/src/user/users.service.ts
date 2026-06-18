@@ -50,20 +50,67 @@ export class UsersService implements OnModuleInit {
     return user ?? null
   }
 
-  async saveSession(userId: string, token: string, expiresAt: Date, ip: string, userAgent: string) {
+  async saveSession(
+    userId: string,
+    refreshTokenHash: string,
+    expiresAt: Date,
+    ip: string,
+    userAgent: string,
+  ) {
     const sessionId = crypto.randomUUID()
     await this.pool.query(
-      `INSERT INTO user_sessions (session_id, user_id, token, ip_address, user_agent, expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [sessionId, userId, token, ip, userAgent, expiresAt]
+      `INSERT INTO user_sessions (
+         session_id, user_id, refresh_token_hash, ip_address, user_agent, expires_at
+       ) VALUES ($1, $2, $3, $4, $5, $6)`,
+      [sessionId, userId, refreshTokenHash, ip, userAgent, expiresAt],
     )
     return sessionId
   }
 
-  async revokeSession(token: string) {
+  async findActiveSessionByRefreshHash(refreshTokenHash: string) {
+    const { rows } = await this.pool.query(
+      `SELECT session_id, user_id, expires_at
+       FROM user_sessions
+       WHERE refresh_token_hash = $1
+         AND revoked_at IS NULL
+         AND expires_at > NOW()`,
+      [refreshTokenHash],
+    )
+    return rows[0] ?? null
+  }
+
+  async rotateSession(
+    sessionId: string,
+    refreshTokenHash: string,
+    expiresAt: Date,
+    ip: string,
+    userAgent: string,
+  ) {
     await this.pool.query(
-      `UPDATE user_sessions SET revoked_at = NOW() WHERE token = $1`,
-      [token]
+      `UPDATE user_sessions
+       SET refresh_token_hash = $2,
+           expires_at = $3,
+           ip_address = $4,
+           user_agent = $5,
+           last_refreshed_at = NOW()
+       WHERE session_id = $1`,
+      [sessionId, refreshTokenHash, expiresAt, ip, userAgent],
+    )
+  }
+
+  async revokeSessionByRefreshHash(refreshTokenHash: string) {
+    await this.pool.query(
+      `UPDATE user_sessions SET revoked_at = NOW()
+       WHERE refresh_token_hash = $1 AND revoked_at IS NULL`,
+      [refreshTokenHash],
+    )
+  }
+
+  async revokeAllSessions(userId: string) {
+    await this.pool.query(
+      `UPDATE user_sessions SET revoked_at = NOW()
+       WHERE user_id = $1 AND revoked_at IS NULL`,
+      [userId],
     )
   }
 

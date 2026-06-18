@@ -48,6 +48,11 @@ CÁCH CHỌN CHUNK:
 - Không viết phần "Ghi chú kiểm thử".
 - Không tự tạo phần "Nguồn tham khảo" trong answer.
 - Frontend sẽ tự hiển thị nguồn dựa trên reference_chunk_ids.
+- Có thể sử dụng markdown đơn giản trong answer:
+  + Bullet: "- "
+  + Xuống dòng: "\\n"
+- Nếu có nhiều ý, nhiều điều kiện hoặc nhiều kết quả, ưu tiên dùng bullet thay vì viết thành một đoạn văn dài.
+- Không lạm dụng bullet khi câu trả lời chỉ có một ý ngắn gọn.
 
 Ràng buộc đầu ra:
 - BẮT BUỘC trả về JSON hợp lệ, không thêm text ngoài JSON.
@@ -217,23 +222,81 @@ def _strip_trailing_json_block(raw: str) -> str:
     return text
 
 
-def parse_llm_structured_output(raw: str) -> tuple[str, list[str]]:
-    clean_answer = _strip_trailing_json_block(raw)
+def _clean_answer_text(raw: str) -> str:
+    """Normalize visible answer text before it reaches the UI."""
+    text = _strip_trailing_json_block(raw).strip()
+    if not text:
+        return text
+
+    text = re.sub(r"^```(?:markdown|md|text)?\s*", "", text, flags=re.I).strip()
+    text = re.sub(r"\s*```$", "", text).strip()
+
+    lines: list[str] = []
+    skipping_reference_lines = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        lowered = line.lower()
+
+        if lowered in {
+            "nguồn tham khảo",
+            "nguồn tham khảo:",
+            "tài liệu tham khảo",
+            "tài liệu tham khảo:",
+            "nguon tham khao",
+            "nguon tham khao:",
+            "tai lieu tham khao",
+            "tai lieu tham khao:",
+        }:
+            skipping_reference_lines = True
+            continue
+
+        if skipping_reference_lines:
+            if re.match(r"^(?:[-*]|\[\d+\])\s+", line):
+                continue
+            if not line:
+                continue
+            skipping_reference_lines = False
+
+        if re.match(r"^\[\d+\]\s*chunk_id=", line, flags=re.I):
+            continue
+        if re.match(r"^chunk_id\s*=", line, flags=re.I):
+            continue
+
+        lines.append(raw_line.rstrip())
+
+    text = "\n".join(lines).strip()
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text
+
+
+def _parse_chunk_id_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    seen: set[str] = set()
+    chunk_ids: list[str] = []
+    for item in value:
+        chunk_id = str(item).strip()
+        if not chunk_id or chunk_id in seen:
+            continue
+        seen.add(chunk_id)
+        chunk_ids.append(chunk_id)
+    return chunk_ids
+
+
+def parse_llm_structured_output(raw: str) -> tuple[str, list[str], list[str]]:
+    clean_answer = _clean_answer_text(raw)
     parsed = _extract_json_object(raw)
     if not parsed:
         # Fallback: keep clean text (without leaked JSON tail) as answer.
-        return clean_answer, []
+        return clean_answer, [], []
 
-    answer = str(parsed.get("answer", "")).strip()
-    ids = parsed.get("used_chunk_ids", [])
-    if isinstance(ids, list):
-        used_ids = [str(x).strip() for x in ids if str(x).strip()]
-    else:
-        used_ids = []
+    answer = _clean_answer_text(str(parsed.get("answer", "")))
+    used_ids = _parse_chunk_id_list(parsed.get("used_chunk_ids", []))
+    reference_ids = _parse_chunk_id_list(parsed.get("reference_chunk_ids", []))
     if not answer:
         # Model may return tail JSON with only used ids; keep visible answer clean.
-        return clean_answer, used_ids
-    return answer, used_ids
+        return clean_answer, used_ids, reference_ids
+    return answer, used_ids, reference_ids
 
 
 def _llm_target() -> tuple[str, str, dict[str, str]]:
@@ -289,7 +352,11 @@ def build_messages(
 
     output_contract = (
         "\n\nBẮT BUỘC đầu ra JSON hợp lệ theo schema:\n"
-        '{"answer":"...","used_chunk_ids":["chunk_id_1","chunk_id_2"]}'
+        '{"answer":"...","used_chunk_ids":["chunk_id_1"],'
+        '"reference_chunk_ids":["chunk_id_1","chunk_id_2"]}\n'
+        "- `used_chunk_ids`: chunk được dùng trực tiếp để suy luận câu trả lời.\n"
+        "- `reference_chunk_ids`: chunk nên hiển thị ở UI làm nguồn tham khảo; liệt kê `used_chunk_ids` trước, rồi mới thêm chunk liên quan để đọc thêm.\n"
+        "- Nếu không có nguồn đọc thêm riêng, `reference_chunk_ids` có thể trùng với `used_chunk_ids`."
         if require_json
         else "\n\nTrả lời trực tiếp bằng tiếng Việt, không cần JSON."
     )
@@ -353,9 +420,9 @@ async def complete_chat_raw(
 
 async def complete_chat_structured(
     history: list[dict], citations: list[dict]
-) -> tuple[str, list[str]]:
+) -> tuple[str, list[str], list[str]]:
     raw = await complete_chat_raw(history, citations, require_json=True)
-    answer, used_chunk_ids = parse_llm_structured_output(raw)
+    answer, used_chunk_ids, reference_chunk_ids = parse_llm_structured_output(raw)
     if not answer:
         raise LlmError("LLM trả về rỗng.")
 
@@ -368,9 +435,9 @@ async def complete_chat_structured(
             require_json=False,
             force_answer_from_context=True,
         )
-        retry_answer = retry_raw.strip()
+        retry_answer = _clean_answer_text(retry_raw)
         if retry_answer and not _is_no_info_answer(retry_answer):
-            return retry_answer, []
+            return retry_answer, [], []
     # qwen2.5:3b may answer too briefly ("Không.") despite relevant context.
     # Retry once with an explicit minimum explanation constraint.
     if citations and not _is_no_info_answer(answer) and _is_too_brief_answer(answer):
@@ -381,10 +448,10 @@ async def complete_chat_structured(
             force_answer_from_context=True,
             force_expand_answer=True,
         )
-        retry_answer = retry_raw.strip()
+        retry_answer = _clean_answer_text(retry_raw)
         if retry_answer and not _is_no_info_answer(retry_answer):
-            return retry_answer, []
-    return answer, used_chunk_ids
+            return retry_answer, [], []
+    return answer, used_chunk_ids, reference_chunk_ids
 
 
 async def stream_chat(

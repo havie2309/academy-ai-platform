@@ -21,5 +21,7 @@ INGEST_QUEUE = os.getenv("INGEST_QUEUE", "ingest.jobs")
 
 CHUNK_MAX_SIZE = int(os.getenv("CHUNK_MAX_SIZE", "500"))
 CHUNK_OVERLAP = float(os.getenv("CHUNK_OVERLAP", "0.2"))
+# Embedding API currently accepts max 64 texts/request.
+EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))
 
 SECURITY_RANK = {"public": 1, "internal": 2, "restricted": 3, "confidential": 4}

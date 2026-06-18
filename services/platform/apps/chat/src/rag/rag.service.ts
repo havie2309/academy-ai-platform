@@ -192,6 +192,7 @@ export class RagService {
         snippet: c.snippet,
         source: c.source,
         ...(c.page != null ? { page: c.page } : {}),
+        ...(c.section_path ? { section_path: c.section_path } : {}),
         ...(c.text ? { text: c.text } : {}),
       }))
     } catch (err) {

@@ -69,14 +69,16 @@ CREATE TABLE user_permissions (
     PRIMARY KEY (user_id, permission_id)
 );
 
--- user_sessions - Phiên đăng nhập
+-- user_sessions - Phiên đăng nhập (refresh token hash; access JWT ngắn hạn không lưu DB)
 CREATE TABLE user_sessions (
     session_id VARCHAR(100) PRIMARY KEY,
     user_id VARCHAR(20) REFERENCES users(user_id) ON DELETE CASCADE,
     token VARCHAR(500),
+    refresh_token_hash VARCHAR(64),
     ip_address VARCHAR(50),
     user_agent TEXT,
     expires_at TIMESTAMP NOT NULL,
+    last_refreshed_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT NOW(),
     revoked_at TIMESTAMP
 );

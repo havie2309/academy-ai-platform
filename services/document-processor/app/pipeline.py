@@ -8,6 +8,7 @@ from app.chunker import chunk_document
 from app.config import (
     CHUNK_MAX_SIZE,
     CHUNK_OVERLAP,
+    EMBEDDING_BATCH_SIZE,
     EMBEDDING_BASE_URL,
     MONGO_DB,
     MONGO_URI,
@@ -26,14 +27,21 @@ def _mongo() -> MongoClient:
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
+    if not texts:
+        return []
+    batch_size = max(1, min(EMBEDDING_BATCH_SIZE, 64))
+    vectors: list[list[float]] = []
     async with httpx.AsyncClient(timeout=120) as client:
-        res = await client.post(
-            f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
-            json={"input": texts},
-        )
-        res.raise_for_status()
-        data = res.json()["data"]
-        return [item["embedding"] for item in data]
+        for i in range(0, len(texts), batch_size):
+            chunk = texts[i : i + batch_size]
+            res = await client.post(
+                f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
+                json={"input": chunk},
+            )
+            res.raise_for_status()
+            data = res.json()["data"]
+            vectors.extend(item["embedding"] for item in data)
+    return vectors
 
 
 def _update_job(

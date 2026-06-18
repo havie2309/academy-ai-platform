@@ -7,10 +7,11 @@ from dataclasses import dataclass
 
 # Vietnamese legal / regulation headings (line-start).
 _HEADER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("phan", re.compile(r"^Phần\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
-    ("chuong", re.compile(r"^Chương\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
-    ("dieu", re.compile(r"^Điều\s+\d+\b", re.IGNORECASE)),
-    ("muc", re.compile(r"^Mục\s+\d+\b", re.IGNORECASE)),
+    # Support both Vietnamese with accent and OCR/no-accent variants.
+    ("phan", re.compile(r"^(?:Phần|Phan)\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
+    ("chuong", re.compile(r"^(?:Chương|Chuong)\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
+    ("dieu", re.compile(r"^(?:Điều|Dieu)\s+\d+\b", re.IGNORECASE)),
+    ("muc", re.compile(r"^(?:Mục|Muc)\s+\d+\b", re.IGNORECASE)),
 )
 
 # Clearing lower levels when a higher-level heading appears.

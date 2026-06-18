@@ -50,9 +50,24 @@ def test_chunk_text_wrapper():
     assert chunk_text("hello world", max_size=100) == ["hello world"]
 
 
+def test_ocr_no_accent_headers_are_detected():
+    text = """
+Chuong II. DIEU KIEN DU THI
+Dieu 6. Dieu kien chuyen can
+Sinh vien vang qua 20% tong so tiet khong duoc du thi.
+Muc 1. Cach tinh
+Tinh theo tong so tiet hoc phan.
+""".strip()
+    chunks = chunk_document(text, max_size=500, overlap_ratio=0.1)
+    assert len(chunks) >= 1
+    assert any("Chuong II" in c.section_path for c in chunks)
+    assert any("Dieu 6" in c.section_path for c in chunks)
+
+
 if __name__ == "__main__":
     test_structural_split_keeps_dieu_separate()
     test_recursive_split_when_section_too_small_limit()
     test_plain_text_fallback_to_char_chunks()
     test_chunk_text_wrapper()
+    test_ocr_no_accent_headers_are_detected()
     print("ok")

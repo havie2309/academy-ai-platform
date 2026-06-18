@@ -165,6 +165,46 @@ flowchart LR
   Py -->|HTTP| LLM & EMB & RNK
 ```
 
+### 4.3. Xác thực Access + Refresh Token
+
+Hệ thống dùng **hai loại token** thay cho một JWT dài hạn:
+
+| Token | TTL | Lưu trữ | Mục đích |
+| ----- | --- | ------- | -------- |
+| **Access token** | 15 phút | `localStorage` (frontend) | `Authorization: Bearer` cho mọi API |
+| **Refresh token** | 7 ngày | **HttpOnly cookie** (`pm2_refresh_token`) | Chỉ gọi `/api/auth/refresh` để cấp access mới |
+
+```mermaid
+sequenceDiagram
+  participant UI as web-ui
+  participant GW as api-gateway
+  participant UM as user-management
+  participant PG as Postgres user_sessions
+
+  UI->>GW: POST /api/auth/login
+  GW->>UM: login
+  UM->>PG: INSERT session (refresh_token_hash)
+  UM-->>UI: access_token JSON + Set-Cookie refresh
+
+  UI->>GW: GET /api/chat/... Bearer access
+  Note over UI,GW: Access hết hạn sau 15p
+
+  UI->>GW: POST /api/auth/refresh (cookie)
+  GW->>UM: refresh + rotate hash
+  UM->>PG: UPDATE session
+  UM-->>UI: access_token mới + cookie refresh mới
+
+  UI->>GW: POST /api/auth/logout
+  UM->>PG: revoke session hiện tại
+
+  UI->>GW: POST /api/auth/logout-all Bearer access
+  UM->>PG: revoke tất cả session của user
+```
+
+**Triển khai:** `user-management` phát hành token; `api-gateway` proxy cookie + CORS `credentials`; `chat`/`rag-engine` chỉ validate access JWT.
+
+---
+
 ### 4.1. Hạ tầng (Infrastructure)
 
 > **Máy nền tảng** — máy code chính. **Máy mô hình** — máy build và serving model AI.
