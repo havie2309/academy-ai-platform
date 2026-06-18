@@ -26,6 +26,7 @@ export default defineConfig(({ mode }) => {
           target: gatewayTarget,
           changeOrigin: true,
           agent: noKeepAliveAgent,
+          cookieDomainRewrite: '',
         },
       },
     },

@@ -1,10 +1,4 @@
-import { authApi } from './auth'
-import { apiUrl } from './base'
-
-function authHeader(): Record<string, string> {
-  const token = authApi.getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
+import { fetchWithAuth } from './http'
 
 async function parseError(res: Response): Promise<string> {
   if (res.status === 401) {
@@ -138,8 +132,8 @@ export interface VungDuLieuData {
 
 export const docsApi = {
   async list(): Promise<DocItem[]> {
-    const res = await fetch(apiUrl('/api/documents'), {
-      headers: { ...authHeader(), Accept: 'application/json' },
+    const res = await fetchWithAuth('/api/documents', {
+      headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
     const data = await res.json()
@@ -163,9 +157,8 @@ export const docsApi = {
     if (meta.access.user_ids?.length)
       form.append('access_user_ids', meta.access.user_ids.join(','))
 
-    const res = await fetch(apiUrl('/api/documents'), {
+    const res = await fetchWithAuth('/api/documents', {
       method: 'POST',
-      headers: authHeader(),
       body: form,
     })
     if (!res.ok) throw new Error(await parseError(res))
@@ -173,25 +166,22 @@ export const docsApi = {
   },
 
   async remove(id: string): Promise<void> {
-    const res = await fetch(apiUrl(`/api/documents/${id}`), {
+    const res = await fetchWithAuth(`/api/documents/${id}`, {
       method: 'DELETE',
-      headers: authHeader(),
     })
     if (!res.ok) throw new Error(await parseError(res))
   },
 
   /** Tải file (kèm token) về dạng blob để xem/lưu, vì <a href> không gửi header auth. */
   async fetchBlob(id: string): Promise<Blob> {
-    const res = await fetch(apiUrl(`/api/documents/${id}/file`), {
-      headers: authHeader(),
-    })
+    const res = await fetchWithAuth(`/api/documents/${id}/file`)
     if (!res.ok) throw new Error(await parseError(res))
     return res.blob()
   },
 
   async ingestStatus(id: string): Promise<IngestStatusResponse> {
-    const res = await fetch(apiUrl(`/api/documents/${id}/ingest-status`), {
-      headers: { ...authHeader(), Accept: 'application/json' },
+    const res = await fetchWithAuth(`/api/documents/${id}/ingest-status`, {
+      headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()

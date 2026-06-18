@@ -137,11 +137,19 @@ export default function Sidebar() {
           </div>
           <button
             type="button"
-            onClick={() => { authApi.logout(); navigate('/login') }}
+            onClick={async () => { await authApi.logout(); navigate('/login') }}
             className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all shrink-0"
             title="Đăng xuất"
           >
             <LogOut size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={async () => { await authApi.logoutAll(); navigate('/login') }}
+            className="text-[10px] text-slate-400 hover:text-red-500 underline shrink-0"
+            title="Đăng xuất tất cả thiết bị"
+          >
+            Tất cả
           </button>
         </div>
       </div>

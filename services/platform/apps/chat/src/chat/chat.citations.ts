@@ -5,6 +5,7 @@ export interface ChatCitationDto {
   page?: number
   snippet: string
   source: string
+  section_path?: string
   /** Full chunk text used as LLM grounding context. Stripped before sending to the client. */
   text?: string
 }

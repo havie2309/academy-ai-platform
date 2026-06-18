@@ -1,13 +1,4 @@
-import { authApi } from './auth'
-import { apiUrl } from './base'
-
-function authHeaders(json = true): Record<string, string> {
-  const token = authApi.getToken()
-  const headers: Record<string, string> = {}
-  if (json) headers['Content-Type'] = 'application/json'
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
-}
+import { fetchWithAuth } from './http'
 
 async function parseError(res: Response): Promise<string> {
   if (res.status === 401) {
@@ -26,6 +17,7 @@ export interface ChatCitation {
   page?: number
   snippet: string
   source: string
+  section_path?: string
 }
 
 export interface ChatSession {
@@ -83,8 +75,8 @@ function parseSseBlock(
 
 export const chatApi = {
   async listSessions(): Promise<ChatSession[]> {
-    const res = await fetch(apiUrl('/api/chat/sessions'), {
-      headers: { ...authHeaders(false), Accept: 'application/json' },
+    const res = await fetchWithAuth('/api/chat/sessions', {
+      headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
     const data = await res.json()
@@ -92,9 +84,9 @@ export const chatApi = {
   },
 
   async createSession(title?: string): Promise<ChatSession> {
-    const res = await fetch(apiUrl('/api/chat/sessions'), {
+    const res = await fetchWithAuth('/api/chat/sessions', {
       method: 'POST',
-      headers: authHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title }),
     })
     if (!res.ok) throw new Error(await parseError(res))
@@ -102,17 +94,14 @@ export const chatApi = {
   },
 
   async deleteSession(sessionId: string): Promise<void> {
-    const res = await fetch(apiUrl(`/api/chat/sessions/${sessionId}`), {
+    const res = await fetchWithAuth(`/api/chat/sessions/${sessionId}`, {
       method: 'DELETE',
-      headers: authHeaders(false),
     })
     if (!res.ok) throw new Error(await parseError(res))
   },
 
   async listMessages(sessionId: string): Promise<ChatMessage[]> {
-    const res = await fetch(apiUrl(`/api/chat/sessions/${sessionId}/messages`), {
-      headers: authHeaders(false),
-    })
+    const res = await fetchWithAuth(`/api/chat/sessions/${sessionId}/messages`)
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },
@@ -123,9 +112,9 @@ export const chatApi = {
     handlers: StreamHandlers,
     signal?: AbortSignal,
   ): Promise<void> {
-    const res = await fetch(apiUrl(`/api/chat/sessions/${sessionId}/messages/stream`), {
+    const res = await fetchWithAuth(`/api/chat/sessions/${sessionId}/messages/stream`, {
       method: 'POST',
-      headers: authHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
       signal,
     })
@@ -159,7 +148,7 @@ export const chatApi = {
             return
           }
         } catch {
-          handlers.onError('Phản hồi stream không hợp lệ.')
+          handlers.onError('Phản hồi không hợp lệ.')
           return
         }
       }
