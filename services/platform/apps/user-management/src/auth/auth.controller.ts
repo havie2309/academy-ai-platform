@@ -69,15 +69,4 @@ export class AuthController {
     return this.auth.logout(refreshToken, req.user.userId, ip, ua)
   }
 
-  @Post('logout-all')
-  @UseGuards(AuthGuard('jwt'))
-  async logoutAll(
-    @Req() req: Request & { user: { userId: string } },
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const ip = req.ip ?? ''
-    const ua = req.headers['user-agent'] ?? ''
-    clearRefreshCookie(res)
-    return this.auth.logoutAll(req.user.userId, ip, ua)
-  }
 }

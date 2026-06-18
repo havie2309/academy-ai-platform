@@ -5,6 +5,7 @@ import { resolveCitations } from '../chat/chat.citations'
 
 export interface RagUserContext {
   userId: string
+  username: string
   roles: string[]
   department: string | null
   maxSecurityLevel: number
@@ -18,6 +19,7 @@ export interface RagMessage {
 export interface RagChatResult {
   answer: string
   citations: ChatCitationDto[]
+  route?: string
 }
 
 @Injectable()
@@ -52,7 +54,17 @@ export class RagService {
     const res = await fetch(`${this.ragUrl}/v1/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, messages, user }),
+      body: JSON.stringify({
+        query,
+        messages,
+        user: {
+          userId: user.userId,
+          username: user.username,
+          roles: user.roles,
+          department: user.department,
+          maxSecurityLevel: user.maxSecurityLevel,
+        },
+      }),
     })
     if (!res.ok) {
       const body = await res.text()
@@ -61,9 +73,14 @@ export class RagService {
     const data = (await res.json()) as {
       answer?: string
       citations?: ChatCitationDto[]
+      route?: string
     }
     if (!data.answer?.trim()) throw new Error('rag-engine trả về đáp án rỗng.')
-    return { answer: data.answer, citations: data.citations ?? [] }
+    return {
+      answer: data.answer,
+      citations: data.citations ?? [],
+      route: data.route ?? 'rag',
+    }
   }
 
   /**
@@ -76,7 +93,7 @@ export class RagService {
     query: string,
     messages: RagMessage[],
     user: RagUserContext,
-    onMeta: (citations: ChatCitationDto[]) => void,
+    onMeta: (citations: ChatCitationDto[], metaRoute?: string) => void,
     onToken: (delta: string) => void,
   ): Promise<RagChatResult> {
     if (!this.enabled) throw new Error('RAG disabled')
@@ -84,7 +101,17 @@ export class RagService {
     const res = await fetch(`${this.ragUrl}/v1/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, messages, user }),
+      body: JSON.stringify({
+        query,
+        messages,
+        user: {
+          userId: user.userId,
+          username: user.username,
+          roles: user.roles,
+          department: user.department,
+          maxSecurityLevel: user.maxSecurityLevel,
+        },
+      }),
     })
     if (!res.ok || !res.body) {
       const body = res.body ? await res.text() : ''
@@ -98,6 +125,7 @@ export class RagService {
     let buffer = ''
     let citations: ChatCitationDto[] = []
     let answer = ''
+    let route = 'rag'
 
     const handleEvent = (block: string) => {
       let event = 'message'
@@ -115,7 +143,8 @@ export class RagService {
       }
       if (event === 'meta') {
         citations = (payload.citations as ChatCitationDto[]) ?? []
-        onMeta(citations)
+        if (typeof payload.route === 'string') route = payload.route
+        onMeta(citations, route)
       } else if (event === 'token') {
         const delta = payload.delta as string
         if (delta) {
@@ -124,6 +153,7 @@ export class RagService {
         }
       } else if (event === 'done') {
         if (typeof payload.answer === 'string') answer = payload.answer
+        if (typeof payload.route === 'string') route = payload.route
       } else if (event === 'error') {
         throw new Error((payload.message as string) ?? 'rag-engine stream error')
       }
@@ -143,7 +173,7 @@ export class RagService {
     if (buffer.trim()) handleEvent(buffer)
 
     if (!answer.trim()) throw new Error('rag-engine stream trả về rỗng.')
-    return { answer, citations }
+    return { answer, citations, route }
   }
 
   /**
@@ -166,6 +196,7 @@ export class RagService {
           query,
           user: {
             userId: user.userId,
+            username: user.username,
             roles: user.roles,
             department: user.department,
             maxSecurityLevel: user.maxSecurityLevel,

@@ -146,30 +146,6 @@ export const authApi = {
 
 
 
-  async logoutAll(): Promise<void> {
-
-    const token = this.getToken();
-
-    if (!USE_MOCK_AUTH && token) {
-
-      await fetch(apiUrl('/api/auth/logout-all'), {
-
-        method: 'POST',
-
-        credentials: 'include',
-
-        headers: { Authorization: `Bearer ${token}` },
-
-      }).catch(() => {});
-
-    }
-
-    this.clearLocalSession();
-
-  },
-
-
-
   clearLocalSession(): void {
 
     localStorage.removeItem('access_token');

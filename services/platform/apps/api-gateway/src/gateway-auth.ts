@@ -23,7 +23,7 @@ export interface GatewayRequest extends Request {
 
 const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login', '/api/auth/refresh'])
 const PROTECTED_PREFIXES = ['/api/users', '/api/chat', '/api/documents', '/api/rag']
-const PROTECTED_ROUTES = new Set(['/api/auth/logout', '/api/auth/logout-all'])
+const PROTECTED_ROUTES = new Set(['/api/auth/logout'])
 const UNAUTHORIZED_MESSAGE =
   'Phiên đăng nhập hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.'
 
@@ -63,8 +63,23 @@ function toGatewayUser(payload: GatewayJwtPayload): GatewayUser | null {
   }
 }
 
-function rejectUnauthorized(res: Response): void {
-  res.setHeader('Access-Control-Allow-Origin', process.env.WEB_URL ?? 'http://localhost:5173')
+function allowedOrigin(req: Request): string {
+  const configured = (
+    process.env.WEB_URL ??
+    'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
+  )
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
+  const requestOrigin = req.headers.origin
+  if (requestOrigin && configured.includes(requestOrigin)) {
+    return requestOrigin
+  }
+  return configured[0] ?? 'http://localhost:5173'
+}
+
+function rejectUnauthorized(req: Request, res: Response): void {
+  res.setHeader('Access-Control-Allow-Origin', allowedOrigin(req))
   res.setHeader('Access-Control-Allow-Credentials', 'true')
   res.setHeader('Vary', 'Origin')
   res.status(401).json({ message: UNAUTHORIZED_MESSAGE })
@@ -86,7 +101,7 @@ export function createGatewayAuthMiddleware(jwtSecret: string) {
 
     const token = readBearerToken(req)
     if (!token) {
-      rejectUnauthorized(res)
+      rejectUnauthorized(req, res)
       return
     }
 
@@ -94,13 +109,13 @@ export function createGatewayAuthMiddleware(jwtSecret: string) {
       const payload = jwt.verify<GatewayJwtPayload>(token)
       const user = toGatewayUser(payload)
       if (!user) {
-        rejectUnauthorized(res)
+        rejectUnauthorized(req, res)
         return
       }
       req.gatewayUser = user
       next()
     } catch {
-      rejectUnauthorized(res)
+      rejectUnauthorized(req, res)
     }
   }
 }

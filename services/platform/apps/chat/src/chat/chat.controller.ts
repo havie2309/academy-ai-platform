@@ -24,6 +24,7 @@ type AuthUser = {
 function toRagUser(u: AuthUser) {
   return {
     userId: u.userId,
+    username: u.username ?? '',
     roles: u.roles ?? [],
     department: u.department ?? null,
     maxSecurityLevel: u.maxSecurityLevel ?? 1,

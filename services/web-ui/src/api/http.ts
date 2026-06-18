@@ -36,7 +36,10 @@ export async function fetchWithAuth(
   if (res.status !== 401) return res
 
   const newToken = await refreshAccessToken()
-  if (!newToken) return res
+  if (!newToken) {
+    authApi.clearLocalSession()
+    return res
+  }
 
   return doFetch(newToken)
 }

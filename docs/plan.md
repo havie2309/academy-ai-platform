@@ -197,8 +197,6 @@ sequenceDiagram
   UI->>GW: POST /api/auth/logout
   UM->>PG: revoke session hiện tại
 
-  UI->>GW: POST /api/auth/logout-all Bearer access
-  UM->>PG: revoke tất cả session của user
 ```
 
 **Triển khai:** `user-management` phát hành token; `api-gateway` proxy cookie + CORS `credentials`; `chat`/`rag-engine` chỉ validate access JWT.

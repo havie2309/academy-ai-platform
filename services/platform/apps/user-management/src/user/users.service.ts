@@ -106,14 +106,6 @@ export class UsersService implements OnModuleInit {
     )
   }
 
-  async revokeAllSessions(userId: string) {
-    await this.pool.query(
-      `UPDATE user_sessions SET revoked_at = NOW()
-       WHERE user_id = $1 AND revoked_at IS NULL`,
-      [userId],
-    )
-  }
-
   async logLogin(userId: string, event: string, ip: string, userAgent: string, success: boolean, reason?: string) {
     await this.pool.query(
       `INSERT INTO login_logs (user_id, event_type, ip_address, user_agent, success, failure_reason)

@@ -173,6 +173,7 @@ export class ChatService implements OnModuleInit {
     )
     let answer: string
     let clientCitations: ChatCitationDto[]
+    let route = 'rag'
     try {
       // Primary: rag-engine owns the full RAG turn (retrieve + grounded answer).
       const result = await this.rag.chat(
@@ -182,6 +183,7 @@ export class ChatService implements OnModuleInit {
       )
       answer = result.answer
       clientCitations = result.citations
+      route = result.route ?? 'rag'
     } catch (err) {
       // Fallback: rag-engine down -> retrieve + local LLM here.
       this.logger.warn(
@@ -200,7 +202,7 @@ export class ChatService implements OnModuleInit {
       sessionId,
       answer,
       clientCitations,
-      'rag',
+      route,
     )
     const titleUpdate = await this.maybeUpdateSessionTitle(
       session,
@@ -219,7 +221,7 @@ export class ChatService implements OnModuleInit {
       user_message: this.toMessageDto(userMsg),
       assistant_message: this.toMessageDto(assistantMsg),
       citations: clientCitations,
-      route: 'rag' as const,
+      route,
     }
   }
 
@@ -240,6 +242,7 @@ export class ChatService implements OnModuleInit {
       )
       let answer = ''
       let clientCitations: ChatCitationDto[] = []
+      let route = 'rag'
       let streamed = false
       try {
         // Primary: rag-engine streams the grounded answer (meta -> tokens).
@@ -247,12 +250,13 @@ export class ChatService implements OnModuleInit {
           text,
           this.toRagMessages(history),
           ragUser,
-          (citations) => {
+          (citations, metaRoute) => {
             streamed = true
+            if (metaRoute) route = metaRoute
             writeSseEvent(res, 'meta', {
               user_message: this.toMessageDto(userMsg),
               citations,
-              route: 'rag',
+              route,
             })
           },
           (delta) => {
@@ -262,6 +266,7 @@ export class ChatService implements OnModuleInit {
         )
         answer = result.answer
         clientCitations = result.citations
+        route = result.route ?? 'rag'
       } catch (err) {
         // If anything was already streamed to the client we cannot fall back
         // cleanly (meta/tokens already sent) — surface the error instead.
@@ -289,7 +294,7 @@ export class ChatService implements OnModuleInit {
         sessionId,
         answer,
         clientCitations,
-        'rag',
+        route,
       )
       const titleUpdate = await this.maybeUpdateSessionTitle(
         session,
@@ -307,7 +312,7 @@ export class ChatService implements OnModuleInit {
         },
         assistant_message: this.toMessageDto(assistantMsg),
         citations: clientCitations,
-        route: 'rag',
+        route,
       })
       res.end()
     } catch (err) {

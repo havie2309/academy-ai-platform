@@ -1,4 +1,6 @@
 import http from 'node:http'
+import { resolve } from 'node:path'
+import { config as loadEnv } from 'dotenv'
 import { NestFactory } from '@nestjs/core'
 import { ExpressAdapter } from '@nestjs/platform-express'
 import express from 'express'
@@ -9,6 +11,9 @@ import {
   createGatewayAuthMiddleware,
   type GatewayRequest,
 } from './gateway-auth'
+
+// Load services/platform/.env so JWT_SECRET matches user-management + chat.
+loadEnv({ path: resolve(__dirname, '../../../.env') })
 
 async function bootstrap() {
   const userMgmt =
@@ -86,7 +91,13 @@ async function bootstrap() {
   )
 
   app.enableCors({
-    origin: process.env.WEB_URL ?? 'http://localhost:5173',
+    origin: (
+      process.env.WEB_URL ??
+      'http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174'
+    )
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean),
     credentials: true,
   })
 
