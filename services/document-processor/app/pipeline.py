@@ -105,8 +105,10 @@ async def process_document(job: dict) -> dict:
         if not chunks:
             raise ValueError("Không tạo được chunk từ nội dung.")
 
+        '''
         _update_job(db, document_id, status="processing", stage="embed")
         vectors = await embed_texts([c.text for c in chunks])
+        '''
 
         security_level = job.get("securityLevel", "internal")
         security_rank = SECURITY_RANK.get(security_level, 2)
@@ -120,7 +122,7 @@ async def process_document(job: dict) -> dict:
         security_ranks: list[int] = []
         mongo_docs: list[dict] = []
 
-        for idx, (chunk, vector) in enumerate(zip(chunks, vectors)):
+        for idx, chunk in enumerate(chunks):
             chunk_id = str(uuid.uuid4())
             chunk_ids.append(chunk_id)
             document_ids.append(document_id)
@@ -147,9 +149,11 @@ async def process_document(job: dict) -> dict:
                 }
             )
 
+        '''
         milvus_ids = insert_vectors(chunk_ids, document_ids, security_ranks, vectors)
         for i, mid in enumerate(milvus_ids):
             mongo_docs[i]["milvusVectorId"] = str(mid)
+        '''
 
         if mongo_docs:
             db.document_chunks.insert_many(mongo_docs)

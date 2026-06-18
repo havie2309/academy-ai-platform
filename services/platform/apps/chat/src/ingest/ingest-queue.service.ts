@@ -22,7 +22,7 @@ export class IngestQueueService {
   constructor(private readonly config: ConfigService) {
     this.processorUrl = (
       this.config.get<string>('DOCUMENT_PROCESSOR_URL') ??
-      'http://localhost:8003'
+      'http://localhost:8000'
     ).replace(/\/+$/, '')
   }
 
