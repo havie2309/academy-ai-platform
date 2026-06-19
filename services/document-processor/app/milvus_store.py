@@ -55,3 +55,29 @@ def delete_by_document(document_id: str) -> None:
     col = Collection(MILVUS_COLLECTION)
     col.load()
     col.delete(expr=f'document_id == "{document_id}"')
+    col.flush()
+
+
+def delete_document_except(document_id: str, keep_chunk_ids: list[str]) -> None:
+    """Xóa vectors của document_id, ngoại trừ các chunk_id trong keep_chunk_ids."""
+    connect_milvus()
+    if not utility.has_collection(MILVUS_COLLECTION):
+        return
+    col = Collection(MILVUS_COLLECTION)
+    col.load()
+
+    if not keep_chunk_ids:
+        col.delete(expr=f'document_id == "{document_id}"')
+        col.flush()
+        return
+
+    # Query primary keys của các vector cũ (cùng document, không nằm trong bản mới).
+    quoted = ", ".join(f'"{cid}"' for cid in keep_chunk_ids)
+    stale = col.query(
+        expr=f'document_id == "{document_id}" && chunk_id not in [{quoted}]',
+        output_fields=["id"],
+    )
+    stale_ids = [r["id"] for r in stale]
+    if stale_ids:
+        col.delete(expr=f"id in {stale_ids}")
+        col.flush()
