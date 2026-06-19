@@ -15,9 +15,7 @@ import {
   Shield,
   Users,
   Lock,
-  Eye,
   EyeOff,
-  Info,
 } from 'lucide-react'
 import {
   docsApi,
@@ -27,6 +25,7 @@ import {
   type AccessScopeType,
 } from '../api/docs'
 import { authApi } from '../api/auth'
+import { isAdminLikeRole } from '../lib/authz'
 
 const UPLOAD_CATEGORIES = ['Quy chế', 'Tài liệu môn học', 'Lịch thi', 'Khác']
 
@@ -249,7 +248,6 @@ function VungDuLieuTab() {
         <div className="space-y-3">
           {data.bySecurityLevel.map((item) => {
             const accessiblePct = item.total > 0 ? (item.accessible / item.total) * 100 : 0
-            const inaccessiblePct = item.total > 0 ? (item.inaccessible / item.total) * 100 : 0
             const isFullAccess = accessiblePct === 100 && item.total > 0
             const isNoAccess = accessiblePct === 0 && item.total > 0
 
@@ -467,21 +465,23 @@ function fileTypeLabel(name: string): string {
   return ext ? ext.toUpperCase() : 'FILE'
 }
 
-const PDF_ONLY_UPLOAD_MESSAGE = 'Chỉ hỗ trợ tải lên file PDF (.pdf).'
-
 const SUPPORTED_UPLOAD_MESSAGE =
-  `${PDF_ONLY_UPLOAD_MESSAGE.slice(0, -1)} và Word (.docx).`
+  'Chỉ hỗ trợ tải lên file PDF (.pdf), Word (.docx), PowerPoint (.pptx), Excel (.xlsx) và text (.txt).'
 
-function isPdfFile(file: File): boolean {
+function isSupportedUploadFile(file: File): boolean {
   const name = file.name.toLowerCase()
-  return name.endsWith('.pdf') || name.endsWith('.docx')
+  return (
+    name.endsWith('.pdf') ||
+    name.endsWith('.docx') ||
+    name.endsWith('.pptx') ||
+    name.endsWith('.xlsx') ||
+    name.endsWith('.txt')
+  )
 }
 
 export default function DocsPage() {
   const currentUser = authApi.getUser()
-  const isAdmin = currentUser?.roles?.some((r) =>
-    ['Admin', 'BGD', 'P2'].includes(r),
-  )
+  const isAdmin = isAdminLikeRole(currentUser?.roles)
 
   const [activeTab, setActiveTab] = useState<'documents' | 'vungdulieu'>('documents')
 
@@ -585,7 +585,7 @@ export default function DocsPage() {
   const onFileChosen = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (!isPdfFile(file)) {
+    if (!isSupportedUploadFile(file)) {
       setPendingFile(null)
       setUploadOpen(false)
       setError(SUPPORTED_UPLOAD_MESSAGE)
@@ -612,7 +612,7 @@ export default function DocsPage() {
 
   const submitUpload = async () => {
     if (!pendingFile) return
-    if (!isPdfFile(pendingFile)) {
+    if (!isSupportedUploadFile(pendingFile)) {
       setError(SUPPORTED_UPLOAD_MESSAGE)
       return
     }
@@ -693,7 +693,7 @@ export default function DocsPage() {
         ref={fileInputRef}
         type="file"
         className="hidden"
-        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        accept=".pdf,.docx,.pptx,.xlsx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
         onChange={onFileChosen}
       />
 
@@ -707,7 +707,7 @@ export default function DocsPage() {
             Tra cứu và tải lên kho tài nguyên học tập, quy chế đào tạo nội bộ.
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Hỗ trợ file PDF và DOCX để tải lên.
+            Hỗ trợ file PDF, DOCX, PPTX, XLSX và TXT để tải lên.
           </p>
         </div>
 

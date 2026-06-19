@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { authApi } from "../api/auth";
+import { hasAllowedRole } from "../lib/authz";
 
 interface RequireAuthProps {
   allowedRoles?: string[];
@@ -20,7 +21,7 @@ export default function RequireAuth({ allowedRoles }: RequireAuthProps) {
   }
 
   if (allowedRoles && allowedRoles.length > 0) {
-    const hasRole = user.roles.some((r) => allowedRoles.includes(r));
+    const hasRole = hasAllowedRole(user.roles, allowedRoles);
     if (!hasRole) {
       return <Navigate to="/chat" replace />;
     }

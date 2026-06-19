@@ -1,5 +1,9 @@
 import { JwtService } from '@nestjs/jwt'
 import type { NextFunction, Request, Response } from 'express'
+import {
+  resolveAccessScope,
+  type AccessScope,
+} from '../../../src/common/access-scope'
 
 interface GatewayJwtPayload {
   sub: string
@@ -9,20 +13,29 @@ interface GatewayJwtPayload {
   max_security_level?: number
 }
 
-export interface GatewayUser {
-  userId: string
-  username: string
-  roles: string[]
-  department: string | null
-  maxSecurityLevel: number
-}
+export interface GatewayUser extends AccessScope {}
 
 export interface GatewayRequest extends Request {
   gatewayUser?: GatewayUser
 }
 
-const PUBLIC_ROUTES = new Set(['/api/health', '/api/auth/login', '/api/auth/refresh'])
-const PROTECTED_PREFIXES = ['/api/users', '/api/chat', '/api/documents', '/api/rag']
+const PUBLIC_ROUTES = new Set([
+  '/api/health',
+  '/api/auth/login',
+  '/api/auth/refresh',
+  '/api/admin-config/health',
+  '/api/rbac/health',
+  '/api/audit/health',
+])
+const PROTECTED_PREFIXES = [
+  '/api/users',
+  '/api/chat',
+  '/api/documents',
+  '/api/rag',
+  '/api/admin-config',
+  '/api/rbac',
+  '/api/audit',
+]
 const PROTECTED_ROUTES = new Set(['/api/auth/logout'])
 const UNAUTHORIZED_MESSAGE =
   'Phiên đăng nhập hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.'
@@ -49,9 +62,11 @@ function readBearerToken(req: Request): string | null {
   return match?.[1]?.trim() || null
 }
 
-function toGatewayUser(payload: GatewayJwtPayload): GatewayUser | null {
+async function toGatewayUser(
+  payload: GatewayJwtPayload,
+): Promise<GatewayUser | null> {
   if (!payload.sub) return null
-  return {
+  return resolveAccessScope({
     userId: payload.sub,
     username: payload.username ?? '',
     roles: Array.isArray(payload.roles) ? payload.roles.map(String) : [],
@@ -60,7 +75,7 @@ function toGatewayUser(payload: GatewayJwtPayload): GatewayUser | null {
       typeof payload.max_security_level === 'number'
         ? payload.max_security_level
         : 1,
-  }
+  })
 }
 
 function allowedOrigin(req: Request): string {
@@ -88,7 +103,7 @@ function rejectUnauthorized(req: Request, res: Response): void {
 export function createGatewayAuthMiddleware(jwtSecret: string) {
   const jwt = new JwtService({ secret: jwtSecret })
 
-  return (req: GatewayRequest, res: Response, next: NextFunction) => {
+  return async (req: GatewayRequest, res: Response, next: NextFunction) => {
     if (req.method === 'OPTIONS') {
       next()
       return
@@ -107,7 +122,7 @@ export function createGatewayAuthMiddleware(jwtSecret: string) {
 
     try {
       const payload = jwt.verify<GatewayJwtPayload>(token)
-      const user = toGatewayUser(payload)
+      const user = await toGatewayUser(payload)
       if (!user) {
         rejectUnauthorized(req, res)
         return
@@ -127,6 +142,10 @@ export function attachGatewayUserHeaders(req: GatewayRequest, setHeader: (name: 
   setHeader('x-gateway-user-id', user.userId)
   setHeader('x-gateway-username', user.username)
   setHeader('x-gateway-roles', user.roles.join(','))
+  setHeader('x-gateway-normalized-roles', user.normalizedRoles.join(','))
   setHeader('x-gateway-department', user.department ?? '')
   setHeader('x-gateway-max-security-level', String(user.maxSecurityLevel))
+  setHeader('x-gateway-scope-ma-hv', user.scopeMaHv ?? '')
+  setHeader('x-gateway-scope-ma-gv', user.scopeMaGv ?? '')
+  setHeader('x-gateway-access-scope', JSON.stringify(user))
 }

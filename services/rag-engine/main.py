@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from app.generate import LlmError, complete_chat_structured
 from app.retrieval import retrieve_citations
 from app.router import classify_route
+from app.safe_refusal import maybe_refuse_query, retrieve_refusal_payload
 from app.sql_pipeline import SqlPipelineError, run_sql_query
 
 
@@ -27,6 +28,8 @@ class RetrieveUser(BaseModel):
     roles: list[str] = []
     department: str | None = None
     maxSecurityLevel: int = 1
+    scopeMaHv: str | None = None
+    scopeMaGv: str | None = None
 
 
 class RetrieveRequest(BaseModel):
@@ -56,6 +59,16 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
     if not user_id:
         return None
 
+    scope_payload: dict[str, object] = {}
+    raw_scope = request.headers.get("x-gateway-access-scope")
+    if raw_scope:
+        try:
+            parsed = json.loads(raw_scope)
+            if isinstance(parsed, dict):
+                scope_payload = parsed
+        except json.JSONDecodeError:
+            scope_payload = {}
+
     username = request.headers.get("x-gateway-username", "")
     roles = _gateway_roles(request.headers.get("x-gateway-roles"))
     department = request.headers.get("x-gateway-department") or None
@@ -72,6 +85,12 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
         roles=roles,
         department=department,
         maxSecurityLevel=max_security_level,
+        scopeMaHv=request.headers.get("x-gateway-scope-ma-hv")
+        or scope_payload.get("scopeMaHv")
+        or None,
+        scopeMaGv=request.headers.get("x-gateway-scope-ma-gv")
+        or scope_payload.get("scopeMaGv")
+        or None,
     )
 
 
@@ -192,7 +211,14 @@ def _fallback_selected_citations(retrieved: list[dict], answer: str) -> list[dic
         ranked.append((overlap, -index, citation))
 
     ranked.sort(reverse=True)
-    matched = [citation for overlap, _, citation in ranked if overlap > 0]
+    best_overlap = ranked[0][0]
+    if best_overlap <= 0:
+        return retrieved[:3]
+
+    threshold = best_overlap if best_overlap < 2 else best_overlap - 1
+    matched = [
+        citation for overlap, _, citation in ranked if overlap > 0 and overlap >= threshold
+    ]
     if matched:
         return matched[:3]
     return retrieved[:3]
@@ -240,6 +266,9 @@ def health():
 @app.post("/v1/retrieve")
 async def retrieve(body: RetrieveRequest, request: Request):
     user = _resolved_user(body.user, request)
+    refusal = await maybe_refuse_query(body.query, user)
+    if refusal:
+        return retrieve_refusal_payload(refusal)
     try:
         citations = await retrieve_citations(body.query, user)
         return {"citations": _client_citations(citations), "route": "rag"}
@@ -251,6 +280,9 @@ async def retrieve(body: RetrieveRequest, request: Request):
 async def sql_query(body: ChatRequest, request: Request):
     """Text-to-SQL: NL -> generate -> guardrail -> scope -> execute -> markdown."""
     user = _resolved_user(body.user, request)
+    refusal = await maybe_refuse_query(body.query, user)
+    if refusal:
+        return refusal
     try:
         return await run_sql_query(body.query, user)
     except SqlPipelineError as exc:
@@ -262,6 +294,9 @@ async def sql_query(body: ChatRequest, request: Request):
 async def chat(body: ChatRequest, request: Request):
     """RAG or SQL turn based on lightweight intent router."""
     user = _resolved_user(body.user, request)
+    refusal = await maybe_refuse_query(body.query, user)
+    if refusal:
+        return refusal
     route = classify_route(body.query)
     if route == "sql":
         try:
@@ -300,9 +335,19 @@ async def chat(body: ChatRequest, request: Request):
 async def chat_stream(body: ChatRequest, request: Request):
     """Streaming turn: SQL streams markdown answer; RAG streams citations + tokens."""
     user = _resolved_user(body.user, request)
-    route = classify_route(body.query)
+    refusal = await maybe_refuse_query(body.query, user)
+    route = "refusal" if refusal else classify_route(body.query)
 
     async def event_source():
+        if refusal:
+            answer = str(refusal.get("answer") or "")
+            yield _sse("meta", {"citations": [], "route": "refusal"})
+            step = 24
+            for i in range(0, len(answer), step):
+                yield _sse("token", {"delta": answer[i : i + step]})
+            yield _sse("done", {"answer": answer, "route": "refusal"})
+            return
+
         if route == "sql":
             try:
                 result = await run_sql_query(body.query, user)

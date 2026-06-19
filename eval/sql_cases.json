@@ -1,0 +1,85 @@
+{
+  "template_cases": [
+    {
+      "name": "gpa_explicit_student",
+      "question": "GPA hoc vien 666106 la bao nhieu?",
+      "user": {
+        "roles": ["HOC_VIEN"],
+        "username": "666106"
+      },
+      "contains": [
+        "FROM sql_curated.v_hoc_vien_gpa",
+        "WHERE ma_hv = '666106'",
+        "LIMIT 1"
+      ]
+    },
+    {
+      "name": "self_gradebook_with_scope",
+      "question": "Bang diem cua toi",
+      "user": {
+        "roles": ["HOC_VIEN"],
+        "username": "student-user",
+        "scopeMaHv": "666106"
+      },
+      "contains": [
+        "FROM sql_curated.v_diem_mon",
+        "WHERE ma_hv = '666106'",
+        "ORDER BY ten_hoc_ky DESC"
+      ]
+    },
+    {
+      "name": "self_semester_result_with_scope",
+      "question": "Ket qua hoc ky cua toi",
+      "user": {
+        "roles": ["HOC_VIEN"],
+        "username": "student-user",
+        "scopeMaHv": "666106"
+      },
+      "contains": [
+        "FROM sql_curated.v_ket_qua_hoc_ky",
+        "WHERE ma_hv = '666106'",
+        "ORDER BY ten_hoc_ky DESC"
+      ]
+    },
+    {
+      "name": "lecturer_schedule_self",
+      "question": "Lich day cua toi",
+      "user": {
+        "roles": ["GIANG_VIEN"],
+        "username": "lecturer-user",
+        "scopeMaGv": "GV5976"
+      },
+      "contains": [
+        "FROM sql_curated.v_lop_hoc_phan_giang_day",
+        "WHERE ma_gv = 'GV5976'",
+        "LIMIT 20"
+      ]
+    }
+  ],
+  "scope_cases": [
+    {
+      "name": "student_join_scope_aliases",
+      "sql": "SELECT dm.ma_hv, hv.gpa_he4 FROM sql_curated.v_diem_mon dm JOIN sql_curated.v_hoc_vien_gpa hv ON dm.ma_hv = hv.ma_hv LIMIT 10",
+      "user": {
+        "roles": ["HOC_VIEN"],
+        "scopeMaHv": "666106"
+      },
+      "contains": [
+        "dm.ma_hv = '666106'",
+        "hv.ma_hv = '666106'"
+      ]
+    }
+  ],
+  "guardrail_cases": [
+    {
+      "name": "reject_delete",
+      "sql": "DELETE FROM sql_curated.v_hoc_vien_gpa LIMIT 1",
+      "error_contains": "DELETE"
+    },
+    {
+      "name": "reject_raw_table",
+      "sql": "SELECT * FROM hoc_vien LIMIT 10",
+      "error_contains": "View/tables"
+    }
+  ]
+}

@@ -66,6 +66,54 @@ def _char_chunk(text: str, max_size: int, overlap_ratio: float) -> list[str]:
     return chunks
 
 
+def _is_table_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return "\t" in stripped or "|" in stripped or bool(re.search(r"\S+\s{2,}\S+", stripped))
+
+
+def _line_chunk(text: str, max_size: int, overlap_ratio: float) -> list[str]:
+    lines = [line.rstrip() for line in text.replace("\r\n", "\n").split("\n") if line.strip()]
+    if not lines:
+        return []
+
+    overlap_lines = max(0, int(max(1, len(lines)) * min(overlap_ratio, 0.25)))
+    chunks: list[str] = []
+    index = 0
+    total = len(lines)
+
+    while index < total:
+        current: list[str] = []
+        current_len = 0
+        next_index = index
+        while next_index < total:
+            line = lines[next_index]
+            projected = current_len + len(line) + (1 if current else 0)
+            if current and projected > max_size:
+                break
+            current.append(line)
+            current_len = projected
+            next_index += 1
+
+        if not current:
+            current = [lines[index][:max_size]]
+            next_index = index + 1
+
+        chunks.append("\n".join(current).strip())
+        if next_index >= total:
+            break
+        index = max(index + 1, next_index - overlap_lines)
+
+    return chunks
+
+
+def _best_effort_chunk(text: str, max_size: int, overlap_ratio: float) -> list[str]:
+    if any(_is_table_line(line) for line in text.splitlines()):
+        return _line_chunk(text, max_size, overlap_ratio)
+    return _char_chunk(text, max_size, overlap_ratio)
+
+
 def _split_into_sections(text: str) -> list[tuple[str, str]]:
     """Return (section_path, body) pairs split by structural headings."""
     lines = text.replace("\r\n", "\n").split("\n")
@@ -124,7 +172,7 @@ def chunk_document(
     if len(sections) == 1 and not sections[0][0]:
         return [
             TextChunk(text=piece, section_path="")
-            for piece in _char_chunk(cleaned, max_size, overlap_ratio)
+            for piece in _best_effort_chunk(cleaned, max_size, overlap_ratio)
         ]
 
     result: list[TextChunk] = []
@@ -137,7 +185,7 @@ def chunk_document(
                 )
             )
             continue
-        for piece in _char_chunk(body, max_size, overlap_ratio):
+        for piece in _best_effort_chunk(body, max_size, overlap_ratio):
             result.append(
                 TextChunk(
                     text=_with_section_prefix(piece, section_path),

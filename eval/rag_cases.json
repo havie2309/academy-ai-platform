@@ -1,0 +1,195 @@
+{
+  "chat_cases": [
+    {
+      "name": "exam_eligibility_policy",
+      "category": "citation",
+      "question": "Điều kiện dự thi cuối kỳ gồm những gì?",
+      "user": {
+        "userId": "admin-1",
+        "username": "admin",
+        "roles": ["ADMIN"],
+        "department": "P2",
+        "maxSecurityLevel": 4
+      },
+      "retrieved": [
+        {
+          "doc_id": "doc-quyche-2025",
+          "chunk_id": "chunk-attendance",
+          "title": "Quy chế đào tạo 2025",
+          "source": "Phòng đào tạo",
+          "section_path": "Chương II > Điều 6",
+          "snippet": "Sinh viên vắng quá 20% tổng số tiết không được dự thi cuối kỳ.",
+          "text": "Điều 6. Điều kiện về chuyên cần. Sinh viên vắng quá 20% tổng số tiết không được dự thi cuối kỳ."
+        },
+        {
+          "doc_id": "doc-quyche-2025",
+          "chunk_id": "chunk-tuition",
+          "title": "Quy chế đào tạo 2025",
+          "source": "Phòng đào tạo",
+          "section_path": "Chương II > Điều 7",
+          "snippet": "Sinh viên phải hoàn thành học phí học phần trước khi dự thi.",
+          "text": "Điều 7. Điều kiện tài chính. Sinh viên phải hoàn thành học phí học phần trước khi dự thi."
+        },
+        {
+          "doc_id": "doc-thuvien",
+          "chunk_id": "chunk-library",
+          "title": "Nội quy thư viện",
+          "source": "Trung tâm thư viện",
+          "section_path": "Mục 3",
+          "snippet": "Thẻ thư viện được dùng để mượn giáo trình tại quầy.",
+          "text": "Thẻ thư viện được dùng để mượn giáo trình tại quầy."
+        }
+      ],
+      "llm_result": {
+        "answer": "Để được dự thi cuối kỳ, người học phải bảo đảm chuyên cần và hoàn thành học phí học phần. Nếu vắng quá 20% tổng số tiết thì không được dự thi.",
+        "used_chunk_ids": ["chunk-attendance", "chunk-tuition"],
+        "reference_chunk_ids": ["chunk-attendance", "chunk-tuition"]
+      },
+      "expected": {
+        "refusal": false,
+        "answer_contains": ["20%", "học phí"],
+        "citation_chunk_ids": ["chunk-attendance", "chunk-tuition"]
+      }
+    },
+    {
+      "name": "regrade_deadline_and_fee",
+      "category": "citation",
+      "question": "Muốn phúc khảo bài thi thì cần làm gì?",
+      "user": {
+        "userId": "admin-1",
+        "username": "admin",
+        "roles": ["ADMIN"],
+        "department": "P2",
+        "maxSecurityLevel": 4
+      },
+      "retrieved": [
+        {
+          "doc_id": "doc-khaothi-2025",
+          "chunk_id": "chunk-regrade-deadline",
+          "title": "Quy định khảo thí 2025",
+          "source": "Phòng khảo thí",
+          "section_path": "Điều 12",
+          "snippet": "Đơn phúc khảo nộp trong 5 ngày làm việc kể từ ngày công bố điểm.",
+          "text": "Điều 12. Phúc khảo. Đơn phúc khảo nộp trong 5 ngày làm việc kể từ ngày công bố điểm."
+        },
+        {
+          "doc_id": "doc-khaothi-2025",
+          "chunk_id": "chunk-regrade-fee",
+          "title": "Quy định khảo thí 2025",
+          "source": "Phòng khảo thí",
+          "section_path": "Điều 12",
+          "snippet": "Lệ phí phúc khảo thực hiện theo thông báo của Phòng khảo thí.",
+          "text": "Lệ phí phúc khảo thực hiện theo thông báo của Phòng khảo thí."
+        }
+      ],
+      "llm_result": {
+        "answer": "Người học cần nộp đơn phúc khảo trong vòng 5 ngày làm việc kể từ ngày công bố điểm. Lệ phí phúc khảo được thực hiện theo thông báo của Phòng khảo thí.",
+        "used_chunk_ids": ["chunk-regrade-deadline"],
+        "reference_chunk_ids": ["chunk-regrade-deadline", "chunk-regrade-fee"]
+      },
+      "expected": {
+        "refusal": false,
+        "answer_contains": ["5 ngày", "công bố điểm"],
+        "citation_chunk_ids": ["chunk-regrade-deadline", "chunk-regrade-fee"]
+      }
+    },
+    {
+      "name": "library_card_reissue_fallback",
+      "category": "fallback",
+      "question": "Tài liệu nói gì về cấp lại thẻ thư viện?",
+      "user": {
+        "userId": "admin-1",
+        "username": "admin",
+        "roles": ["ADMIN"],
+        "department": "P2",
+        "maxSecurityLevel": 4
+      },
+      "retrieved": [
+        {
+          "doc_id": "doc-thuvien",
+          "chunk_id": "chunk-card-reissue",
+          "title": "Nội quy thư viện",
+          "source": "Trung tâm thư viện",
+          "section_path": "Mục 4",
+          "snippet": "Người học mất thẻ thư viện phải làm đơn đề nghị cấp lại và nộp lệ phí theo quy định.",
+          "text": "Người học mất thẻ thư viện phải làm đơn đề nghị cấp lại và nộp lệ phí theo quy định."
+        },
+        {
+          "doc_id": "doc-thuvien",
+          "chunk_id": "chunk-borrow-duration",
+          "title": "Nội quy thư viện",
+          "source": "Trung tâm thư viện",
+          "section_path": "Mục 2",
+          "snippet": "Thời hạn mượn giáo trình là 14 ngày.",
+          "text": "Thời hạn mượn giáo trình là 14 ngày."
+        }
+      ],
+      "llm_result": {
+        "answer": "Khi mất thẻ thư viện, người học phải làm đơn đề nghị cấp lại và nộp lệ phí theo quy định.",
+        "used_chunk_ids": [],
+        "reference_chunk_ids": []
+      },
+      "expected": {
+        "refusal": false,
+        "answer_contains": ["cấp lại", "lệ phí"],
+        "citation_chunk_ids": ["chunk-card-reissue"]
+      }
+    },
+    {
+      "name": "transport_service_refusal",
+      "category": "refusal",
+      "question": "Trường có xe buýt đưa đón không?",
+      "user": {
+        "userId": "admin-1",
+        "username": "admin",
+        "roles": ["ADMIN"],
+        "department": "P2",
+        "maxSecurityLevel": 4
+      },
+      "retrieved": [],
+      "llm_result": {
+        "answer": "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp.",
+        "used_chunk_ids": [],
+        "reference_chunk_ids": []
+      },
+      "expected": {
+        "refusal": true,
+        "answer_contains": [],
+        "citation_chunk_ids": []
+      }
+    },
+    {
+      "name": "irrelevant_context_still_refuses",
+      "category": "refusal",
+      "question": "Thời tiết hôm nay thế nào?",
+      "user": {
+        "userId": "admin-1",
+        "username": "admin",
+        "roles": ["ADMIN"],
+        "department": "P2",
+        "maxSecurityLevel": 4
+      },
+      "retrieved": [
+        {
+          "doc_id": "doc-quyche-2025",
+          "chunk_id": "chunk-exam-room",
+          "title": "Quy định khảo thí 2025",
+          "source": "Phòng khảo thí",
+          "section_path": "Điều 9",
+          "snippet": "Người học phải có mặt tại phòng thi trước 15 phút.",
+          "text": "Người học phải có mặt tại phòng thi trước 15 phút."
+        }
+      ],
+      "llm_result": {
+        "answer": "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp.",
+        "used_chunk_ids": [],
+        "reference_chunk_ids": []
+      },
+      "expected": {
+        "refusal": true,
+        "answer_contains": [],
+        "citation_chunk_ids": []
+      }
+    }
+  ]
+}

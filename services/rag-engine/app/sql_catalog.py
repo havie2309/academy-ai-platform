@@ -4,6 +4,29 @@ from __future__ import annotations
 
 SQL_SCHEMA = "sql_curated"
 
+CURATED_VIEW_DESCRIPTIONS: dict[str, str] = {
+    "v_hoc_vien_gpa": (
+        "1 dòng / học viên. Dùng cho GPA tích lũy, tín chỉ tích lũy, "
+        "mức cảnh báo học tập hiện tại."
+    ),
+    "v_diem_mon": (
+        "Nhiều dòng / học viên theo từng môn học. Dùng cho bảng điểm, "
+        "điểm tổng kết, điểm chữ, điểm hệ 4."
+    ),
+    "v_ket_qua_hoc_ky": (
+        "Nhiều dòng / học viên theo từng học kỳ. Dùng cho GPA học kỳ, "
+        "xếp loại, số tín chỉ đạt, điểm rèn luyện."
+    ),
+    "v_lop_hoc_phan_giang_day": (
+        "Các lớp học phần giảng viên phụ trách. Dùng cho lịch dạy / lớp "
+        "đang giảng dạy, không phải thời khóa biểu chi tiết từng tiết."
+    ),
+    "v_lich_thi_tong_quan": (
+        "Metadata lịch thi tổng quan. Không chứa nội dung đề thi, chỉ dùng "
+        "cho ngày giờ thi, phòng thi, học phần liên quan."
+    ),
+}
+
 CURATED_VIEWS: dict[str, list[tuple[str, str]]] = {
     "v_hoc_vien_gpa": [
         ("ma_hv", "Mã học viên"),
@@ -73,6 +96,35 @@ VIEW_SCOPE_COLUMN: dict[str, str | None] = {
     "v_lich_thi_tong_quan": None,
 }
 
+SQL_FEW_SHOT_EXAMPLES: tuple[tuple[str, str], ...] = (
+    (
+        "GPA tích lũy của học viên 666106 là bao nhiêu?",
+        "SELECT ho_ten, ma_hv, gpa_he4, gpa_he10, so_tin_chi_tich_luy, muc_canh_bao "
+        "FROM sql_curated.v_hoc_vien_gpa WHERE ma_hv = '666106' LIMIT 1",
+    ),
+    (
+        "Bảng điểm của học viên 666106",
+        "SELECT ma_hv, ho_ten, ma_mon, ten_mon, ten_hoc_ky, diem_tong_ket, diem_chu, diem_he4, dat "
+        "FROM sql_curated.v_diem_mon WHERE ma_hv = '666106' ORDER BY ten_hoc_ky DESC, ma_mon ASC LIMIT 20",
+    ),
+    (
+        "Kết quả học kỳ gần nhất của học viên 666106",
+        "SELECT ma_hv, ho_ten, ten_hoc_ky, gpa_hoc_ky_he4, gpa_tich_luy_he4, xep_loai, muc_canh_bao, diem_ren_luyen "
+        "FROM sql_curated.v_ket_qua_hoc_ky WHERE ma_hv = '666106' ORDER BY ten_hoc_ky DESC LIMIT 5",
+    ),
+    (
+        "Lịch dạy của giảng viên GV5976",
+        "SELECT ma_lhp, ten_lhp, ma_mon, ten_mon, ten_hoc_ky, phong, si_so_toi_da "
+        "FROM sql_curated.v_lop_hoc_phan_giang_day WHERE ma_gv = 'GV5976' ORDER BY ten_hoc_ky DESC, ma_lhp ASC LIMIT 20",
+    ),
+    (
+        "Có bao nhiêu học viên bị cảnh báo theo từng học kỳ?",
+        "SELECT ten_hoc_ky, COUNT(*) AS so_hoc_vien_canh_bao "
+        "FROM sql_curated.v_ket_qua_hoc_ky WHERE muc_canh_bao > 0 "
+        "GROUP BY ten_hoc_ky ORDER BY ten_hoc_ky DESC LIMIT 20",
+    ),
+)
+
 
 def allowed_view_names() -> set[str]:
     return set(CURATED_VIEWS.keys())
@@ -85,8 +137,43 @@ def fully_qualified_view(view_name: str) -> str:
 def build_schema_prompt() -> str:
     lines = [
         "Chỉ được truy vấn các VIEW sau (schema sql_curated), không dùng bảng gốc:",
+        "Ưu tiên chọn 1 view phù hợp trước; chỉ JOIN khi câu hỏi thật sự cần ghép nhiều miền dữ liệu.",
+        "Nếu câu hỏi hỏi 'bao nhiêu' hoặc 'thống kê', ưu tiên COUNT/GROUP BY thay vì liệt kê toàn bộ chi tiết.",
+        "Nếu câu hỏi hỏi lịch dạy thì dùng v_lop_hoc_phan_giang_day; nếu hỏi lịch thi thì dùng v_lich_thi_tong_quan.",
+        "Nếu câu hỏi hỏi GPA tích lũy chung thì ưu tiên v_hoc_vien_gpa; nếu hỏi theo học kỳ thì ưu tiên v_ket_qua_hoc_ky.",
     ]
     for view, columns in CURATED_VIEWS.items():
+        description = CURATED_VIEW_DESCRIPTIONS.get(view, "")
         cols = ", ".join(f"{name} ({desc})" for name, desc in columns)
-        lines.append(f"- sql_curated.{view}: {cols}")
+        if description:
+            lines.append(f"- sql_curated.{view}: {description}")
+        lines.append(f"  Cột: {cols}")
     return "\n".join(lines)
+
+
+def build_few_shot_prompt() -> str:
+    lines = [
+        "Ví dụ tham chiếu (question -> SQL):",
+    ]
+    for index, (question, sql) in enumerate(SQL_FEW_SHOT_EXAMPLES, start=1):
+        lines.append(f"{index}. Q: {question}")
+        lines.append(f"   SQL: {sql}")
+    return "\n".join(lines)
+
+
+def column_labels_map() -> dict[str, str]:
+    """Merge column → Vietnamese label from all curated views."""
+    labels: dict[str, str] = {}
+    for columns in CURATED_VIEWS.values():
+        for name, desc in columns:
+            labels.setdefault(name, desc)
+    return labels
+
+
+def column_label(col: str) -> str:
+    """Human-readable Vietnamese header (no DB id, no parenthetical notes)."""
+    import re
+
+    raw = column_labels_map().get(col, col.replace("_", " "))
+    short = re.sub(r"\s*\([^)]*\)", "", raw).strip()
+    return short or col

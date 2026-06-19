@@ -264,6 +264,9 @@ Confirm-PathExists -Path $PlatformEnv -Message "Missing $PlatformEnv. Copy servi
 Confirm-PathExists -Path (Join-Path $PlatformRoot 'dist\apps\api-gateway\main.js') -Message 'Missing platform build for api-gateway. Run: cd services/platform; npm run build'
 Confirm-PathExists -Path (Join-Path $PlatformRoot 'dist\apps\user-management\main.js') -Message 'Missing platform build for user-management. Run: cd services/platform; npm run build'
 Confirm-PathExists -Path (Join-Path $PlatformRoot 'dist\apps\chat\main.js') -Message 'Missing platform build for chat. Run: cd services/platform; npm run build'
+Confirm-PathExists -Path (Join-Path $PlatformRoot 'dist\apps\rbac\main.js') -Message 'Missing platform build for rbac. Run: cd services/platform; npm run build'
+Confirm-PathExists -Path (Join-Path $PlatformRoot 'dist\apps\admin-config\main.js') -Message 'Missing platform build for admin-config. Run: cd services/platform; npm run build'
+Confirm-PathExists -Path (Join-Path $PlatformRoot 'dist\apps\audit\main.js') -Message 'Missing platform build for audit. Run: cd services/platform; npm run build'
 Confirm-PathExists -Path (Join-Path $WebDistRoot 'index.html') -Message 'Missing web-ui build. Run: cd services/web-ui; npm run build'
 
 New-Item -ItemType Directory -Force -Path $RuntimeRoot, $LogDir, $PidDir | Out-Null
@@ -296,9 +299,12 @@ if (-not (Test-HttpReady -Url 'http://localhost:11434/api/tags')) {
     Write-Warning 'Ollama is not reachable at http://localhost:11434. The app can still open, but chat requests may fail until Ollama is running.'
 }
 
-Start-BackendService -Name 'api-gateway' -Entry 'dist/apps/api-gateway/main.js' -Port 3000 -HealthUrl 'http://localhost:3000/api/health'
 Start-BackendService -Name 'user-management' -Entry 'dist/apps/user-management/main.js' -Port 3001 -HealthUrl 'http://localhost:3001/api/users/me'
 Start-BackendService -Name 'chat' -Entry 'dist/apps/chat/main.js' -Port 3002 -HealthUrl 'http://localhost:3002/api/chat/sessions'
+Start-BackendService -Name 'rbac' -Entry 'dist/apps/rbac/main.js' -Port 3003 -HealthUrl 'http://localhost:3003/api/rbac/health'
+Start-BackendService -Name 'admin-config' -Entry 'dist/apps/admin-config/main.js' -Port 3004 -HealthUrl 'http://localhost:3004/api/admin-config/health'
+Start-BackendService -Name 'audit' -Entry 'dist/apps/audit/main.js' -Port 3005 -HealthUrl 'http://localhost:3005/api/audit/health'
+Start-BackendService -Name 'api-gateway' -Entry 'dist/apps/api-gateway/main.js' -Port 3000 -HealthUrl 'http://localhost:3000/api/health'
 Start-WebUi
 
 Write-Host ''
@@ -307,6 +313,9 @@ Write-Host '  Web UI:         http://localhost:5173'
 Write-Host '  API Gateway:    http://localhost:3000/api/health'
 Write-Host '  User service:   http://localhost:3001'
 Write-Host '  Chat service:   http://localhost:3002'
+Write-Host '  RBAC service:   http://localhost:3003/api/rbac/health'
+Write-Host '  Admin config:   http://localhost:3004/api/admin-config/health'
+Write-Host '  Audit service:  http://localhost:3005/api/audit/health'
 Write-Host "  Logs:           $LogDir"
 Write-Host ''
 Write-Host 'Tip: add -SeedIam if you want the demo login accounts applied before starting.'

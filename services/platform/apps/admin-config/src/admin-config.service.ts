@@ -1,8 +1,257 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  OnModuleInit,
+} from '@nestjs/common'
+import { isAdminLike } from '../../../src/common/access-scope'
+import { writeAuditLog } from '../../../src/common/audit-log'
+import type { AuthUser } from '../../../src/common/auth.types'
+import { PostgresService } from '../../../src/common/postgres.service'
+
+export interface RagPolicyConfig {
+  enabled: boolean
+  blacklistKeywords: string[]
+  safeRefusalMessage: string
+}
+
+export interface StoredAdminConfig<T> {
+  config_key: string
+  version: number
+  updated_at: string
+  value: T
+}
+
+const RAG_POLICY_KEY = 'rag_policy'
+const DEFAULT_SAFE_REFUSAL =
+  'Xin loi, toi khong the tra loi cau hoi nay theo chinh sach an toan hien tai.'
+const DEFAULT_BLACKLIST = [
+  'de thi mat',
+  'dap an de thi',
+  'mat khau he thong',
+  'bypass quyen',
+  'vuot quyen truy cap',
+]
+
+function normalizeUnique(values: string[] | undefined): string[] {
+  const seen = new Set<string>()
+  const normalized: string[] = []
+  for (const value of values ?? []) {
+    const item = String(value).trim()
+    if (!item) continue
+    const key = item.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    normalized.push(item)
+  }
+  return normalized
+}
 
 @Injectable()
-export class AdminConfigService {
-  getHello(): string {
-    return 'Hello World!';
+export class AdminConfigService implements OnModuleInit {
+  constructor(private readonly pg: PostgresService) {}
+
+  async onModuleInit() {
+    await this.pg.query(`
+      CREATE TABLE IF NOT EXISTS admin_configs (
+        config_key VARCHAR(100) PRIMARY KEY,
+        config_value JSONB NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        updated_by VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `)
+    await this.pg.query(`
+      CREATE TABLE IF NOT EXISTS prompt_change_log (
+        change_id BIGSERIAL PRIMARY KEY,
+        config_key VARCHAR(100) NOT NULL,
+        old_value JSONB,
+        new_value JSONB NOT NULL,
+        version INTEGER NOT NULL,
+        changed_by VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
+        change_reason TEXT,
+        changed_at TIMESTAMP DEFAULT NOW()
+      )
+    `)
+    await this.ensureDefaultRagPolicy()
+  }
+
+  private defaultRagPolicy(): RagPolicyConfig {
+    return {
+      enabled: true,
+      blacklistKeywords: [...DEFAULT_BLACKLIST],
+      safeRefusalMessage: DEFAULT_SAFE_REFUSAL,
+    }
+  }
+
+  private assertAdmin(user: AuthUser) {
+    if (!isAdminLike(user.roles)) {
+      throw new ForbiddenException(
+        'Tai khoan hien tai khong co quyen quan ly chinh sach AI.',
+      )
+    }
+  }
+
+  private sanitizePatch(
+    patch: Partial<RagPolicyConfig>,
+    current: RagPolicyConfig,
+  ): RagPolicyConfig {
+    const safeRefusalMessage =
+      typeof patch.safeRefusalMessage === 'string'
+        ? patch.safeRefusalMessage.trim()
+        : current.safeRefusalMessage
+    if (!safeRefusalMessage) {
+      throw new BadRequestException('safeRefusalMessage khong duoc de trong.')
+    }
+
+    return {
+      enabled:
+        typeof patch.enabled === 'boolean' ? patch.enabled : current.enabled,
+      blacklistKeywords:
+        patch.blacklistKeywords != null
+          ? normalizeUnique(patch.blacklistKeywords)
+          : current.blacklistKeywords,
+      safeRefusalMessage,
+    }
+  }
+
+  private toDto(row: {
+    config_key: string
+    version: number
+    updated_at: Date
+    config_value: RagPolicyConfig
+  }): StoredAdminConfig<RagPolicyConfig> {
+    return {
+      config_key: row.config_key,
+      version: row.version,
+      updated_at: row.updated_at.toISOString(),
+      value: row.config_value,
+    }
+  }
+
+  private async ensureDefaultRagPolicy() {
+    const defaultPolicy = this.defaultRagPolicy()
+    const inserted = await this.pg.query<{ config_key: string }>(
+      `INSERT INTO admin_configs (config_key, config_value, version)
+       VALUES ($1, $2::jsonb, 1)
+       ON CONFLICT (config_key) DO NOTHING
+       RETURNING config_key`,
+      [RAG_POLICY_KEY, JSON.stringify(defaultPolicy)],
+    )
+    if (!inserted.rows[0]) return
+
+    await this.pg.query(
+      `INSERT INTO prompt_change_log (config_key, old_value, new_value, version, change_reason)
+       VALUES ($1, NULL, $2::jsonb, 1, $3)`,
+      [
+        RAG_POLICY_KEY,
+        JSON.stringify(defaultPolicy),
+        'bootstrap default rag policy',
+      ],
+    )
+  }
+
+  async getRagPolicy(): Promise<StoredAdminConfig<RagPolicyConfig>> {
+    await this.ensureDefaultRagPolicy()
+    const { rows } = await this.pg.query<{
+      config_key: string
+      version: number
+      updated_at: Date
+      config_value: RagPolicyConfig
+    }>(
+      `SELECT config_key, version, updated_at, config_value
+       FROM admin_configs
+       WHERE config_key = $1`,
+      [RAG_POLICY_KEY],
+    )
+    return this.toDto(rows[0])
+  }
+
+  async updateRagPolicy(
+    user: AuthUser,
+    patch: Partial<RagPolicyConfig> & { reason?: string },
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<StoredAdminConfig<RagPolicyConfig>> {
+    this.assertAdmin(user)
+    const reason = String(patch.reason ?? '').trim() || 'manual policy update'
+    await this.ensureDefaultRagPolicy()
+    const client = await this.pg.client.connect()
+    try {
+      await client.query('BEGIN')
+      const currentResult = await client.query<{
+        config_key: string
+        version: number
+        updated_at: Date
+        config_value: RagPolicyConfig
+      }>(
+        `SELECT config_key, version, updated_at, config_value
+         FROM admin_configs
+         WHERE config_key = $1
+         FOR UPDATE`,
+        [RAG_POLICY_KEY],
+      )
+      const currentRow = currentResult.rows[0]
+      if (!currentRow) {
+        throw new BadRequestException('Khong tai duoc chinh sach AI hien tai.')
+      }
+
+      const current = this.toDto(currentRow)
+      const next = this.sanitizePatch(patch, current.value)
+      const version = current.version + 1
+
+      const updatedResult = await client.query<{
+        config_key: string
+        version: number
+        updated_at: Date
+        config_value: RagPolicyConfig
+      }>(
+        `UPDATE admin_configs
+         SET config_value = $2::jsonb,
+             version = $3,
+             updated_by = $4,
+             updated_at = NOW()
+         WHERE config_key = $1
+         RETURNING config_key, version, updated_at, config_value`,
+        [RAG_POLICY_KEY, JSON.stringify(next), version, user.userId],
+      )
+      await client.query(
+        `INSERT INTO prompt_change_log (
+           config_key, old_value, new_value, version, changed_by, change_reason
+         ) VALUES ($1, $2::jsonb, $3::jsonb, $4, $5, $6)`,
+        [
+          RAG_POLICY_KEY,
+          JSON.stringify(current.value),
+          JSON.stringify(next),
+          version,
+          user.userId,
+          reason,
+        ],
+      )
+      await client.query('COMMIT')
+
+      await writeAuditLog({
+        userId: user.userId,
+        action: 'update',
+        resourceType: 'admin_config',
+        resourceId: RAG_POLICY_KEY,
+        oldValue: current.value,
+        newValue: next,
+        ipAddress,
+        userAgent,
+        status: 'success',
+        reason,
+      })
+      return this.toDto(updatedResult.rows[0])
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {})
+      throw error
+    } finally {
+      client.release()
+    }
+  }
+
+  canManagePolicy(user: AuthUser): boolean {
+    return isAdminLike(user.roles)
   }
 }

@@ -15,7 +15,7 @@ Workspace **local** cho huấn luyện / fine-tune (dataset, checkpoint, log). *
 ## Luồng gợi ý (sau khi có RAG baseline)
 
 1. Thu thập Q&A + citation từ `eval/` → `datasets/`
-2. Fine-tune LoRA trên base `qwen2.5:3b` (hoặc Qwen3-8B trên máy GPU)
+2. Fine-tune LoRA trên base `qwen2.5:3b`
 3. Export → `exports/` → import Ollama / copy sang `models/inference/`
 4. Đổi `LLM_MODEL` trong `.env` để smoke
 

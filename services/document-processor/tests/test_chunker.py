@@ -1,4 +1,5 @@
 import sys
+import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -22,52 +23,58 @@ Số tiết vắng được tính trên tổng số tiết của học phần.
 """.strip()
 
 
-def test_structural_split_keeps_dieu_separate():
-    chunks = chunk_document(SAMPLE_REGULATION, max_size=500, overlap_ratio=0.1)
-    paths = [c.section_path for c in chunks]
-    assert any("Điều 5" in p for p in paths)
-    assert any("Điều 6" in p for p in paths)
-    texts = " ".join(c.text for c in chunks)
-    assert "GPA" in texts
-    assert "20%" in texts
+class ChunkerTests(unittest.TestCase):
+    def test_structural_split_keeps_dieu_separate(self):
+        chunks = chunk_document(SAMPLE_REGULATION, max_size=500, overlap_ratio=0.1)
+        paths = [c.section_path for c in chunks]
+        self.assertTrue(any("Điều 5" in p for p in paths))
+        self.assertTrue(any("Điều 6" in p for p in paths))
+        texts = " ".join(c.text for c in chunks)
+        self.assertIn("GPA", texts)
+        self.assertIn("20%", texts)
 
+    def test_recursive_split_when_section_too_small_limit(self):
+        long_body = "Điều 7. " + ("Nội dung dài. " * 80)
+        chunks = chunk_document(long_body, max_size=120, overlap_ratio=0.1)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(c.section_path.startswith("Điều 7") for c in chunks))
 
-def test_recursive_split_when_section_too_small_limit():
-    long_body = "Điều 7. " + ("Nội dung dài. " * 80)
-    chunks = chunk_document(long_body, max_size=120, overlap_ratio=0.1)
-    assert len(chunks) > 1
-    assert all(c.section_path.startswith("Điều 7") for c in chunks)
+    def test_plain_text_fallback_to_char_chunks(self):
+        plain = "A" * 250
+        chunks = chunk_document(plain, max_size=100, overlap_ratio=0.1)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(all(c.section_path == "" for c in chunks))
 
+    def test_chunk_text_wrapper(self):
+        self.assertEqual(chunk_text("hello world", max_size=100), ["hello world"])
 
-def test_plain_text_fallback_to_char_chunks():
-    plain = "A" * 250
-    chunks = chunk_document(plain, max_size=100, overlap_ratio=0.1)
-    assert len(chunks) >= 2
-    assert all(c.section_path == "" for c in chunks)
-
-
-def test_chunk_text_wrapper():
-    assert chunk_text("hello world", max_size=100) == ["hello world"]
-
-
-def test_ocr_no_accent_headers_are_detected():
-    text = """
+    def test_ocr_no_accent_headers_are_detected(self):
+        text = """
 Chuong II. DIEU KIEN DU THI
 Dieu 6. Dieu kien chuyen can
 Sinh vien vang qua 20% tong so tiet khong duoc du thi.
 Muc 1. Cach tinh
 Tinh theo tong so tiet hoc phan.
 """.strip()
-    chunks = chunk_document(text, max_size=500, overlap_ratio=0.1)
-    assert len(chunks) >= 1
-    assert any("Chuong II" in c.section_path for c in chunks)
-    assert any("Dieu 6" in c.section_path for c in chunks)
+        chunks = chunk_document(text, max_size=500, overlap_ratio=0.1)
+        self.assertGreaterEqual(len(chunks), 1)
+        self.assertTrue(any("Chuong II" in c.section_path for c in chunks))
+        self.assertTrue(any("Dieu 6" in c.section_path for c in chunks))
+
+    def test_tabular_text_preserves_rows(self):
+        text = "\n".join(
+            [
+                "Sheet: Bang diem",
+                "ma_hv\tho_ten\tdiem",
+                "666106\tNguyen Van A\t8.5",
+                "666107\tTran Thi B\t9.0",
+                "666108\tLe Van C\t7.5",
+            ]
+        )
+        chunks = chunk_document(text, max_size=40, overlap_ratio=0.1)
+        self.assertGreaterEqual(len(chunks), 2)
+        self.assertTrue(all("\t" in c.text or "Sheet:" in c.text for c in chunks))
 
 
 if __name__ == "__main__":
-    test_structural_split_keeps_dieu_separate()
-    test_recursive_split_when_section_too_small_limit()
-    test_plain_text_fallback_to_char_chunks()
-    test_chunk_text_wrapper()
-    test_ocr_no_accent_headers_are_detected()
-    print("ok")
+    unittest.main()

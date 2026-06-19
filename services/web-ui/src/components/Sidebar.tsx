@@ -12,6 +12,7 @@ import {
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
 import { authApi } from '../api/auth'
 import { useChatSessions } from '../contexts/ChatSessionContext'
+import { isAdminLikeRole } from '../lib/authz'
 
 export default function Sidebar() {
   const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function Sidebar() {
   const displayName = user?.full_name ?? 'Khách'
   const displayEmail = user?.username ? `${user.username}@academy.edu` : ''
   const avatarLetter = displayName.charAt(0).toUpperCase()
-  const isAdmin = user?.roles.some((r) => ['Admin', 'BGD', 'P2', 'P7'].includes(r)) ?? false
+  const isAdmin = isAdminLikeRole(user?.roles)
 
   const navItems = [
     { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
@@ -68,6 +69,7 @@ export default function Sidebar() {
         <button
           type="button"
           onClick={handleNewChat}
+          data-testid="sidebar-new-chat"
           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-blue-100 bg-blue-50/50 hover:bg-blue-50 text-blue-600 hover:text-blue-700 text-sm font-semibold transition-all shadow-[0_2px_8px_rgba(37,99,235,0.05)]"
         >
           <Plus size={16} />
@@ -85,6 +87,7 @@ export default function Sidebar() {
               key={href}
               type="button"
               onClick={() => navigate(href)}
+              data-testid={`sidebar-link-${href.replace('/', '') || 'root'}`}
               className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all ${
                 isActive
                   ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
@@ -116,6 +119,7 @@ export default function Sidebar() {
                 <button
                   type="button"
                   onClick={() => navigate(`/chat/${item.id}`)}
+                  data-testid={`sidebar-session-${item.id}`}
                   className={`w-full text-left px-3 py-2.5 rounded-lg text-xs truncate transition-all font-medium pr-8 ${
                     isActive
                       ? 'bg-blue-50 text-blue-700'
@@ -128,6 +132,7 @@ export default function Sidebar() {
                 <button
                   type="button"
                   onClick={(e) => handleDeleteSession(e, item.id)}
+                  data-testid={`sidebar-delete-session-${item.id}`}
                   className="absolute right-1 p-1 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
                   title="Xóa hội thoại"
                 >
@@ -156,6 +161,7 @@ export default function Sidebar() {
               await authApi.logout()
               navigate('/login')
             }}
+            data-testid="sidebar-logout"
             className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all shrink-0"
             title="Đăng xuất"
           >
