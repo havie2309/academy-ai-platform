@@ -18,7 +18,7 @@ from app.config import (
     SECURITY_RANK,
 )
 from app.extract import extract_text
-from app.milvus_store import delete_by_document, insert_vectors
+from app.milvus_store import delete_document_except, insert_vectors
 
 VALID_SCOPE_TYPES = {"all", "role", "department", "custom"}
 
@@ -188,11 +188,13 @@ async def process_document(job: dict) -> dict:
         _update_job(db, document_id, status="processing", stage="embed")
         vectors = await embed_texts([c.text for c in chunks])
 
+        if len(vectors) != len(chunks):
+            raise ValueError(
+                f"Embedding lệch số lượng: {len(vectors)} vector vs {len(chunks)} chunk."
+            )
+
         security_level = job.get("securityLevel", "internal")
         security_rank = SECURITY_RANK.get(security_level, 2)
-
-        db.document_chunks.delete_many({"documentId": document_id})
-        delete_by_document(document_id)
 
         _update_job(db, document_id, status="processing", stage="index")
         chunk_ids: list[str] = []
@@ -200,7 +202,7 @@ async def process_document(job: dict) -> dict:
         security_ranks: list[int] = []
         mongo_docs: list[dict] = []
 
-        for idx, (chunk, vector) in enumerate(zip(chunks, vectors)):
+        for idx, chunk in enumerate(chunks):
             chunk_id = str(uuid.uuid4())
             chunk_ids.append(chunk_id)
             document_ids.append(document_id)
@@ -240,6 +242,12 @@ async def process_document(job: dict) -> dict:
 
         if mongo_docs:
             db.document_chunks.insert_many(mongo_docs)
+
+        # Bản mới đã ghi xong → xóa phần cũ (và vector/chunk mồ côi từ lần ingest lỗi trước).
+        db.document_chunks.delete_many(
+            {"documentId": document_id, "chunkId": {"$nin": chunk_ids}}
+        )
+        delete_document_except(document_id, chunk_ids)
 
         _update_job(
             db,
