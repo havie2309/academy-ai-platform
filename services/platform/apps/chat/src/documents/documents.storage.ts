@@ -16,12 +16,12 @@ export function resolveUploadDir(): string {
   return dir
 }
 
-export const ALLOWED_EXT = ['.pdf', '.docx']
+export const ALLOWED_EXT = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt']
 
 export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
 export const SUPPORTED_UPLOAD_MESSAGE =
-  'Hien chi ho tro tai len file PDF (.pdf) va Word (.docx).'
+  'Hien chi ho tro tai len file PDF (.pdf), Word (.docx), PowerPoint (.pptx), Excel (.xlsx) va text (.txt).'
 
 export const documentMulterOptions = {
   storage: diskStorage({

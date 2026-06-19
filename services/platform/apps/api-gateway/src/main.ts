@@ -11,6 +11,7 @@ import {
   createGatewayAuthMiddleware,
   type GatewayRequest,
 } from './gateway-auth'
+import { createGatewayAuditMiddleware } from './gateway-audit'
 
 // Load services/platform/.env so JWT_SECRET matches user-management + chat.
 loadEnv({ path: resolve(__dirname, '../../../.env') })
@@ -19,6 +20,9 @@ async function bootstrap() {
   const userMgmt =
     process.env.USER_MANAGEMENT_URL ?? 'http://127.0.0.1:3001'
   const chatUrl = process.env.CHAT_URL ?? 'http://127.0.0.1:3002'
+  const rbacUrl = process.env.RBAC_URL ?? 'http://127.0.0.1:3003'
+  const adminConfigUrl = process.env.ADMIN_CONFIG_URL ?? 'http://127.0.0.1:3004'
+  const auditUrl = process.env.AUDIT_URL ?? 'http://127.0.0.1:3005'
   const ragUrl = process.env.RAG_ENGINE_URL ?? 'http://127.0.0.1:8000'
   const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret'
 
@@ -27,6 +31,11 @@ async function bootstrap() {
   // Disable upstream keep-alive to avoid reusing half-closed SSE sockets.
   const noKeepAliveAgent = new http.Agent({ keepAlive: false })
 
+  server.use('/api/admin-config/internal', (_req, res) => {
+    res.status(404).json({ message: 'not found' })
+  })
+
+  server.use(createGatewayAuditMiddleware())
   server.use(createGatewayAuthMiddleware(jwtSecret))
 
   server.use(
@@ -75,6 +84,54 @@ async function bootstrap() {
       pathRewrite: (path) => path.replace(/^\/api\/rag/, ''),
       proxyTimeout: 0,
       timeout: 0,
+      on: {
+        proxyReq(proxyReq, req) {
+          attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
+            proxyReq.setHeader(name, value)
+          })
+        },
+      },
+    }),
+  )
+
+  server.use(
+    createProxyMiddleware({
+      target: rbacUrl,
+      changeOrigin: true,
+      agent: noKeepAliveAgent,
+      pathFilter: (pathname) => pathname.startsWith('/api/rbac'),
+      on: {
+        proxyReq(proxyReq, req) {
+          attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
+            proxyReq.setHeader(name, value)
+          })
+        },
+      },
+    }),
+  )
+
+  server.use(
+    createProxyMiddleware({
+      target: adminConfigUrl,
+      changeOrigin: true,
+      agent: noKeepAliveAgent,
+      pathFilter: (pathname) => pathname.startsWith('/api/admin-config'),
+      on: {
+        proxyReq(proxyReq, req) {
+          attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
+            proxyReq.setHeader(name, value)
+          })
+        },
+      },
+    }),
+  )
+
+  server.use(
+    createProxyMiddleware({
+      target: auditUrl,
+      changeOrigin: true,
+      agent: noKeepAliveAgent,
+      pathFilter: (pathname) => pathname.startsWith('/api/audit'),
       on: {
         proxyReq(proxyReq, req) {
           attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {

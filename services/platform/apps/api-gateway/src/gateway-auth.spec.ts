@@ -1,6 +1,7 @@
 import { JwtService } from '@nestjs/jwt'
 import type { Response } from 'express'
 import {
+  attachGatewayUserHeaders,
   createGatewayAuthMiddleware,
   isProtectedPath,
   type GatewayRequest,
@@ -14,9 +15,13 @@ describe('gateway-auth', () => {
     expect(isProtectedPath('/api/auth/logout')).toBe(true)
     expect(isProtectedPath('/api/chat/sessions')).toBe(true)
     expect(isProtectedPath('/api/rag/v1/retrieve')).toBe(true)
+    expect(isProtectedPath('/api/admin-config/rag-policy')).toBe(true)
+    expect(isProtectedPath('/api/rbac/me')).toBe(true)
+    expect(isProtectedPath('/api/audit/logs')).toBe(true)
+    expect(isProtectedPath('/api/admin-config/health')).toBe(false)
   })
 
-  it('accepts a valid bearer token on protected routes', () => {
+  it('accepts a valid bearer token on protected routes', async () => {
     const secret = 'spec-secret'
     const token = new JwtService({ secret }).sign({
       sub: 'u1',
@@ -35,19 +40,22 @@ describe('gateway-auth', () => {
     const res = mockResponse()
     const next = jest.fn()
 
-    middleware(req, res, next)
+    await middleware(req, res, next)
 
     expect(next).toHaveBeenCalledTimes(1)
     expect(req.gatewayUser).toEqual({
       userId: 'u1',
       username: 'tester',
       roles: ['Admin'],
+      normalizedRoles: ['ADMIN'],
       department: 'P2',
       maxSecurityLevel: 4,
+      scopeMaHv: null,
+      scopeMaGv: null,
     })
   })
 
-  it('rejects missing tokens on protected routes', () => {
+  it('rejects missing tokens on protected routes', async () => {
     const middleware = createGatewayAuthMiddleware('spec-secret')
     const req = {
       method: 'GET',
@@ -57,11 +65,39 @@ describe('gateway-auth', () => {
     const res = mockResponse()
     const next = jest.fn()
 
-    middleware(req, res, next)
+    await middleware(req, res, next)
 
     expect(next).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(401)
     expect(res.json).toHaveBeenCalled()
+  })
+
+  it('forwards normalized scope headers for downstream services', () => {
+    const req = {
+      gatewayUser: {
+        userId: 'u1',
+        username: 'tester',
+        roles: ['Admin'],
+        normalizedRoles: ['ADMIN'],
+        department: 'P2',
+        maxSecurityLevel: 4,
+        scopeMaHv: '666106',
+        scopeMaGv: 'GV001',
+      },
+    } as GatewayRequest
+
+    const headers = new Map<string, string>()
+    attachGatewayUserHeaders(req, (name, value) => {
+      headers.set(name, value)
+    })
+
+    expect(headers.get('x-gateway-user-id')).toBe('u1')
+    expect(headers.get('x-gateway-normalized-roles')).toBe('ADMIN')
+    expect(headers.get('x-gateway-scope-ma-hv')).toBe('666106')
+    expect(headers.get('x-gateway-scope-ma-gv')).toBe('GV001')
+    expect(headers.get('x-gateway-access-scope')).toContain(
+      '"scopeMaHv":"666106"',
+    )
   })
 })
 

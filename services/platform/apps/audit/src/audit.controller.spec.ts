@@ -1,22 +1,30 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { AuditController } from './audit.controller';
-import { AuditService } from './audit.service';
+import { Test, TestingModule } from '@nestjs/testing'
+import { AuditController } from './audit.controller'
+import { AuditService } from './audit.service'
 
 describe('AuditController', () => {
-  let auditController: AuditController;
+  let auditController: AuditController
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AuditController],
-      providers: [AuditService],
-    }).compile();
+      providers: [
+        {
+          provide: AuditService,
+          useValue: {
+            listLogs: jest.fn(),
+          },
+        },
+      ],
+    }).compile()
 
-    auditController = app.get<AuditController>(AuditController);
-  });
+    auditController = app.get<AuditController>(AuditController)
+  })
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(auditController.getHello()).toBe('Hello World!');
-    });
-  });
-});
+  it('returns health payload', () => {
+    expect(auditController.health()).toEqual({
+      status: 'ok',
+      service: 'audit',
+    })
+  })
+})

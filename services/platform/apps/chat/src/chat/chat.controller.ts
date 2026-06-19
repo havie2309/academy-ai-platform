@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import type { Response } from 'express'
+import { resolveAccessScope } from '../../../../src/common/access-scope'
 import { ChatService } from './chat.service'
 
 type AuthUser = {
@@ -21,13 +22,16 @@ type AuthUser = {
   maxSecurityLevel: number
 }
 
-function toRagUser(u: AuthUser) {
+async function toRagUser(u: AuthUser) {
+  const scope = await resolveAccessScope(u)
   return {
-    userId: u.userId,
-    username: u.username ?? '',
-    roles: u.roles ?? [],
-    department: u.department ?? null,
-    maxSecurityLevel: u.maxSecurityLevel ?? 1,
+    userId: scope.userId,
+    username: scope.username,
+    roles: scope.roles,
+    department: scope.department,
+    maxSecurityLevel: scope.maxSecurityLevel,
+    scopeMaHv: scope.scopeMaHv,
+    scopeMaGv: scope.scopeMaGv,
   }
 }
 
@@ -74,31 +78,33 @@ export class ChatController {
   }
 
   @Post('sessions/:sessionId/messages')
-  sendMessage(
+  async sendMessage(
     @Req() req: { user: AuthUser },
     @Param('sessionId') sessionId: string,
     @Body() body: { content: string },
   ) {
+    const ragUser = await toRagUser(req.user)
     return this.chat.sendMessage(
       req.user.userId,
       sessionId,
       body.content,
-      toRagUser(req.user),
+      ragUser,
     )
   }
 
   @Post('sessions/:sessionId/messages/stream')
-  streamMessage(
+  async streamMessage(
     @Req() req: { user: AuthUser },
     @Res() res: Response,
     @Param('sessionId') sessionId: string,
     @Body() body: { content: string },
   ) {
+    const ragUser = await toRagUser(req.user)
     return this.chat.streamMessage(
       req.user.userId,
       sessionId,
       body.content,
-      toRagUser(req.user),
+      ragUser,
       res,
     )
   }

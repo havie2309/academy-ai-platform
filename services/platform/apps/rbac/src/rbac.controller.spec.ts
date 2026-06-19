@@ -1,22 +1,30 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { RbacController } from './rbac.controller';
-import { RbacService } from './rbac.service';
+import { Test, TestingModule } from '@nestjs/testing'
+import { RbacController } from './rbac.controller'
+import { RbacService } from './rbac.service'
 
 describe('RbacController', () => {
-  let rbacController: RbacController;
+  let rbacController: RbacController
 
   beforeEach(async () => {
     const app: TestingModule = await Test.createTestingModule({
       controllers: [RbacController],
-      providers: [RbacService],
-    }).compile();
+      providers: [
+        {
+          provide: RbacService,
+          useValue: {
+            getCurrentAccess: jest.fn(),
+          },
+        },
+      ],
+    }).compile()
 
-    rbacController = app.get<RbacController>(RbacController);
-  });
+    rbacController = app.get<RbacController>(RbacController)
+  })
 
-  describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(rbacController.getHello()).toBe('Hello World!');
-    });
-  });
-});
+  it('returns health payload', () => {
+    expect(rbacController.health()).toEqual({
+      status: 'ok',
+      service: 'rbac',
+    })
+  })
+})

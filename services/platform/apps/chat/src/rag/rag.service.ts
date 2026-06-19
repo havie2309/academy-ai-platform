@@ -9,6 +9,8 @@ export interface RagUserContext {
   roles: string[]
   department: string | null
   maxSecurityLevel: number
+  scopeMaHv?: string | null
+  scopeMaGv?: string | null
 }
 
 export interface RagMessage {
@@ -63,6 +65,8 @@ export class RagService {
           roles: user.roles,
           department: user.department,
           maxSecurityLevel: user.maxSecurityLevel,
+          scopeMaHv: user.scopeMaHv ?? null,
+          scopeMaGv: user.scopeMaGv ?? null,
         },
       }),
     })
@@ -110,6 +114,8 @@ export class RagService {
           roles: user.roles,
           department: user.department,
           maxSecurityLevel: user.maxSecurityLevel,
+          scopeMaHv: user.scopeMaHv ?? null,
+          scopeMaGv: user.scopeMaGv ?? null,
         },
       }),
     })
@@ -200,6 +206,8 @@ export class RagService {
             roles: user.roles,
             department: user.department,
             maxSecurityLevel: user.maxSecurityLevel,
+            scopeMaHv: user.scopeMaHv ?? null,
+            scopeMaGv: user.scopeMaGv ?? null,
           },
         }),
       })

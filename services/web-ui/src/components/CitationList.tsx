@@ -88,7 +88,7 @@ export default function CitationList({ citations }: CitationListProps) {
   const groups = buildGroups(citations)
 
   return (
-    <div className="mt-2 px-1">
+    <div className="mt-2 px-1" data-testid="citation-list">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">
         <BookOpen size={12} className="text-blue-500" />
         <span>Nguồn dùng để trả lời</span>
@@ -104,6 +104,7 @@ export default function CitationList({ citations }: CitationListProps) {
           return (
             <div
               key={group.key}
+              data-testid="citation-card"
               className="rounded-xl border border-blue-100/80 bg-gradient-to-br from-blue-50/80 to-white px-3 py-2.5 text-left shadow-sm"
               title={group.snippet || group.title}
             >

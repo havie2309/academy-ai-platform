@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
 import { User, Lock, AlertCircle, GraduationCap } from "lucide-react";
+import { isAdminLikeRole } from "../lib/authz";
 import "./LoginPage.css";
 
 export default function LoginPage() {
@@ -24,8 +25,7 @@ export default function LoginPage() {
       const { access_token, user } = await authApi.login(username, password);
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("user", JSON.stringify(user));
-      const adminRoles = ["Admin", "BGD", "P2", "P7"];
-      const isAdmin = user.roles.some((r) => adminRoles.includes(r));
+      const isAdmin = isAdminLikeRole(user.roles);
       navigate(isAdmin ? "/admin" : "/chat");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng nhập thất bại.";
@@ -36,7 +36,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-root">
+    <div className="login-root" data-testid="login-page">
       <div className="login-card">
         <div className="login-logo">
           <div className="logo-icon-wrapper">
@@ -49,12 +49,13 @@ export default function LoginPage() {
         <h1 className="login-title">Đăng nhập</h1>
         <p className="login-sub">Nhập thông tin tài khoản của bạn để tiếp tục</p>
 
-        <form onSubmit={handleSubmit} className="login-form" noValidate>
+        <form onSubmit={handleSubmit} className="login-form" noValidate data-testid="login-form">
           <div className="field-group">
             <label className="field-label" htmlFor="username">Tên đăng nhập</label>
             <div className="input-wrapper">
               <input
                 id="username"
+                data-testid="login-username"
                 className="field-input"
                 type="text"
                 autoComplete="username"
@@ -73,6 +74,7 @@ export default function LoginPage() {
             <div className="input-wrapper">
               <input
                 id="password"
+                data-testid="login-password"
                 className="field-input"
                 type="password"
                 autoComplete="current-password"
@@ -86,13 +88,13 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <div className="login-error" role="alert">
+            <div className="login-error" role="alert" data-testid="login-error">
               <AlertCircle size={16} className="shrink-0" />
               <span>{error}</span>
             </div>
           )}
 
-          <button className="login-btn" type="submit" disabled={loading}>
+          <button className="login-btn" type="submit" disabled={loading} data-testid="login-submit">
             {loading ? "Đang xác thực…" : "Đăng nhập"}
           </button>
         </form>

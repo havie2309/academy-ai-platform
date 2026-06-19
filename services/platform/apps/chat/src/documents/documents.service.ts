@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -6,8 +7,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { unlink } from 'node:fs/promises'
+import { readFile, unlink } from 'node:fs/promises'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { IngestQueueService } from '../ingest/ingest-queue.service'
 
@@ -46,6 +48,7 @@ type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
 
 interface DocumentDoc {
   docId: string
+  documentKey?: string
   title: string
   category: string
   originalName: string
@@ -53,6 +56,10 @@ interface DocumentDoc {
   storagePath: string
   mimeType: string
   size: number
+  fileChecksum?: string
+  version?: number
+  isLatestVersion?: boolean
+  previousVersionDocId?: string | null
   securityLevel: SecurityLevel
   scopeType: AccessScopeType
   accessRoleCodes: string[]
@@ -61,11 +68,30 @@ interface DocumentDoc {
   uploadedById: string
   uploadedByName: string
   createdAt: Date
+  updatedAt?: Date
   ingestStatus?: IngestStatus
   ingestStage?: string
   chunkCount?: number
   ingestError?: string | null
   ingestUpdatedAt?: Date
+}
+
+interface DocumentVersionDoc {
+  versionId: string
+  docId: string
+  documentKey: string
+  version: number
+  title: string
+  category: string
+  originalName: string
+  storagePath: string
+  size: number
+  fileChecksum: string
+  securityLevel: SecurityLevel
+  scopeType: AccessScopeType
+  uploadedById: string
+  uploadedByName: string
+  createdAt: Date
 }
 
 const DEFAULT_CATEGORY = 'Khác'
@@ -78,9 +104,19 @@ const SECURITY_RANK: Record<SecurityLevel, number> = {
 }
 
 const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2']
+const ROLE_CODE_RE = /^[A-Za-z0-9_-]+$/
 
 function securityRank(level: SecurityLevel): number {
   return SECURITY_RANK[level] ?? SECURITY_RANK.internal
+}
+
+function normalizeDocumentKey(title: string, category: string): string {
+  return `${category}::${title}`
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
 }
 
 @Injectable()
@@ -88,6 +124,7 @@ export class DocumentsService implements OnModuleInit {
   private client!: MongoClient
   private db!: Db
   private documents!: Collection<DocumentDoc>
+  private documentVersions!: Collection<DocumentVersionDoc>
 
   constructor(
     private readonly config: ConfigService,
@@ -108,7 +145,13 @@ export class DocumentsService implements OnModuleInit {
     await this.client.connect()
     this.db = this.client.db(this.config.get('MONGO_DB', 'pm2'))
     this.documents = this.db.collection<DocumentDoc>('documents')
+    this.documentVersions =
+      this.db.collection<DocumentVersionDoc>('document_versions')
     await this.documents.createIndex({ createdAt: -1 })
+    await this.documents.createIndex({ documentKey: 1, version: -1 })
+    await this.documents.createIndex({ documentKey: 1, isLatestVersion: 1 })
+    await this.documents.createIndex({ fileChecksum: 1 })
+    await this.documentVersions.createIndex({ documentKey: 1, version: -1 })
   }
 
   private ensureReady() {
@@ -117,23 +160,92 @@ export class DocumentsService implements OnModuleInit {
     }
   }
 
+  private normalizeUnique(values: string[]): string[] {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const value of values) {
+      const item = value.trim()
+      if (!item || seen.has(item)) continue
+      seen.add(item)
+      result.push(item)
+    }
+    return result
+  }
+
+  private sanitizeAccessMeta(access: AccessMeta): AccessMeta {
+    const roleCodes = this.normalizeUnique(access.roleCodes ?? [])
+    const departmentCodes = this.normalizeUnique(access.departmentCodes ?? [])
+    const userIds = this.normalizeUnique(access.userIds ?? [])
+
+    if (access.scopeType === 'role') {
+      if (!roleCodes.length) {
+        throw new BadRequestException(
+          'scope_type=role yêu cầu ít nhất 1 access_role_code.',
+        )
+      }
+      if (!roleCodes.every((code) => ROLE_CODE_RE.test(code))) {
+        throw new BadRequestException('access_role_codes không hợp lệ.')
+      }
+    }
+
+    if (access.scopeType === 'department' && !departmentCodes.length) {
+      throw new BadRequestException(
+        'scope_type=department yêu cầu ít nhất 1 access_department_code.',
+      )
+    }
+
+    if (access.scopeType === 'custom' && !userIds.length) {
+      throw new BadRequestException(
+        'scope_type=custom yêu cầu ít nhất 1 access_user_id.',
+      )
+    }
+
+    return {
+      securityLevel: access.securityLevel,
+      scopeType: access.scopeType,
+      roleCodes: access.scopeType === 'role' ? roleCodes : [],
+      departmentCodes:
+        access.scopeType === 'department' ? departmentCodes : [],
+      userIds: access.scopeType === 'custom' ? userIds : [],
+    }
+  }
+
+  private async sha256File(filePath: string): Promise<string> {
+    const buf = await readFile(filePath)
+    return createHash('sha256').update(buf).digest('hex')
+  }
+
   async create(
     file: UploadedFileLike,
     meta: { title?: string; category?: string; access: AccessMeta },
     user: { userId: string; name: string },
   ) {
     this.ensureReady()
-    const access = meta.access
+    const access = this.sanitizeAccessMeta(meta.access)
     const now = new Date()
+    const title = meta.title?.trim() || file.originalname
+    const category = meta.category?.trim() || DEFAULT_CATEGORY
+    const documentKey = normalizeDocumentKey(title, category)
+    const fileChecksum = await this.sha256File(file.path)
+    const previousLatest = await this.documents.findOne(
+      { documentKey, isLatestVersion: true },
+      { sort: { version: -1 } },
+    )
+    const version = (previousLatest?.version ?? 0) + 1
     const doc: DocumentDoc = {
       docId: file.filename.replace(/\.[^.]+$/, ''),
-      title: meta.title?.trim() || file.originalname,
-      category: meta.category?.trim() || DEFAULT_CATEGORY,
+      documentKey,
+      title,
+      category,
       originalName: file.originalname,
       storedName: file.filename,
       storagePath: file.path,
       mimeType: file.mimetype,
       size: file.size,
+      fileChecksum,
+      version,
+      isLatestVersion: true,
+      previousVersionDocId: previousLatest?.docId ?? null,
       securityLevel: access.securityLevel,
       scopeType: access.scopeType,
       accessRoleCodes: access.scopeType === 'role' ? access.roleCodes : [],
@@ -143,11 +255,35 @@ export class DocumentsService implements OnModuleInit {
       uploadedById: user.userId,
       uploadedByName: user.name,
       createdAt: now,
+      updatedAt: now,
       ingestStatus: 'pending',
       ingestStage: 'queued',
       ingestUpdatedAt: now,
     }
     await this.documents.insertOne(doc)
+    await this.documentVersions.insertOne({
+      versionId: `${doc.docId}-v${version}`,
+      docId: doc.docId,
+      documentKey,
+      version,
+      title: doc.title,
+      category: doc.category,
+      originalName: doc.originalName,
+      storagePath: doc.storagePath,
+      size: doc.size,
+      fileChecksum,
+      securityLevel: doc.securityLevel,
+      scopeType: doc.scopeType,
+      uploadedById: doc.uploadedById,
+      uploadedByName: doc.uploadedByName,
+      createdAt: now,
+    })
+    if (previousLatest) {
+      await this.documents.updateOne(
+        { docId: previousLatest.docId },
+        { $set: { isLatestVersion: false, updatedAt: now } },
+      )
+    }
 
     try {
       await this.ingestQueue.enqueue({
@@ -274,10 +410,23 @@ export class DocumentsService implements OnModuleInit {
     }
 
     await this.documents.deleteOne({ docId })
+    await this.documentVersions.deleteMany({ docId })
     await this.db.collection('document_chunks').deleteMany({ documentId: docId })
     await this.db.collection('processing_jobs').deleteMany({ documentId: docId })
     if (existsSync(doc.storagePath)) {
       await unlink(doc.storagePath).catch(() => {})
+    }
+    if (doc.isLatestVersion && doc.documentKey) {
+      const fallback = await this.documents.findOne(
+        { documentKey: doc.documentKey, docId: { $ne: docId } },
+        { sort: { version: -1 } },
+      )
+      if (fallback) {
+        await this.documents.updateOne(
+          { docId: fallback.docId },
+          { $set: { isLatestVersion: true, updatedAt: new Date() } },
+        )
+      }
     }
     return { deleted: true }
   }
@@ -290,6 +439,9 @@ export class DocumentsService implements OnModuleInit {
       original_name: d.originalName,
       mime_type: d.mimeType,
       size: d.size,
+      file_checksum: d.fileChecksum ?? null,
+      version: d.version ?? 1,
+      is_latest_version: d.isLatestVersion ?? true,
       security_level: d.securityLevel,
       scope_type: d.scopeType,
       access_role_codes: d.accessRoleCodes,

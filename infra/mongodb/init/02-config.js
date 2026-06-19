@@ -30,7 +30,7 @@ if (db.system_configs.countDocuments() === 0) {
         },
         {
             key: "llm.default_config",
-            value: { model: "Qwen3-8B", temperature: 0.1, maxTokens: 2048, topP: 0.95 },
+            value: { model: "Qwen2.5-3B", temperature: 0.1, maxTokens: 2048, topP: 0.95 },
             description: "Cấu hình mặc định cho LLM",
             createdAt: new Date()
         },

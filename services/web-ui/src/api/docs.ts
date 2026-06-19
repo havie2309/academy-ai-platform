@@ -30,6 +30,9 @@ export interface DocItem {
   original_name: string
   mime_type: string
   size: number
+  file_checksum?: string | null
+  version?: number
+  is_latest_version?: boolean
   security_level: SecurityLevel
   scope_type: AccessScopeType
   access_role_codes: string[]

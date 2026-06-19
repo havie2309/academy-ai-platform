@@ -5,7 +5,8 @@ from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.consumer import run_consumer_in_background
+from app.config import INGEST_ALLOW_DIRECT_FALLBACK, INGEST_TRANSPORT
+from app.consumer import enqueue_job, run_consumer_in_background
 from app.pipeline import process_document
 
 logging.basicConfig(level=logging.INFO)
@@ -39,6 +40,7 @@ class ProcessJob(BaseModel):
     accessDepartmentCodes: list[str] = []
     accessUserIds: list[str] = []
     uploadedById: str = ""
+    retryCount: int = 0
 
 
 @app.get("/health")
@@ -50,6 +52,15 @@ def health():
 async def process_endpoint(body: ProcessJob, background_tasks: BackgroundTasks):
     job = body.model_dump()
 
+    if INGEST_TRANSPORT == "rabbitmq":
+        try:
+            enqueue_job(job)
+            return {"accepted": True, "documentId": body.documentId, "transport": "rabbitmq"}
+        except Exception as exc:
+            logger.exception("enqueue failed documentId=%s", body.documentId)
+            if not INGEST_ALLOW_DIRECT_FALLBACK:
+                raise HTTPException(503, f"enqueue failed: {exc}") from exc
+
     async def _run():
         try:
             await process_document(job)
@@ -57,7 +68,7 @@ async def process_endpoint(body: ProcessJob, background_tasks: BackgroundTasks):
             logger.exception("process failed documentId=%s", body.documentId)
 
     background_tasks.add_task(_run)
-    return {"accepted": True, "documentId": body.documentId}
+    return {"accepted": True, "documentId": body.documentId, "transport": "background"}
 
 
 @app.post("/v1/process/sync")

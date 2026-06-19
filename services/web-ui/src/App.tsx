@@ -22,7 +22,7 @@ function App() {
             <Route path="/settings" element={<SettingsPage />} />
 
             {/* Admin only */}
-            <Route element={<RequireAuth allowedRoles={['Admin', 'BGD', 'P2', 'P7']} />}>
+            <Route element={<RequireAuth allowedRoles={['ADMIN', 'BGD', 'P2', 'P7']} />}>
               <Route path="/admin" element={<AdminPage />} />
             </Route>
           </Route>

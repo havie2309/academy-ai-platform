@@ -199,7 +199,7 @@ export default function ChatPage() {
   const isStreaming = messages.some((m) => m.id === STREAMING_ID)
 
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="flex flex-col h-full bg-slate-50/50" data-testid="chat-page">
       <div className="h-15 border-b border-slate-200/60 bg-white/85 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
         <div className="flex items-center gap-3">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -214,6 +214,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={handleDeleteSession}
+            data-testid="chat-delete-session"
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
           >
             <Trash2 size={14} />
@@ -258,6 +259,7 @@ export default function ChatPage() {
                   key={text}
                   role="button"
                   tabIndex={0}
+                  data-testid="chat-suggestion"
                   onClick={() => send(text)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') send(text)
@@ -280,6 +282,7 @@ export default function ChatPage() {
             {messages.map((msg) => (
               <div
                 key={msg.id}
+                data-testid={`chat-message-${msg.role}`}
                 className={`flex gap-4 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
@@ -344,6 +347,8 @@ export default function ChatPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKey}
+              data-testid="chat-input"
+              aria-label="Chat input"
               placeholder="Nhập câu hỏi tại đây..."
               rows={1}
               disabled={loadingHistory || loading}
@@ -353,6 +358,8 @@ export default function ChatPage() {
               type="button"
               onClick={() => send()}
               disabled={!input.trim() || loading || loadingHistory}
+              data-testid="chat-send"
+              aria-label="Send message"
               className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white flex items-center justify-center transition-all shrink-0 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-blue-600/10 disabled:shadow-none"
             >
               <ArrowUp size={16} />

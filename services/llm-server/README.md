@@ -15,4 +15,4 @@ Cấu hình trong `.env`:
 
 ## Nghiệm thu (Máy mô hình)
 
-Đổi `LLM_MODEL` → Qwen3-8B và trỏ `LLM_BASE_URL` tới IP Máy mô hình.
+Đổi `LLM_MODEL` → `qwen2.5:3b` và trỏ `LLM_BASE_URL` tới IP Máy mô hình.

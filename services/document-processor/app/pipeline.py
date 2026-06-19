@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -10,12 +11,16 @@ from app.config import (
     CHUNK_OVERLAP,
     EMBEDDING_BATCH_SIZE,
     EMBEDDING_BASE_URL,
+    EMBEDDING_MAX_RETRIES,
+    EMBEDDING_RETRY_BACKOFF_MS,
     MONGO_DB,
     MONGO_URI,
     SECURITY_RANK,
 )
 from app.extract import extract_text
 from app.milvus_store import delete_by_document, insert_vectors
+
+VALID_SCOPE_TYPES = {"all", "role", "department", "custom"}
 
 
 def _utcnow() -> datetime:
@@ -34,14 +39,87 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
     async with httpx.AsyncClient(timeout=120) as client:
         for i in range(0, len(texts), batch_size):
             chunk = texts[i : i + batch_size]
-            res = await client.post(
-                f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
-                json={"input": chunk},
-            )
-            res.raise_for_status()
-            data = res.json()["data"]
+            data = None
+            last_error: Exception | None = None
+            for attempt in range(1, max(1, EMBEDDING_MAX_RETRIES) + 1):
+                try:
+                    res = await client.post(
+                        f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
+                        json={"input": chunk},
+                    )
+                    res.raise_for_status()
+                    data = res.json()["data"]
+                    if len(data) != len(chunk):
+                        raise ValueError("Embedding response count mismatch.")
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if attempt >= max(1, EMBEDDING_MAX_RETRIES):
+                        raise
+                    await asyncio.sleep(EMBEDDING_RETRY_BACKOFF_MS / 1000 * attempt)
+            if data is None:
+                raise RuntimeError(f"Embedding batch failed: {last_error}")
             vectors.extend(item["embedding"] for item in data)
     return vectors
+
+
+def _clean_list(values: object) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        item = str(value).strip()
+        if not item:
+            continue
+        if item in seen:
+            continue
+        seen.add(item)
+        cleaned.append(item)
+    return cleaned
+
+
+def _validate_job(job: dict) -> dict:
+    normalized = dict(job)
+    document_id = str(normalized.get("documentId") or "").strip()
+    storage_path = str(normalized.get("storagePath") or "").strip()
+    if not document_id or not storage_path:
+        raise ValueError("Thiếu documentId hoặc storagePath cho job ingest.")
+
+    security_level = str(normalized.get("securityLevel") or "internal").strip().lower()
+    if security_level not in SECURITY_RANK:
+        raise ValueError(f"Mức mật không hợp lệ: {security_level}")
+
+    scope_type = str(normalized.get("scopeType") or "all").strip().lower()
+    if scope_type not in VALID_SCOPE_TYPES:
+        raise ValueError(f"Phạm vi truy cập không hợp lệ: {scope_type}")
+
+    access_role_codes = _clean_list(normalized.get("accessRoleCodes"))
+    access_department_codes = _clean_list(normalized.get("accessDepartmentCodes"))
+    access_user_ids = _clean_list(normalized.get("accessUserIds"))
+
+    if scope_type == "role" and not access_role_codes:
+        raise ValueError("scopeType=role yêu cầu accessRoleCodes không rỗng.")
+    if scope_type == "department" and not access_department_codes:
+        raise ValueError(
+            "scopeType=department yêu cầu accessDepartmentCodes không rỗng."
+        )
+    if scope_type == "custom" and not access_user_ids:
+        raise ValueError("scopeType=custom yêu cầu accessUserIds không rỗng.")
+
+    normalized["documentId"] = document_id
+    normalized["storagePath"] = storage_path
+    normalized["securityLevel"] = security_level
+    normalized["scopeType"] = scope_type
+    normalized["accessRoleCodes"] = access_role_codes if scope_type == "role" else []
+    normalized["accessDepartmentCodes"] = (
+        access_department_codes if scope_type == "department" else []
+    )
+    normalized["accessUserIds"] = access_user_ids if scope_type == "custom" else []
+    normalized["uploadedById"] = str(normalized.get("uploadedById") or "").strip()
+    normalized["title"] = str(normalized.get("title") or document_id).strip()
+    normalized["mimeType"] = str(normalized.get("mimeType") or "").strip()
+    return normalized
 
 
 def _update_job(
@@ -71,6 +149,7 @@ def _update_job(
     doc_set: dict = {
         "ingestStatus": status,
         "ingestUpdatedAt": now,
+        "updatedAt": now,
     }
     if stage:
         doc_set["ingestStage"] = stage
@@ -85,6 +164,7 @@ def _update_job(
 
 
 async def process_document(job: dict) -> dict:
+    job = _validate_job(job)
     document_id = job["documentId"]
     storage_path = job["storagePath"]
     title = job.get("title", document_id)
@@ -133,6 +213,13 @@ async def process_document(job: dict) -> dict:
                 "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
                 "accessUserIds": job.get("accessUserIds", []),
                 "uploadedById": job.get("uploadedById", ""),
+                "accessPolicy": {
+                    "securityLevel": security_level,
+                    "scopeType": job.get("scopeType", "all"),
+                    "roleCodes": job.get("accessRoleCodes", []),
+                    "departmentCodes": job.get("accessDepartmentCodes", []),
+                    "userIds": job.get("accessUserIds", []),
+                },
             }
             if chunk.section_path:
                 metadata["sectionPath"] = chunk.section_path

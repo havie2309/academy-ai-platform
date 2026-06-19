@@ -45,13 +45,42 @@ def is_gpa_query(question: str) -> bool:
     return "gpa" in folded or "tich luy" in folded or "diem trung binh" in folded
 
 
+def is_gradebook_query(question: str) -> bool:
+    folded = _fold(question)
+    return any(
+        phrase in folded
+        for phrase in (
+            "bang diem",
+            "diem mon",
+            "diem tong ket",
+            "diem chu",
+            "ket qua mon hoc",
+        )
+    )
+
+
+def is_semester_result_query(question: str) -> bool:
+    folded = _fold(question)
+    return any(
+        phrase in folded
+        for phrase in (
+            "ket qua hoc ky",
+            "xep loai",
+            "diem ren luyen",
+            "gpa hoc ky",
+        )
+    )
+
+
 async def try_template_sql(question: str, user: dict) -> str | None:
     folded = _fold(question)
+    user_scope_hv = str(user.get("scopeMaHv") or "").strip()
+    user_scope_gv = str(user.get("scopeMaGv") or "").strip()
 
     if is_gpa_query(question):
         ma_hv = _extract_ma_hv(question)
         if not ma_hv and is_self_query(question):
-            ma_hv = await resolve_student_ma_hv(user)
+            ma_hv = user_scope_hv or await resolve_student_ma_hv(user)
         if ma_hv:
             sql = (
                 "SELECT ho_ten, ma_hv, gpa_he4, gpa_he10, so_tin_chi_tich_luy, muc_canh_bao "
@@ -61,10 +90,35 @@ async def try_template_sql(question: str, user: dict) -> str | None:
         if is_self_query(question) and (is_student_role(user.get("roles")) or not is_staff_role(user.get("roles"))):
             return None  # caller returns friendly "no profile" message
 
+    if is_gradebook_query(question):
+        ma_hv = _extract_ma_hv(question)
+        if not ma_hv and is_self_query(question):
+            ma_hv = user_scope_hv or await resolve_student_ma_hv(user)
+        if ma_hv:
+            sql = (
+                "SELECT ma_hv, ho_ten, ma_mon, ten_mon, ten_hoc_ky, diem_tong_ket, diem_chu, diem_he4, dat "
+                f"FROM sql_curated.v_diem_mon WHERE ma_hv = '{ma_hv}' "
+                "ORDER BY ten_hoc_ky DESC, ma_mon ASC LIMIT 20"
+            )
+            return apply_guardrail(sql)
+
+    if is_semester_result_query(question):
+        ma_hv = _extract_ma_hv(question)
+        if not ma_hv and is_self_query(question):
+            ma_hv = user_scope_hv or await resolve_student_ma_hv(user)
+        if ma_hv:
+            sql = (
+                "SELECT ma_hv, ho_ten, ten_hoc_ky, gpa_hoc_ky_he4, gpa_tich_luy_he4, "
+                "gpa_hoc_ky_he10, xep_loai, muc_canh_bao, so_tc_dat, so_tc_tich_luy, diem_ren_luyen "
+                f"FROM sql_curated.v_ket_qua_hoc_ky WHERE ma_hv = '{ma_hv}' "
+                "ORDER BY ten_hoc_ky DESC LIMIT 10"
+            )
+            return apply_guardrail(sql)
+
     if "lich day" in folded or ("lop hoc phan" in folded and "giang" in folded):
         ma_gv = _extract_ma_gv(question)
         if not ma_gv and is_self_query(question):
-            ma_gv = await resolve_lecturer_ma_gv(user)
+            ma_gv = user_scope_gv or await resolve_lecturer_ma_gv(user)
         if ma_gv:
             sql = (
                 "SELECT ma_lhp, ten_mon, ten_hoc_ky, phong, si_so_toi_da "

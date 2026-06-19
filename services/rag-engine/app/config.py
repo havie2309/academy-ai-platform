@@ -39,6 +39,15 @@ OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
+# --- Text-to-SQL LLM target --------------------------------------------------
+# Allow SQL generation to use a dedicated model (for example qwen2.5:3b on the AI
+# host) without affecting the general RAG answer model.
+SQL_LLM_PROVIDER = (os.getenv("SQL_LLM_PROVIDER") or LLM_PROVIDER).strip().lower()
+SQL_LLM_BASE_URL = (os.getenv("SQL_LLM_BASE_URL") or LLM_BASE_URL).strip()
+SQL_LLM_MODEL = os.getenv("SQL_LLM_MODEL", LLM_MODEL)
+SQL_OPENAI_MODEL = os.getenv("SQL_OPENAI_MODEL", OPENAI_MODEL)
+SQL_FEW_SHOT_ENABLED = os.getenv("SQL_FEW_SHOT_ENABLED", "true").lower() != "false"
+
 SECURITY_RANK = {"public": 1, "internal": 2, "restricted": 3, "confidential": 4}
 ADMIN_ROLES = {"ADMIN", "Admin", "BGD", "P2"}
 
@@ -57,3 +66,10 @@ SQL_AUDIT_ENABLED = os.getenv("SQL_AUDIT_ENABLED", "true").lower() != "false"
 
 STAFF_SQL_ROLES = {"ADMIN", "BGD", "P2"}
 SELF_SCOPE_ROLES = {"HOC_VIEN", "GIANG_VIEN"}
+
+# --- Safe refusal / admin-config ---------------------------------------------
+ADMIN_CONFIG_URL = (os.getenv("ADMIN_CONFIG_URL") or "http://127.0.0.1:3004").strip()
+ADMIN_CONFIG_INTERNAL_KEY = (os.getenv("ADMIN_CONFIG_INTERNAL_KEY") or "").strip()
+ADMIN_CONFIG_CACHE_TTL_SECONDS = int(
+    os.getenv("ADMIN_CONFIG_CACHE_TTL_SECONDS", "30")
+)

@@ -23,13 +23,13 @@ async def execute_sql(sql: str) -> tuple[list[str], list[tuple]]:
         database=POSTGRES_DB,
     )
     try:
-        await conn.execute(
-            f"SET statement_timeout = {SQL_STATEMENT_TIMEOUT_MS}"
-        )
+        await conn.execute(f"SET statement_timeout = {SQL_STATEMENT_TIMEOUT_MS}")
+        await conn.execute("SET default_transaction_read_only = on")
         await conn.execute("SET search_path TO sql_curated")
-        stmt = await conn.prepare(sql)
-        columns = [attr.name for attr in stmt.get_attributes()]
-        rows = await conn.fetch(sql)
+        async with conn.transaction(readonly=True):
+            stmt = await conn.prepare(sql)
+            columns = [attr.name for attr in stmt.get_attributes()]
+            rows = await conn.fetch(sql)
         return columns, [tuple(row.values()) for row in rows]
     finally:
         await conn.close()
