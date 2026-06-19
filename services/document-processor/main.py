@@ -8,12 +8,13 @@ from pydantic import BaseModel
 from app.config import INGEST_ALLOW_DIRECT_FALLBACK, INGEST_TRANSPORT
 from app.consumer import enqueue_job, run_consumer_in_background
 from app.pipeline import process_document
+from app.sample_consumer import consume_sample_jobs
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ENABLE_CONSUMER = os.getenv("ENABLE_RABBITMQ_CONSUMER", "true").lower() == "true"
-
+ENABLE_SAMPLE_PROCESSOR = os.getenv("ENABLE_SAMPLE_PROCESSOR", "true").lower() == "true"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -23,6 +24,15 @@ async def lifespan(_app: FastAPI):
             logger.info("RabbitMQ consumer started")
         except Exception:
             logger.exception("RabbitMQ consumer failed to start — use POST /v1/process")
+    
+    if ENABLE_SAMPLE_PROCESSOR:
+        try:
+            logger.info("Processing queued sample documents...")
+            result = await consume_sample_jobs()
+            logger.info(f"Sample processing complete: {result}")
+        except Exception:
+            logger.exception("Sample processing failed")
+
     yield
 
 
