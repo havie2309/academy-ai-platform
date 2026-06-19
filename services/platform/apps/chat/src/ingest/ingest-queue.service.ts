@@ -2,7 +2,7 @@
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import amqp from 'amqplib';
+import * as amqp from 'amqplib';
 
 export interface IngestJobPayload {
   documentId: string;
@@ -20,9 +20,10 @@ export interface IngestJobPayload {
 @Injectable()
 export class IngestQueueService implements OnModuleInit {
   private readonly logger = new Logger(IngestQueueService.name);
-  private connection: amqp.Connection;
-  private channel: amqp.Channel;
+  private connection: amqp.ChannelModel | null = null;
+  private channel: amqp.Channel | null = null;
   private readonly queueName: string;
+  private readonly dlqName: string;
   private readonly rabbitmqUrl: string;
 
   constructor(private readonly config: ConfigService) {
@@ -31,14 +32,21 @@ export class IngestQueueService implements OnModuleInit {
     const user = this.config.get('RABBITMQ_USER', 'pm2_user');
     const pass = this.config.get('RABBITMQ_PASSWORD', 'pm2pass');
     this.queueName = this.config.get('INGEST_QUEUE', 'ingest.jobs');
+    this.dlqName = this.config.get('INGEST_DLQ', `${this.queueName}.dlq`);
     this.rabbitmqUrl = `amqp://${user}:${pass}@${host}:${port}`;
   }
 
   async onModuleInit() {
     try {
-      this.connection = await amqp.connect(this.rabbitmqUrl) as amqp.Connection;
+      this.connection = await amqp.connect(this.rabbitmqUrl);
       this.channel = await this.connection.createChannel();
-      await this.channel.assertQueue(this.queueName, { durable: true });
+      await this.channel.assertQueue(this.queueName, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': '',
+          'x-dead-letter-routing-key': this.dlqName,
+        }
+      });
       this.logger.log(`Connected to RabbitMQ, queue=${this.queueName}`);
     } catch (err) {
       this.logger.error('RabbitMQ connection failed:', err);
