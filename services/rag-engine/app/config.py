@@ -73,3 +73,10 @@ ADMIN_CONFIG_INTERNAL_KEY = (os.getenv("ADMIN_CONFIG_INTERNAL_KEY") or "").strip
 ADMIN_CONFIG_CACHE_TTL_SECONDS = int(
     os.getenv("ADMIN_CONFIG_CACHE_TTL_SECONDS", "30")
 )
+
+# --- Redis cache / conversation state ----------------------------------------
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_TTL = int(os.getenv("REDIS_TTL", "3600"))
