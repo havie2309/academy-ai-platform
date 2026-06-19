@@ -3,6 +3,7 @@ import re
 from pymongo import MongoClient
 
 from app.access import can_view_chunk
+from app.cache import RedisCache
 from app.citation_select import limit_chunks_per_doc
 from app.config import (
     EMBEDDING_BASE_URL,
@@ -17,6 +18,7 @@ from app.config import (
 from app.milvus_search import search_vectors
 from app.rerank import rerank_citations
 
+cache = RedisCache()
 
 COMPARE_KEYWORDS = (
     "so sánh",
@@ -166,6 +168,13 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     query = query.strip()
     if not query:
         return []
+    
+    # Check cache first
+    user_id = user.get("userId")
+    cached = cache.get_retrieval(query, user_id)
+    if cached:
+        print(f"Cache hit for: {query[:50]}...")
+        return cached
 
     try:
         vector = await embed_query(query)
@@ -213,4 +222,8 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
         reverse=True,
     )
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
+    
+    cache.set_retrieval(query, selected, user_id)
+    print(f"Cache miss for: {query[:50]}...")
+
     return selected

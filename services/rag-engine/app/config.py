@@ -57,3 +57,9 @@ SQL_AUDIT_ENABLED = os.getenv("SQL_AUDIT_ENABLED", "true").lower() != "false"
 
 STAFF_SQL_ROLES = {"ADMIN", "BGD", "P2"}
 SELF_SCOPE_ROLES = {"HOC_VIEN", "GIANG_VIEN"}
+
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_TTL = int(os.getenv("REDIS_TTL", "3600"))
