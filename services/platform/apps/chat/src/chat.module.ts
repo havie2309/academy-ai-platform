@@ -6,10 +6,12 @@ import { CommonModule } from '../../../src/common/common.module'
 import { JwtStrategy } from './auth/jwt.strategy'
 import { ChatController } from './chat/chat.controller'
 import { ChatService } from './chat/chat.service'
+import { ChatCacheService } from './chat/chat.cache'
 import { IngestQueueService } from './ingest/ingest-queue.service'
 import { DocumentsController } from './documents/documents.controller'
 import { DocumentsService } from './documents/documents.service'
 import { RagService } from './rag/rag.service'
+import { RedisModule } from '../../../src/common/redis/redis.module'
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { RagService } from './rag/rag.service'
       }),
     }),
     CommonModule,
+    RedisModule
   ],
   controllers: [ChatController, DocumentsController],
   providers: [
@@ -30,6 +33,7 @@ import { RagService } from './rag/rag.service'
     IngestQueueService,
     RagService,
     JwtStrategy,
+    ChatCacheService,
   ],
 })
 export class ChatModule {}

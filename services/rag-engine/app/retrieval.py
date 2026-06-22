@@ -168,13 +168,6 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     query = query.strip()
     if not query:
         return []
-    
-    # Check cache first
-    user_id = user.get("userId")
-    cached = cache.get_retrieval(query, user_id)
-    if cached:
-        print(f"Cache hit for: {query[:50]}...")
-        return cached
 
     try:
         vector = await embed_query(query)
@@ -222,8 +215,5 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
         reverse=True,
     )
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
-    
-    cache.set_retrieval(query, selected, user_id)
-    print(f"Cache miss for: {query[:50]}...")
 
     return selected

@@ -32,7 +32,7 @@ RERANK_SCORE_DELTA = float(os.getenv("RERANK_SCORE_DELTA", "3.0"))
 # --- LLM (answer generation) -------------------------------------------------
 # Mirrors the chat service: 'ollama' (local, OpenAI-compatible) or 'openai' (cloud).
 # When LLM_PROVIDER is unset, default to ollama if LLM_BASE_URL is present.
-LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "").strip().lower()
+LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "ollama").strip().lower()
 LLM_BASE_URL = (os.getenv("LLM_BASE_URL") or "http://localhost:11434").strip()
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:3b")
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()

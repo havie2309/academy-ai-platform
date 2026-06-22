@@ -5,6 +5,7 @@ import {
   NotFoundException,
   OnModuleInit,
   ServiceUnavailableException,
+  HttpException, HttpStatus,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import type { Response } from 'express'
@@ -12,6 +13,7 @@ import { Collection, Db, MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { type ChatCitationDto } from './chat.citations'
 import { initSse, writeSseError, writeSseEvent } from './chat-sse.util'
+import { ChatCacheService } from './chat.cache'
 import {
   RagService,
   type RagMessage,
@@ -62,6 +64,11 @@ const MAX_HISTORY = 20
 const MAX_TITLE_LENGTH = 48
 const DEFAULT_SESSION_TITLE = 'Cuộc trò chuyện mới'
 
+// Rate limiting
+const RATE_LIMIT_MAX = 60
+const RATE_LIMIT_WINDOW = 60 // seconds
+const SESSION_TTL = 3600 // 1 hour
+
 interface ChatSessionDoc {
   sessionId: string
   userId: string
@@ -82,6 +89,11 @@ interface ChatMessageDoc {
   createdAt: Date
 }
 
+interface SessionContext {
+  history: ChatMessageDoc[]
+  lastUpdated: Date
+}
+
 @Injectable()
 export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name)
@@ -93,6 +105,7 @@ export class ChatService implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly rag: RagService,
+    private readonly cache: ChatCacheService,
   ) {}
 
   async onModuleInit() {
@@ -148,6 +161,8 @@ export class ChatService implements OnModuleInit {
     const result = await this.sessions.deleteOne({ sessionId, userId })
     if (result.deletedCount === 0) throw new NotFoundException('Không tìm thấy hội thoại.')
     await this.messages.deleteMany({ sessionId, userId })
+    // Clear cache
+    await this.cache.clearSession(sessionId)
     return { deleted: true }
   }
 
@@ -160,22 +175,29 @@ export class ChatService implements OnModuleInit {
     return rows.map((m) => this.toMessageDto(m))
   }
 
+  // ============================================================
+  // SEND MESSAGE (Non-streaming)
+  // ============================================================
+
   async sendMessage(
     userId: string,
     sessionId: string,
     content: string,
     ragUser: RagUserContext,
   ) {
+    await this.checkRateLimit(userId)
+
     const { session, userMsg, history, text } = await this.prepareUserMessage(
       userId,
       sessionId,
       content,
     )
+
     let answer: string
     let clientCitations: ChatCitationDto[]
     let route = 'rag'
+
     try {
-      // Primary: rag-engine owns the full RAG turn (retrieve + grounded answer).
       const result = await this.rag.chat(
         text,
         this.toRagMessages(history),
@@ -185,7 +207,6 @@ export class ChatService implements OnModuleInit {
       clientCitations = result.citations
       route = result.route ?? 'rag'
     } catch (err) {
-      // Fallback: rag-engine down -> retrieve + local LLM here.
       this.logger.warn(
         `rag-engine /v1/chat lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
       )
@@ -193,6 +214,7 @@ export class ChatService implements OnModuleInit {
       answer = await this.callLlm(history, citations)
       clientCitations = this.toClientCitations(citations)
     }
+
     if (this.isNoInfoAnswer(answer)) {
       clientCitations = []
     }
@@ -204,6 +226,10 @@ export class ChatService implements OnModuleInit {
       clientCitations,
       route,
     )
+
+    // ✅ Update session context in cache
+    await this.updateSessionContext(sessionId, userMsg, assistantMsg)
+
     const titleUpdate = await this.maybeUpdateSessionTitle(
       session,
       userId,
@@ -225,6 +251,10 @@ export class ChatService implements OnModuleInit {
     }
   }
 
+  // ============================================================
+  // STREAM MESSAGE (SSE)
+  // ============================================================
+
   async streamMessage(
     userId: string,
     sessionId: string,
@@ -235,17 +265,21 @@ export class ChatService implements OnModuleInit {
     initSse(res)
 
     try {
+      // ✅ Rate limiting
+      await this.checkRateLimit(userId)
+
       const { session, userMsg, history, text } = await this.prepareUserMessage(
         userId,
         sessionId,
         content,
       )
+
       let answer = ''
       let clientCitations: ChatCitationDto[] = []
       let route = 'rag'
       let streamed = false
+
       try {
-        // Primary: rag-engine streams the grounded answer (meta -> tokens).
         const result = await this.rag.chatStream(
           text,
           this.toRagMessages(history),
@@ -268,8 +302,6 @@ export class ChatService implements OnModuleInit {
         clientCitations = result.citations
         route = result.route ?? 'rag'
       } catch (err) {
-        // If anything was already streamed to the client we cannot fall back
-        // cleanly (meta/tokens already sent) — surface the error instead.
         if (streamed) throw err
         this.logger.warn(
           `rag-engine /v1/chat/stream lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
@@ -285,6 +317,7 @@ export class ChatService implements OnModuleInit {
           writeSseEvent(res, 'token', { delta })
         })
       }
+
       if (this.isNoInfoAnswer(answer)) {
         clientCitations = []
       }
@@ -296,6 +329,10 @@ export class ChatService implements OnModuleInit {
         clientCitations,
         route,
       )
+
+      // ✅ Update session context in cache
+      await this.updateSessionContext(sessionId, userMsg, assistantMsg)
+
       const titleUpdate = await this.maybeUpdateSessionTitle(
         session,
         userId,
@@ -322,6 +359,87 @@ export class ChatService implements OnModuleInit {
     }
   }
 
+  // ============================================================
+  // RATE LIMITING
+  // ============================================================
+
+  private async checkRateLimit(userId: string): Promise<void> {
+    const count = await this.cache.incrementRateLimit(
+      userId,
+      RATE_LIMIT_MAX,
+      RATE_LIMIT_WINDOW,
+    )
+
+    if (count > RATE_LIMIT_MAX) {
+      this.logger.warn(`Rate limit exceeded for user ${userId}: ${count}/${RATE_LIMIT_MAX}`)
+      throw new HttpException(
+        `Quá nhiều yêu cầu. Vui lòng thử lại sau ${RATE_LIMIT_WINDOW} giây.`, 
+        HttpStatus.TOO_MANY_REQUESTS
+      );
+    }
+
+    if (count === 1) {
+      this.logger.debug(`Rate limit initialized for user ${userId}`)
+    }
+  }
+
+  // ============================================================
+  // SESSION CONTEXT (Cache + DB)
+  // ============================================================
+
+  private async getSessionContext(
+    sessionId: string,
+    userId: string,
+  ): Promise<SessionContext> {
+    // Try cache first
+    let context = await this.cache.getSessionContext(sessionId)
+    if (context) {
+      this.logger.debug(`Session context cache hit: ${sessionId}`)
+      return context
+    }
+
+    // Fallback to DB
+    this.logger.debug(`Session context cache miss: ${sessionId}, loading from DB`)
+    const messages = await this.messages
+      .find({ sessionId, userId, role: { $in: ['user', 'assistant'] } })
+      .sort({ createdAt: 1 })
+      .limit(MAX_HISTORY)
+      .toArray()
+
+    context = { history: messages, lastUpdated: new Date() }
+    await this.cache.setSessionContext(sessionId, context, SESSION_TTL)
+    return context
+  }
+
+  private async updateSessionContext(
+    sessionId: string,
+    userMsg: ChatMessageDoc,
+    assistantMsg: ChatMessageDoc,
+  ): Promise<void> {
+    // Get existing context or create new one
+    let context = await this.cache.getSessionContext(sessionId)
+    if (!context) {
+      context = { history: [], lastUpdated: new Date() }
+    }
+
+    // Add new messages
+    context.history.push(userMsg)
+    context.history.push(assistantMsg)
+    context.lastUpdated = new Date()
+
+    // Trim history if needed
+    if (context.history.length > MAX_HISTORY) {
+      context.history = context.history.slice(-MAX_HISTORY)
+    }
+
+    await this.cache.setSessionContext(sessionId, context, SESSION_TTL)
+    this.logger.debug(`Session context updated in cache: ${sessionId}`)
+  }
+
+  // ============================================================
+  // PREPARE MESSAGE (Modified to use cache)
+  // ============================================================
+
   private async prepareUserMessage(
     userId: string,
     sessionId: string,
@@ -344,14 +462,16 @@ export class ChatService implements OnModuleInit {
     }
     await this.messages.insertOne(userMsg)
 
-    const history = await this.messages
-      .find({ sessionId, userId, role: { $in: ['user', 'assistant'] } })
-      .sort({ createdAt: 1 })
-      .limit(MAX_HISTORY)
-      .toArray()
+    // Get history from cache
+    const context = await this.getSessionContext(sessionId, userId)
+    const history = context.history
 
     return { session, userMsg, history, text }
   }
+
+  // ============================================================
+  // PERSIST ASSISTANT MESSAGE
+  // ============================================================
 
   private async persistAssistantMessage(
     userId: string,
@@ -373,6 +493,10 @@ export class ChatService implements OnModuleInit {
     await this.messages.insertOne(assistantMsg)
     return assistantMsg
   }
+
+  // ============================================================
+  // SESSION TITLE
+  // ============================================================
 
   private async maybeUpdateSessionTitle(
     session: ChatSessionDoc,
@@ -413,6 +537,10 @@ export class ChatService implements OnModuleInit {
     return `${cut}…`
   }
 
+  // ============================================================
+  // LLM HELPERS
+  // ============================================================
+
   private getOpenAiApiKey(): string {
     const apiKey = this.config.get<string>('OPENAI_API_KEY')?.trim()
     if (!apiKey) {
@@ -427,12 +555,6 @@ export class ChatService implements OnModuleInit {
     return this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini')
   }
 
-  /**
-   * Chọn backend LLM theo LLM_PROVIDER:
-   * - 'openai': gọi OpenAI cloud (cần OPENAI_API_KEY).
-   * - 'ollama' (mặc định): gọi endpoint OpenAI-compatible của Ollama tại LLM_BASE_URL.
-   * Nếu không set LLM_PROVIDER: dùng 'ollama' khi có LLM_BASE_URL, ngược lại 'openai'.
-   */
   private getLlmConfig(): {
     provider: 'openai' | 'ollama'
     url: string
@@ -620,17 +742,12 @@ export class ChatService implements OnModuleInit {
     return content
   }
 
-  /**
-   * Drop the full chunk `text` (LLM grounding context) so it is never persisted
-   * or sent to the client — the UI only needs title/snippet/source.
-   */
   private toClientCitations(
     citations: ChatCitationDto[],
   ): ChatCitationDto[] {
     return citations.map(({ text: _text, ...rest }) => rest)
   }
 
-  /** Map stored history docs to the role/content shape rag-engine expects. */
   private toRagMessages(history: ChatMessageDoc[]): RagMessage[] {
     return history.map((m) => ({
       role: m.role as 'user' | 'assistant',
