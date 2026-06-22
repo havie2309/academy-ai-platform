@@ -18,6 +18,7 @@ Optional:
 """
 
 import argparse
+import hashlib
 import os
 import random
 from datetime import datetime, timedelta
@@ -797,25 +798,32 @@ def generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vie
         "answers": answers,
     }
 
+ITERATIONS = os.getenv('PASSWORD_HASH_ITERATIONS') or 100000
+KEY_LENGTH = os.getenv('PASSWORD_HASH_KEY_LENGTH') or 32
+DIGEST = os.getenv('PASSWORD_HASH_ALGORITHM') or 'sha256'
 
-# Dev IAM password: bcrypt cost 10, plaintext "123456" (matches user-management auth)
-BCRYPT_DEV_PASSWORD_HASH = (
-    "$2b$10$jRy9SHKseRYXsQsElQkxbeSd2V9DSBrkqFWhGpHBWkLiSqcJi9ky2"
-)
+def hash_password(password: str) -> str:
+    salt = os.urandom(16).hex()
+    hash_bytes = hashlib.pbkdf2_hmac(DIGEST, password.encode(), salt.encode(), ITERATIONS, KEY_LENGTH)
+    return hash_bytes.hex(), salt
 
-
-def bcrypt_dev_hash(_password: str = "123456") -> str:
-    """Fixed bcrypt hash for reproducible dev seed output."""
-    return BCRYPT_DEV_PASSWORD_HASH
+def verify_password(password: str, hash: str, salt: str) -> bool:
+    computed = hashlib.pbkdf2_hmac(DIGEST, password.encode(), salt.encode(), int(ITERATIONS), KEY_LENGTH)
+    return computed.hex() == hash
 
 
 def generate_iam_data(hoc_vien_list, giang_vien_list):
+    password = '123456'
+    hash, salt = hash_password(password)
     users = [
         {
             "user_id": "USR001",
             "username": "admin",
             "email": "admin@pm2.edu.vn",
-            "password_hash": bcrypt_dev_hash(),
+            "password_hash": hash,
+            "password_salt": salt,
+            "hash_iterations": ITERATIONS,
+            "hash_algorithm": f'pbkdf2_{DIGEST}',
             "fullname": "Quản trị viên",
             "department": "Phòng CNTT",
             "max_security_level": 4,
@@ -825,7 +833,10 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": "USR002",
             "username": "BGD",
             "email": "pgd@pm2.edu.vn",
-            "password_hash": bcrypt_dev_hash(),
+            "password_hash": hash,
+            "password_salt": salt,
+            "hash_iterations": ITERATIONS,
+            "hash_algorithm": f'pbkdf2_{DIGEST}',
             "fullname": "Ban Giám đốc 01",
             "department": "BGD",
             "max_security_level": 4,
@@ -835,7 +846,10 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": "USR003",
             "username": "p2_01",
             "email": "p2_01@pm2.edu.vn",
-            "password_hash": bcrypt_dev_hash(),
+            "password_hash": hash,
+            "password_salt": salt,
+            "hash_iterations": ITERATIONS,
+            "hash_algorithm": f'pbkdf2_{DIGEST}',
             "fullname": "Phòng Đào tạo",
             "department": "P2",
             "max_security_level": 3,
@@ -845,7 +859,10 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": "USR004",
             "username": "khaothi_01",
             "email": "khaothi_01@pm2.edu.vn",
-            "password_hash": bcrypt_dev_hash(),
+            "password_hash": hash,
+            "password_salt": salt,
+            "hash_iterations": ITERATIONS,
+            "hash_algorithm": f'pbkdf2_{DIGEST}',
             "fullname": "Ban Khảo thí 01",
             "department": "BKT",
             "max_security_level": 3,
@@ -867,7 +884,10 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": uid,
             "username": hv["ma_hv"],
             "email": hv["email"],
-            "password_hash": bcrypt_dev_hash(),
+            "password_hash": hash,
+            "password_salt": salt,
+            "hash_iterations": ITERATIONS,
+            "hash_algorithm": f'pbkdf2_{DIGEST}',
             "fullname": hv["ho_ten"],
             "department": hv["ten_nganh"],
             "max_security_level": 1,
@@ -882,7 +902,10 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "user_id": uid,
             "username": gv["ma_gv"],
             "email": gv["email"],
-            "password_hash": bcrypt_dev_hash(),
+            "password_hash": hash,
+            "password_salt": salt,
+            "hash_iterations": ITERATIONS,
+            "hash_algorithm": f'pbkdf2_{DIGEST}',
             "fullname": gv["ho_ten"],
             "department": gv["ten_don_vi"],
             "max_security_level": 2,
@@ -1005,7 +1028,7 @@ def write_iam_seed(path, iam_data, truncate=False):
         if truncate:
             write_truncate_statements(f)
         f.write("-- ============================================\n-- IAM SEED\n-- ============================================\n\n")
-        write_insert_statement(f, "users", ["user_id", "username", "email", "password_hash", "fullname", "department", "max_security_level", "status"], iam_data["users"])
+        write_insert_statement(f, "users", ["user_id", "username", "email", "password_hash", "password_salt", "hash_iterations", "hash_algorithm", "fullname", "department", "max_security_level", "status"], iam_data["users"])
         write_insert_statement(f, "permissions", ["id", "code", "resource", "action", "description"], iam_data["permissions"])
         write_insert_statement(f, "roles", ["id", "name", "code", "description"], iam_data["roles"])
         write_insert_statement(f, "role_permissions", ["role_id", "permission_id"], iam_data["role_permissions"])
