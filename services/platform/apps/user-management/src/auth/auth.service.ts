@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import { UsersService } from '../user/users.service'
+import { RedisService } from '../../../../src/common/redis/redis.service';
 import * as bcrypt from 'bcrypt'
 import { generateRefreshToken, hashRefreshToken } from './auth.tokens'
 
@@ -13,7 +14,29 @@ export class AuthService {
     private readonly users: UsersService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly redis: RedisService,
   ) {}
+
+  // ============================================================
+  // CONFIG GETTERS
+  // ============================================================
+
+  private get maxFailedAttempts(): number {
+      return this.config.get<number>('LOGIN_MAX_ATTEMPTS', 5);
+  }
+
+  private get lockDuration(): number {
+      return this.config.get<number>('LOGIN_LOCK_DURATION', 900);
+  }
+
+  private get lockWindow(): number {
+      return this.config.get<number>('LOGIN_LOCK_WINDOW', 900);
+  }
+
+  private get adminBypassRoles(): string[] {
+      const raw = this.config.get<string>('LOGIN_ADMIN_BYPASS_ROLES', 'ADMIN,BGD,P2');
+      return raw.split(',').map((r) => r.trim()).filter(Boolean);
+  }
 
   private accessExpiresIn(): string {
     return this.config.get<string>('JWT_ACCESS_EXPIRES_IN', '15m')
@@ -62,13 +85,50 @@ export class AuthService {
 
   async login(username: string, password: string, ip: string, userAgent: string) {
     const user = await this.users.findByUsername(username)
+    const isAdmin = user && this.isAdmin(user);
+
+    if (!isAdmin) {
+      const isLocked = await this.redis.isAccountLocked(username);
+      if (isLocked) {
+          const ttl = await this.redis.ttl(`login:locked:${username}`);
+          const remainingMinutes = Math.ceil(ttl / 60);
+          throw new UnauthorizedException(
+              `Tài khoản bị khóa. Vui lòng thử lại sau ${remainingMinutes} phút.`
+          );
+      }
+    }
 
     if (!user) {
+      const attempts = await this.recordFailedAttempt(username);
+      if (attempts >= this.maxFailedAttempts) {
+          await this.redis.lockAccount(username, this.lockDuration);
+          throw new UnauthorizedException(
+              `Tài khoản bị khóa do nhập sai quá ${this.maxFailedAttempts} lần. Vui lòng thử lại sau 15 phút.`
+          );
+      }
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng.')
     }
 
     const valid = await bcrypt.compare(password, user.password_hash)
     if (!valid) {
+      if (!isAdmin) {
+        const attempts = await this.recordFailedAttempt(username);
+        
+        if (attempts >= this.maxFailedAttempts) {
+            await this.redis.lockAccount(username, this.lockDuration);
+            await this.users.logLogin(
+                user.user_id,
+                'login_failed',
+                ip,
+                userAgent,
+                false,
+                `account_locked_after_${attempts}_attempts`
+            );
+            throw new UnauthorizedException(
+                `Tài khoản bị khóa do nhập sai quá ${this.maxFailedAttempts} lần. Vui lòng thử lại sau 15 phút.`
+            );
+        }
+      }
       await this.users.logLogin(
         user.user_id,
         'login_failed',
@@ -91,6 +151,7 @@ export class AuthService {
       ip,
       userAgent,
     )
+    await this.redis.resetFailedAttempts(username);
     await this.users.updateLastLogin(user.user_id)
     await this.users.logLogin(user.user_id, 'login_success', ip, userAgent, true)
 
@@ -146,5 +207,19 @@ export class AuthService {
     }
     await this.users.logLogin(userId, 'logout', ip, userAgent, true)
     return { message: 'Đăng xuất thành công.' }
+  }
+
+  // ============================================================
+  // HELPER METHODS
+  // ============================================================
+
+  private isAdmin(user: any): boolean {
+      if (!user || !user.roles) return false;
+      const roles = Array.isArray(user.roles) ? user.roles : [user.roles];
+      return roles.some((r: string) => this.adminBypassRoles.includes(r));
+  }
+
+  private async recordFailedAttempt(username: string): Promise<number> {
+      return await this.redis.incrementFailedAttempts(username, this.lockWindow);
   }
 }
