@@ -3,8 +3,14 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import { UsersService } from '../user/users.service'
 import { RedisService } from '../../../../src/common/redis/redis.service';
-import * as bcrypt from 'bcrypt'
 import { generateRefreshToken, hashRefreshToken } from './auth.tokens'
+import { randomBytes, pbkdf2Sync } from 'node:crypto';
+
+function verifyPassword(password: string, hash: string, salt: string,
+                        iterations: number, digest: string): boolean {
+    const computed = pbkdf2Sync(password, salt, iterations, hash.length / 2, digest).toString('hex');
+    return computed === hash;
+}
 
 const REFRESH_TTL_DAYS = 7
 
@@ -109,7 +115,12 @@ export class AuthService {
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng.')
     }
 
-    const valid = await bcrypt.compare(password, user.password_hash)
+    if (!user.hash_algorithm.startsWith('pbkdf2')) {
+      throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng.');
+    }
+
+    const valid = await verifyPassword(password, user.password_hash, user.password_salt,
+                                       user.hash_iterations, user.hash_algorithm.split('_')[1])
     if (!valid) {
       if (!isAdmin) {
         const attempts = await this.recordFailedAttempt(username);

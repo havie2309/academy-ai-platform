@@ -1,17 +1,71 @@
-import json
 import hashlib
-import redis
-from app.config import REDIS_HOST, REDIS_PORT, REDIS_PASSWORD, REDIS_DB, REDIS_TTL
+import json
+
+from app.config import (
+    REDIS_DB,
+    REDIS_HOST,
+    REDIS_PASSWORD,
+    REDIS_PORT,
+    REDIS_TTL,
+    SESSION_CONTEXT_TTL,
+)
+
+try:
+    import redis
+except ImportError:  # pragma: no cover - optional local fallback
+    redis = None
+
+
+class _MemoryRedisClient:
+    def __init__(self):
+        self._store: dict[str, str] = {}
+
+    def get(self, key: str):
+        return self._store.get(key)
+
+    def setex(self, key: str, _ttl: int, value: str):
+        self._store[key] = value
+
+    def delete(self, *keys: str):
+        deleted = 0
+        for key in keys:
+            if key in self._store:
+                deleted += 1
+                del self._store[key]
+        return deleted
+
+    def keys(self, pattern: str):
+        if pattern == "*":
+            return list(self._store.keys())
+        prefix = pattern.rstrip("*")
+        return [key for key in self._store if key.startswith(prefix)]
+
+    def dbsize(self):
+        return len(self._store)
+
+    def info(self):
+        return {"used_memory_human": "0", "keyspace_hits": 0, "keyspace_misses": 0}
+
+    def incr(self, key: str):
+        value = int(self._store.get(key, "0")) + 1
+        self._store[key] = str(value)
+        return value
+
+    def expire(self, _key: str, _ttl: int):
+        return True
 
 class RedisCache:
     def __init__(self):
-        self.client = redis.Redis(
-            host=REDIS_HOST,
-            port=REDIS_PORT,
-            password=REDIS_PASSWORD or None,
-            db=REDIS_DB,
-            decode_responses=True
-        )
+        if redis is None:
+            self.client = _MemoryRedisClient()
+        else:
+            self.client = redis.Redis(
+                host=REDIS_HOST,
+                port=REDIS_PORT,
+                password=REDIS_PASSWORD or None,
+                db=REDIS_DB,
+                decode_responses=True
+            )
         self.ttl = REDIS_TTL
 
     def _generate_key(self, prefix: str, *args) -> str:
@@ -63,7 +117,9 @@ class RedisCache:
             return json.loads(data)
         return None
 
-    def set_session_context(self, session_id: str, context: dict, ttl: int = 3600) -> None:
+    def set_session_context(
+        self, session_id: str, context: dict, ttl: int = SESSION_CONTEXT_TTL
+    ) -> None:
         key = f"chat:session:{session_id}"
         self.client.setex(key, ttl, json.dumps(context))
 

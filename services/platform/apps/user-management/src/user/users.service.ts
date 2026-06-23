@@ -23,7 +23,8 @@ export class UsersService implements OnModuleInit {
   async findByUsername(username: string) {
     const { rows: [user] } = await this.pool.query(
       `SELECT u.user_id, u.username, u.email, u.fullname,
-              u.department, u.password_hash, u.status, u.max_security_level,
+              u.department, u.password_hash, u.password_salt,
+              u.hash_iterations, u.hash_algorithm, u.status, u.max_security_level,
               ARRAY_AGG(r.code) FILTER (WHERE r.code IS NOT NULL) AS roles
        FROM users u
        LEFT JOIN user_roles ur ON ur.user_id = u.user_id AND ur.is_active = true

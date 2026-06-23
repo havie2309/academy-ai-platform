@@ -5,9 +5,10 @@ from datetime import datetime, timezone
 import httpx
 from pymongo import MongoClient
 
-from app.chunker import chunk_document
+from app.chunker import chunk_document_parent_child
 from app.config import (
-    CHUNK_MAX_SIZE,
+    CHUNK_MAX_PARENT_SIZE,
+    CHUNK_MAX_CHILD_SIZE,
     CHUNK_OVERLAP,
     EMBEDDING_BATCH_SIZE,
     EMBEDDING_BASE_URL,
@@ -181,71 +182,102 @@ async def process_document(job: dict) -> dict:
             raise ValueError("Không trích xuất được nội dung từ file.")
 
         _update_job(db, document_id, status="processing", stage="chunk")
-        chunks = chunk_document(raw_text, CHUNK_MAX_SIZE, CHUNK_OVERLAP)
-        if not chunks:
+        chunk_result = chunk_document_parent_child(
+            raw_text,
+            max_child_size=CHUNK_MAX_CHILD_SIZE,
+            max_parent_size=CHUNK_MAX_PARENT_SIZE,
+            overlap=CHUNK_OVERLAP
+        )
+    
+        parent_nodes = chunk_result["parent_nodes"]
+        child_nodes = chunk_result["child_nodes"]
+        
+        if not child_nodes:
             raise ValueError("Không tạo được chunk từ nội dung.")
 
         _update_job(db, document_id, status="processing", stage="embed")
-        vectors = await embed_texts([c.text for c in chunks])
+        vectors = await embed_texts([c["text"] for c in child_nodes])
 
-        if len(vectors) != len(chunks):
+        if len(vectors) != len(child_nodes):
             raise ValueError(
-                f"Embedding lệch số lượng: {len(vectors)} vector vs {len(chunks)} chunk."
+                f"Embedding lệch số lượng: {len(vectors)} vector vs {len(child_nodes)} chunk."
             )
 
         security_level = job.get("securityLevel", "internal")
         security_rank = SECURITY_RANK.get(security_level, 2)
 
         _update_job(db, document_id, status="processing", stage="index")
-        chunk_ids: list[str] = []
-        document_ids: list[str] = []
-        security_ranks: list[int] = []
-        mongo_docs: list[dict] = []
-
-        for idx, chunk in enumerate(chunks):
-            chunk_id = str(uuid.uuid4())
-            chunk_ids.append(chunk_id)
-            document_ids.append(document_id)
-            security_ranks.append(security_rank)
-            metadata = {
-                "title": title,
-                "securityLevel": security_level,
-                "scopeType": job.get("scopeType", "all"),
-                "accessRoleCodes": job.get("accessRoleCodes", []),
-                "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
-                "accessUserIds": job.get("accessUserIds", []),
-                "uploadedById": job.get("uploadedById", ""),
-                "accessPolicy": {
+        # Store parent nodes
+        parent_docs = []
+        for idx, parent in enumerate(parent_nodes):
+            parent_docs.append({
+                "chunkId": parent["id"],
+                "documentId": document_id,
+                "chunkType": "parent",
+                "chunkText": parent["text"],
+                "chunkIndex": -idx - 1,  # -1, -2, -3 ... unique per parent
+                "metadata": {
+                    **parent["metadata"],
+                    "title": title,
                     "securityLevel": security_level,
                     "scopeType": job.get("scopeType", "all"),
-                    "roleCodes": job.get("accessRoleCodes", []),
-                    "departmentCodes": job.get("accessDepartmentCodes", []),
-                    "userIds": job.get("accessUserIds", []),
+                    "accessRoleCodes": job.get("accessRoleCodes", []),
+                    "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
+                    "accessUserIds": job.get("accessUserIds", []),
+                    "uploadedById": job.get("uploadedById", ""),
+                    "childIds": parent.get("child_ids", []),
                 },
-            }
-            if chunk.section_path:
-                metadata["sectionPath"] = chunk.section_path
-            mongo_docs.append(
-                {
-                    "chunkId": chunk_id,
-                    "documentId": document_id,
-                    "chunkIndex": idx,
-                    "chunkText": chunk.text,
-                    "metadata": metadata,
-                    "createdAt": _utcnow(),
-                }
-            )
-
+                "createdAt": _utcnow(),
+            })
+        
+        # Store child nodes
+        child_docs = []
+        for child, vector in zip(child_nodes, vectors):
+            child_docs.append({
+                "chunkId": child["id"],
+                "documentId": document_id,
+                "parentId": child["parent_id"],
+                "chunkType": "child",
+                "chunkText": child["text"],
+                "chunkIndex": idx,       # 0, 1, 2 ...
+                "metadata": {
+                    **child["metadata"],
+                    "title": title,
+                    "securityLevel": security_level,
+                    "scopeType": job.get("scopeType", "all"),
+                    "accessRoleCodes": job.get("accessRoleCodes", []),
+                    "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
+                    "accessUserIds": job.get("accessUserIds", []),
+                    "uploadedById": job.get("uploadedById", ""),
+                },
+                "vector": vector,  # For Milvus
+                "createdAt": _utcnow(),
+            })
+        
+        # Insert to MongoDB
+        if parent_docs:
+            db.document_chunks.insert_many(parent_docs)
+        if child_docs:
+            db.document_chunks.insert_many(child_docs)
+        
+        chunk_ids = [c["id"] for c in child_nodes]
+        document_ids = [document_id] * len(child_nodes)
+        security_ranks = [SECURITY_RANK.get(security_level, 2)] * len(child_nodes)
+        
         milvus_ids = insert_vectors(chunk_ids, document_ids, security_ranks, vectors)
         for i, mid in enumerate(milvus_ids):
-            mongo_docs[i]["milvusVectorId"] = str(mid)
-
-        if mongo_docs:
-            db.document_chunks.insert_many(mongo_docs)
-
-        # Bản mới đã ghi xong → xóa phần cũ (và vector/chunk mồ côi từ lần ingest lỗi trước).
+            child_docs[i]["milvusVectorId"] = str(mid)
+            db.document_chunks.update_one(
+                {"chunkId": child_docs[i]["chunkId"]},
+                {"$set": {"milvusVectorId": str(mid)}}
+            )
+        
         db.document_chunks.delete_many(
-            {"documentId": document_id, "chunkId": {"$nin": chunk_ids}}
+            {"documentId": document_id, "chunkType": "child", "chunkId": {"$nin": chunk_ids}}
+        )
+        # Also clean up orphaned parents
+        db.document_chunks.delete_many(
+            {"documentId": document_id, "chunkType": "parent"}
         )
         delete_document_except(document_id, chunk_ids)
 
@@ -254,9 +286,13 @@ async def process_document(job: dict) -> dict:
             document_id,
             status="completed",
             stage="done",
-            chunk_count=len(chunks),
+            chunk_count=len(child_nodes),
         )
-        return {"documentId": document_id, "chunkCount": len(chunks), "status": "completed"}
+        
+        return {"documentId": document_id,
+                "chunkCount": len(child_nodes),
+                "parentCount": len(parent_nodes),
+                "status": "completed"}
 
     except Exception as exc:
         _update_job(
