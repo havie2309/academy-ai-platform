@@ -19,6 +19,10 @@ export class AuditService {
       status?: string
       action?: string
       resourceType?: string
+      userId?: string
+      resourceId?: string
+      from?: string
+      to?: string
       limit?: string
     },
   ) {
@@ -38,8 +42,24 @@ export class AuditService {
       params.push(filters.resourceType.trim())
       clauses.push(`resource_type = $${params.length}`)
     }
+    if (filters.userId?.trim()) {
+      params.push(filters.userId.trim())
+      clauses.push(`user_id = $${params.length}`)
+    }
+    if (filters.resourceId?.trim()) {
+      params.push(filters.resourceId.trim())
+      clauses.push(`resource_id = $${params.length}`)
+    }
+    if (filters.from?.trim()) {
+      params.push(filters.from.trim())
+      clauses.push(`created_at >= $${params.length}`)
+    }
+    if (filters.to?.trim()) {
+      params.push(filters.to.trim())
+      clauses.push(`created_at <= $${params.length}`)
+    }
 
-    const limit = Math.max(1, Math.min(200, Number(filters.limit ?? 50) || 50))
+    const limit = Math.max(1, Math.min(500, Number(filters.limit ?? 50) || 50))
     params.push(limit)
 
     const { rows } = await this.pg.query(

@@ -2,11 +2,14 @@ import json
 import re
 import unicodedata
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.cache import RedisCache
+from app.config import SESSION_CONTEXT_MAX_MESSAGES
 from app.generate import LlmError, complete_chat_structured
 from app.retrieval import retrieve_citations
 from app.router import classify_route
@@ -20,6 +23,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="RAG Engine", version="0.3.0", lifespan=lifespan)
+session_cache = RedisCache()
 
 
 class RetrieveUser(BaseModel):
@@ -44,6 +48,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     query: str = Field(..., min_length=1)
+    sessionId: str | None = None
     messages: list[ChatMessage] = []
     user: RetrieveUser | None = None
 
@@ -258,6 +263,81 @@ def _select_used_citations(
     return deduped
 
 
+def _normalize_history_messages(messages: list[dict]) -> list[dict]:
+    normalized: list[dict] = []
+    for message in messages:
+        role = str(message.get("role") or "").strip().lower()
+        content = _compact_ws(message.get("content"))
+        if role not in {"user", "assistant"} or not content:
+            continue
+        normalized.append({"role": role, "content": content})
+    return normalized[-SESSION_CONTEXT_MAX_MESSAGES:]
+
+
+def _read_session_context(session_id: str | None) -> dict | None:
+    sid = _compact_ws(session_id)
+    if not sid:
+        return None
+    try:
+        payload = session_cache.get_session_context(sid)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    messages = _normalize_history_messages(list(payload.get("messages") or []))
+    return {
+        "sessionId": sid,
+        "userId": _compact_ws(payload.get("userId")),
+        "messages": messages,
+        "lastRoute": _compact_ws(payload.get("lastRoute")) or None,
+        "updatedAt": _compact_ws(payload.get("updatedAt")),
+    }
+
+
+def _resolve_chat_history(
+    session_id: str | None,
+    query: str,
+    incoming_messages: list[dict],
+) -> list[dict]:
+    history = _normalize_history_messages(incoming_messages)
+    if not history:
+        cached = _read_session_context(session_id)
+        history = list((cached or {}).get("messages") or [])
+
+    query_text = _compact_ws(query)
+    if query_text:
+        if not history or history[-1]["role"] != "user" or history[-1]["content"] != query_text:
+            history = [*history, {"role": "user", "content": query_text}]
+
+    return history[-SESSION_CONTEXT_MAX_MESSAGES:]
+
+
+def _write_session_context(
+    session_id: str | None,
+    user: dict,
+    history: list[dict],
+    answer: str,
+    route: str,
+) -> None:
+    sid = _compact_ws(session_id)
+    if not sid:
+        return
+    messages = _normalize_history_messages(
+        [*history, {"role": "assistant", "content": _compact_ws(answer)}]
+    )
+    payload = {
+        "sessionId": sid,
+        "userId": _compact_ws(user.get("userId")),
+        "messages": messages,
+        "lastRoute": route,
+        "updatedAt": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        session_cache.set_session_context(sid, payload)
+    except Exception:
+        return
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "rag-engine"}
@@ -294,20 +374,39 @@ async def sql_query(body: ChatRequest, request: Request):
 async def chat(body: ChatRequest, request: Request):
     """RAG or SQL turn based on lightweight intent router."""
     user = _resolved_user(body.user, request)
+    history = _resolve_chat_history(
+        body.sessionId,
+        body.query,
+        [m.model_dump() for m in body.messages],
+    )
     refusal = await maybe_refuse_query(body.query, user)
     if refusal:
+        _write_session_context(
+            body.sessionId,
+            user,
+            history,
+            str(refusal.get("answer") or ""),
+            "refusal",
+        )
         return refusal
     route = classify_route(body.query)
     if route == "sql":
         try:
-            return await run_sql_query(body.query, user)
+            result = await run_sql_query(body.query, user)
+            _write_session_context(
+                body.sessionId,
+                user,
+                history,
+                str(result.get("answer") or ""),
+                "sql",
+            )
+            return result
         except SqlPipelineError as exc:
             raise HTTPException(
                 403 if exc.status == "deny" else 502,
                 str(exc),
             ) from exc
 
-    history = [m.model_dump() for m in body.messages]
     try:
         citations = await retrieve_citations(body.query, user)
     except Exception as exc:
@@ -324,6 +423,7 @@ async def chat(body: ChatRequest, request: Request):
     )
     if _is_no_info_answer(answer):
         selected = []
+    _write_session_context(body.sessionId, user, history, answer, "rag")
     return {
         "answer": answer,
         "citations": _client_citations(selected),
@@ -337,10 +437,16 @@ async def chat_stream(body: ChatRequest, request: Request):
     user = _resolved_user(body.user, request)
     refusal = await maybe_refuse_query(body.query, user)
     route = "refusal" if refusal else classify_route(body.query)
+    history = _resolve_chat_history(
+        body.sessionId,
+        body.query,
+        [m.model_dump() for m in body.messages],
+    )
 
     async def event_source():
         if refusal:
             answer = str(refusal.get("answer") or "")
+            _write_session_context(body.sessionId, user, history, answer, "refusal")
             yield _sse("meta", {"citations": [], "route": "refusal"})
             step = 24
             for i in range(0, len(answer), step):
@@ -355,6 +461,7 @@ async def chat_stream(body: ChatRequest, request: Request):
                 yield _sse("error", {"message": str(exc)})
                 return
             answer = result.get("answer", "")
+            _write_session_context(body.sessionId, user, history, answer, "sql")
             yield _sse("meta", {"citations": [], "route": "sql"})
             step = 24
             for i in range(0, len(answer), step):
@@ -362,7 +469,6 @@ async def chat_stream(body: ChatRequest, request: Request):
             yield _sse("done", {"answer": answer, "route": "sql"})
             return
 
-        history = [m.model_dump() for m in body.messages]
         try:
             citations = await retrieve_citations(body.query, user)
         except Exception as exc:
@@ -385,6 +491,7 @@ async def chat_stream(body: ChatRequest, request: Request):
         )
         if _is_no_info_answer(answer):
             selected = []
+        _write_session_context(body.sessionId, user, history, answer, "rag")
         yield _sse("meta", {"citations": _client_citations(selected), "route": "rag"})
 
         # Keep SSE contract by emitting small deltas while preserving formatting.

@@ -245,7 +245,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     for row in filtered_parents:
         # Find the score from the original child hit
         child_meta = row.get("metadata", {})
-        child_ids = child_meta.get("child_ids", [])
+        child_ids = child_meta.get("childIds", [])
         
         # Use the best score from child hits
         best_score = None

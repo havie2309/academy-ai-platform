@@ -27,7 +27,7 @@ export class IngestQueueService implements OnModuleInit {
   private readonly rabbitmqUrl: string;
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get('RABBITMQ_HOST', 'localhost');
+    const host = this.config.get('RABBITMQ_HOST', '127.0.0.1');
     const port = this.config.get('RABBITMQ_PORT', '5672');
     const user = this.config.get('RABBITMQ_USER', 'pm2_user');
     const pass = this.config.get('RABBITMQ_PASSWORD', 'pm2pass');
@@ -36,44 +36,89 @@ export class IngestQueueService implements OnModuleInit {
     this.rabbitmqUrl = `amqp://${user}:${pass}@${host}:${port}`;
   }
 
+  private resetChannel() {
+    this.channel = null;
+  }
+
+  private async createChannel(): Promise<amqp.Channel> {
+    if (!this.connection) {
+      throw new Error('RabbitMQ connection is not ready');
+    }
+    const channel = await this.connection.createChannel();
+    channel.on('error', (err) => {
+      this.logger.warn(`RabbitMQ channel error: ${err.message}`);
+      this.resetChannel();
+    });
+    channel.on('close', () => {
+      this.resetChannel();
+    });
+    return channel;
+  }
+
   async onModuleInit() {
     try {
       this.connection = await amqp.connect(this.rabbitmqUrl);
-      this.channel = await this.connection.createChannel();
-      await this.channel.assertQueue(this.queueName, {
-        durable: true,
-        arguments: {
-          'x-dead-letter-exchange': '',
-          'x-dead-letter-routing-key': this.dlqName,
-        }
+      this.connection.on('error', (err) => {
+        this.logger.warn(`RabbitMQ connection error: ${err.message}`);
+        this.connection = null;
+        this.resetChannel();
       });
+      this.connection.on('close', () => {
+        this.connection = null;
+        this.resetChannel();
+      });
+
+      this.channel = await this.createChannel();
+
+      let queueExists = false;
+      try {
+        await this.channel.checkQueue(this.queueName);
+        queueExists = true;
+        this.logger.log(`Using existing RabbitMQ queue=${this.queueName}`);
+      } catch {
+        queueExists = false;
+      }
+
+      if (!queueExists) {
+        await this.channel.assertQueue(this.dlqName, { durable: true });
+        await this.channel.assertQueue(this.queueName, {
+          durable: true,
+          arguments: {
+            'x-dead-letter-exchange': '',
+            'x-dead-letter-routing-key': this.dlqName,
+          },
+        });
+        this.logger.log(`Created RabbitMQ queue=${this.queueName} with DLQ=${this.dlqName}`);
+      }
+
       this.logger.log(`Connected to RabbitMQ, queue=${this.queueName}`);
     } catch (err) {
-      this.logger.error('RabbitMQ connection failed:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`RabbitMQ unavailable, ingest will use HTTP fallback: ${message}`);
+      this.connection = null;
+      this.resetChannel();
     }
   }
 
   async enqueue(job: IngestJobPayload): Promise<void> {
     if (!this.channel) {
       this.logger.warn('Channel not ready, falling back to HTTP');
-      // Optional: Fallback to HTTP if RabbitMQ is down
       return this.enqueueHttp(job);
     }
 
     this.logger.log(`Publishing to queue=${this.queueName}, doc=${job.documentId}`);
-    
+
     this.channel.sendToQueue(
       this.queueName,
       Buffer.from(JSON.stringify(job)),
-      { persistent: true }
+      { persistent: true },
     );
-    
+
     this.logger.log(`Published job documentId=${job.documentId}`);
   }
 
-  // Keep HTTP fallback
   private async enqueueHttp(job: IngestJobPayload): Promise<void> {
-    const url = this.config.get('DOCUMENT_PROCESSOR_URL', 'http://localhost:8003');
+    const url = this.config.get('DOCUMENT_PROCESSOR_URL', 'http://127.0.0.1:8003');
     const res = await fetch(`${url}/v1/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

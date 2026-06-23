@@ -50,6 +50,7 @@ export class RagService {
     query: string,
     messages: RagMessage[],
     user: RagUserContext,
+    sessionId?: string,
   ): Promise<RagChatResult> {
     if (!this.enabled) throw new Error('RAG disabled')
 
@@ -58,6 +59,7 @@ export class RagService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
+        sessionId: sessionId ?? null,
         messages,
         user: {
           userId: user.userId,
@@ -97,6 +99,7 @@ export class RagService {
     query: string,
     messages: RagMessage[],
     user: RagUserContext,
+    sessionId: string | undefined,
     onMeta: (citations: ChatCitationDto[], metaRoute?: string) => void,
     onToken: (delta: string) => void,
   ): Promise<RagChatResult> {
@@ -107,6 +110,7 @@ export class RagService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         query,
+        sessionId: sessionId ?? null,
         messages,
         user: {
           userId: user.userId,
