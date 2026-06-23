@@ -46,6 +46,7 @@ async def embed_query(text: str) -> list[float]:
 
 
 def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dict:
+    """Build citation from parent node (for LLM context)."""
     meta = row.get("metadata", {})
     text = row.get("chunkText", "")
     snippet = text[:280] + ("…" if len(text) > 280 else "")
@@ -58,7 +59,7 @@ def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dic
         "source": meta.get("title", "Kho tài liệu"),
         "score": vector_score,
     }
-    section_path = meta.get("sectionPath")
+    section_path = meta.get("sectionPath") or meta.get("section_path")
     if section_path:
         citation["section_path"] = section_path
     return citation
@@ -165,6 +166,13 @@ def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
 
 
 async def retrieve_citations(query: str, user: dict) -> list[dict]:
+    """
+    Retrieve citations using Parent-Child strategy:
+    1. Search child nodes (small chunks) in Milvus
+    2. Get parent IDs from child hits
+    3. Retrieve parent nodes (full context) from MongoDB
+    4. Return parent nodes as citations (LLM gets full context)
+    """
     query = query.strip()
     if not query:
         return []
@@ -189,31 +197,68 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     if not hits:
         return []
 
-    chunk_ids = [h["chunk_id"] for h in hits if h.get("chunk_id")]
-    if not chunk_ids:
+    child_chunk_ids = [h["chunk_id"] for h in hits if h.get("chunk_id")]
+    if not child_chunk_ids:
         return []
 
     client = MongoClient(MONGO_URI)
     db = client[MONGO_DB]
     try:
-        rows = list(db.document_chunks.find({"chunkId": {"$in": chunk_ids}}))
+        child_rows = list(db.document_chunks.find({
+            "chunkId": {"$in": child_chunk_ids},
+            "chunkType": "child"  # Only search child nodes
+        }))
     finally:
         client.close()
 
-    by_id = {r["chunkId"]: r for r in rows}
-    candidates: list[dict] = []
+    if not child_rows:
+        return []
 
-    for hit in hits:
-        chunk_id = hit.get("chunk_id")
-        row = by_id.get(chunk_id)
-        if not row:
-            continue
+    parent_ids = list(set([
+        row.get("parentId") for row in child_rows 
+        if row.get("parentId")
+    ]))
+
+    if not parent_ids:
+        return []
+
+    client = MongoClient(MONGO_URI)
+    db = client[MONGO_DB]
+    try:
+        parent_rows = list(db.document_chunks.find({
+            "chunkId": {"$in": parent_ids},
+            "chunkType": "parent"
+        }))
+    finally:
+        client.close()
+
+    filtered_parents = []
+    for row in parent_rows:
         meta = row.get("metadata", {})
-        if not can_view_chunk(meta, user):
-            continue
-        candidates.append(_build_citation(row, chunk_id, hit.get("score")))
+        if can_view_chunk(meta, user):
+            filtered_parents.append(row)
 
-    reranked = await rerank_citations(query, candidates)
+    if not filtered_parents:
+        return []
+
+    citations = []
+    for row in filtered_parents:
+        # Find the score from the original child hit
+        child_meta = row.get("metadata", {})
+        child_ids = child_meta.get("child_ids", [])
+        
+        # Use the best score from child hits
+        best_score = None
+        for hit in hits:
+            if hit.get("chunk_id") in child_ids:
+                score = hit.get("score")
+                if best_score is None or (score and score > best_score):
+                    best_score = score
+        
+        citation = _build_citation(row, row.get("chunkId"), best_score)
+        citations.append(citation)
+
+    reranked = await rerank_citations(query, citations)
     selected = _apply_score_thresholds(reranked)
     selected = _filter_old_conflict_docs(query, selected)
     selected = _apply_year_policy(query, selected)

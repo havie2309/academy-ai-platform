@@ -25,7 +25,8 @@ INGEST_ALLOW_DIRECT_FALLBACK = (
     os.getenv("INGEST_ALLOW_DIRECT_FALLBACK", "true").lower() != "false"
 )
 
-CHUNK_MAX_SIZE = int(os.getenv("CHUNK_MAX_SIZE", "500"))
+CHUNK_MAX_PARENT_SIZE = int(os.getenv("CHUNK_MAX_PARENT_SIZE", "1000"))
+CHUNK_MAX_CHILD_SIZE = int(os.getenv("CHUNK_MAX_CHILD_SIZE", "200"))
 CHUNK_OVERLAP = float(os.getenv("CHUNK_OVERLAP", "0.2"))
 # Embedding API currently accepts max 64 texts/request.
 EMBEDDING_BATCH_SIZE = int(os.getenv("EMBEDDING_BATCH_SIZE", "32"))

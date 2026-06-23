@@ -15,7 +15,7 @@ db.createCollection("system_configs");
 db.createCollection("user_feedback");
 
 // Indexes
-db.document_chunks.createIndex({ documentId: 1, chunkIndex: 1 }, { unique: true });
+db.document_chunks.createIndex({ documentId: 1, chunkIndex: 1 });
 db.document_chunks.createIndex({ milvusVectorId: 1 }, { unique: true, sparse: true });
 db.document_chunks.createIndex({ "metadata.ownerUnitCode": 1 });
 db.document_chunks.createIndex({ "metadata.securityLevel": 1 });
