@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { authApi } from "../api/auth";
-import { User, Lock, AlertCircle, GraduationCap } from "lucide-react";
+import { User, Lock, AlertCircle, GraduationCap, LogIn } from "lucide-react";
 import { isAdminLikeRole } from "../lib/authz";
 import "./LoginPage.css";
 
@@ -33,6 +33,13 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function enterAsGuest() {
+    // Clear any existing session (optional)
+    authApi.clearLocalSession();
+    // Navigate to chat – the app will treat as anonymous
+    navigate("/chat");
   }
 
   return (
@@ -98,6 +105,20 @@ export default function LoginPage() {
             {loading ? "Đang xác thực…" : "Đăng nhập"}
           </button>
         </form>
+
+        <div className="login-divider">
+          <span>hoặc</span>
+        </div>
+
+        <button
+          type="button"
+          className="guest-btn"
+          onClick={enterAsGuest}
+          data-testid="login-guest"
+        >
+          <LogIn size={16} />
+          Tiếp tục với tư cách khách
+        </button>
 
         <p className="login-footer">
           Hệ thống nội bộ — chỉ dành cho cán bộ, giảng viên và học viên được cấp quyền.

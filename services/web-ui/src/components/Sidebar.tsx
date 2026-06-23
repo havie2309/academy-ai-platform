@@ -7,6 +7,7 @@ import {
   Plus,
   GraduationCap,
   LogOut,
+  LogIn,
   Trash2,
 } from 'lucide-react'
 import { useNavigate, useLocation, useParams } from 'react-router-dom'
@@ -21,16 +22,22 @@ export default function Sidebar() {
   const { sessions, loading, removeSession } = useChatSessions()
 
   const user = authApi.getUser()
-  const displayName = user?.full_name ?? 'Khách'
-  const displayEmail = user?.username ? `${user.username}@academy.edu` : ''
-  const avatarLetter = displayName.charAt(0).toUpperCase()
-  const isAdmin = isAdminLikeRole(user?.roles)
+  const isAuthenticated = authApi.isAuthenticated()
+  const isAnonymous = !isAuthenticated || user?.id === 'anonymous'
 
+  const displayName = isAnonymous ? 'Khách' : (user?.full_name ?? 'Khách')
+  const displayEmail = isAnonymous
+    ? 'guest@academy.edu'
+    : (user?.username ? `${user.username}@academy.edu` : '')
+  const avatarLetter = displayName.charAt(0).toUpperCase()
+  const isAdmin = !isAnonymous && isAdminLikeRole(user?.roles)
+
+  // Navigation items based on auth state
   const navItems = [
-    { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
-    { icon: FileText, label: 'Tài liệu', href: '/docs' },
-    ...(isAdmin ? [{ icon: LayoutDashboard, label: 'Dashboard', href: '/admin' }] : []),
-    { icon: Settings, label: 'Cài đặt', href: '/settings' },
+    { icon: MessageSquare, label: 'Chat AI', href: '/chat', public: true },
+    { icon: FileText, label: 'Tài liệu', href: '/docs', public: true },
+    ...(isAdmin ? [{ icon: LayoutDashboard, label: 'Dashboard', href: '/admin', public: false }] : []),
+    ...(!isAnonymous ? [{ icon: Settings, label: 'Cài đặt', href: '/settings', public: false }] : []),
   ]
 
   const handleNewChat = () => {
@@ -49,8 +56,18 @@ export default function Sidebar() {
     if (activeSessionId === id) navigate('/chat')
   }
 
+  const handleLogin = () => {
+    navigate('/login')
+  }
+
+  const handleLogout = async () => {
+    await authApi.logout()
+    navigate('/login')
+  }
+
   return (
     <aside className="w-64 shrink-0 flex flex-col h-full bg-white border-r border-slate-200/80 shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+      {/* Logo */}
       <div className="px-5 pt-6 pb-5">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center shrink-0 shadow-md shadow-blue-600/20 text-white">
@@ -65,6 +82,7 @@ export default function Sidebar() {
         </div>
       </div>
 
+      {/* New Chat – visible even for anonymous, but will show login prompt if not authenticated */}
       <div className="px-4 pb-4">
         <button
           type="button"
@@ -77,6 +95,7 @@ export default function Sidebar() {
         </button>
       </div>
 
+      {/* Navigation */}
       <div className="px-3 space-y-2">
         {navItems.map(({ icon: Icon, label, href }) => {
           const isActive =
@@ -101,6 +120,7 @@ export default function Sidebar() {
         })}
       </div>
 
+      {/* Chat History – still visible for anonymous (public sessions) */}
       <div className="flex-1 overflow-y-auto px-3 mt-6">
         <div className="px-3 py-2">
           <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
@@ -110,7 +130,9 @@ export default function Sidebar() {
         <div className="space-y-1">
           {loading && <p className="px-3 py-2 text-xs text-slate-400">Đang tải…</p>}
           {!loading && sessions.length === 0 && (
-            <p className="px-3 py-2 text-xs text-slate-400">Chưa có hội thoại</p>
+            <p className="px-3 py-2 text-xs text-slate-400">
+              {isAnonymous ? 'Đăng nhập để xem lịch sử' : 'Chưa có hội thoại'}
+            </p>
           )}
           {sessions.map((item) => {
             const isActive = activeSessionId === item.id
@@ -129,21 +151,24 @@ export default function Sidebar() {
                 >
                   {item.title}
                 </button>
-                <button
-                  type="button"
-                  onClick={(e) => handleDeleteSession(e, item.id)}
-                  data-testid={`sidebar-delete-session-${item.id}`}
-                  className="absolute right-1 p-1 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
-                  title="Xóa hội thoại"
-                >
-                  <Trash2 size={12} />
-                </button>
+                {!isAnonymous && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleDeleteSession(e, item.id)}
+                    data-testid={`sidebar-delete-session-${item.id}`}
+                    className="absolute right-1 p-1 rounded opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition-all"
+                    title="Xóa hội thoại"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
               </div>
             )
           })}
         </div>
       </div>
 
+      {/* User Profile / Auth */}
       <div className="p-4 border-t border-slate-100 bg-slate-50/50">
         <div className="flex items-center gap-3 px-1">
           <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
@@ -155,18 +180,28 @@ export default function Sidebar() {
             </p>
             <p className="text-slate-400 text-[11px] truncate">{displayEmail}</p>
           </div>
-          <button
-            type="button"
-            onClick={async () => {
-              await authApi.logout()
-              navigate('/login')
-            }}
-            data-testid="sidebar-logout"
-            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all shrink-0"
-            title="Đăng xuất"
-          >
-            <LogOut size={15} />
-          </button>
+
+          {isAnonymous ? (
+            <button
+              type="button"
+              onClick={handleLogin}
+              data-testid="sidebar-login"
+              className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-500 hover:text-blue-700 transition-all shrink-0"
+              title="Đăng nhập"
+            >
+              <LogIn size={15} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleLogout}
+              data-testid="sidebar-logout"
+              className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all shrink-0"
+              title="Đăng xuất"
+            >
+              <LogOut size={15} />
+            </button>
+          )}
         </div>
       </div>
     </aside>

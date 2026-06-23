@@ -19,6 +19,10 @@ export interface GatewayRequest extends Request {
   gatewayUser?: GatewayUser
 }
 
+// ============================================================
+// PUBLIC ROUTES – no authentication required
+// ============================================================
+
 const PUBLIC_ROUTES = new Set([
   '/api/health',
   '/api/auth/login',
@@ -27,10 +31,16 @@ const PUBLIC_ROUTES = new Set([
   '/api/rbac/health',
   '/api/audit/health',
 ])
+
+// Prefix-based public routes
+const PUBLIC_PREFIXES = [
+  '/api/documents/public',   // Public document endpoints
+]
+
 const PROTECTED_PREFIXES = [
   '/api/users',
   '/api/chat',
-  '/api/documents',
+  '/api/documents',          // Protected by default, except /public
   '/api/rag',
   '/api/admin-config',
   '/api/rbac',
@@ -48,9 +58,25 @@ function normalizePath(pathname: string): string {
   return clean
 }
 
-export function isProtectedPath(pathname: string): boolean {
+// ============================================================
+// NEW: Check if path is public
+// ============================================================
+
+function isPublicPath(pathname: string, method?: string): boolean {
   const path = normalizePath(pathname)
-  if (PUBLIC_ROUTES.has(path)) return false
+  if (PUBLIC_ROUTES.has(path)) return true
+  if (method === 'GET' && path.startsWith('/api/documents')) {
+    return true
+  }
+  for (const prefix of PUBLIC_PREFIXES) {
+    if (path.startsWith(prefix)) return true
+  }
+  return false
+}
+
+export function isProtectedPath(pathname: string, method?: string): boolean {
+  if (isPublicPath(pathname, method)) return false
+  const path = normalizePath(pathname)
   if (PROTECTED_ROUTES.has(path)) return true
   return PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix))
 }
@@ -100,6 +126,23 @@ function rejectUnauthorized(req: Request, res: Response): void {
   res.status(401).json({ message: UNAUTHORIZED_MESSAGE })
 }
 
+// ============================================================
+// NEW: Create anonymous user context
+// ============================================================
+
+function createAnonymousUser(req: Request): GatewayUser {
+  return {
+    userId: 'anonymous',
+    username: 'anonymous',
+    roles: ['Anonymous'],
+    normalizedRoles: ['ANONYMOUS'],
+    department: null,
+    maxSecurityLevel: 1,
+    scopeMaHv: null,
+    scopeMaGv: null,
+  }
+}
+
 export function createGatewayAuthMiddleware(jwtSecret: string) {
   const jwt = new JwtService({ secret: jwtSecret })
 
@@ -109,33 +152,39 @@ export function createGatewayAuthMiddleware(jwtSecret: string) {
       return
     }
 
-    if (!isProtectedPath(req.path || req.originalUrl || req.url)) {
-      next()
-      return
-    }
-
     const token = readBearerToken(req)
-    if (!token) {
-      rejectUnauthorized(req, res)
+
+    // 1. If a token is provided, try to validate it
+    if (token) {
+      try {
+        const payload = jwt.verify<GatewayJwtPayload>(token)
+        const user = await toGatewayUser(payload)
+        if (user) {
+          req.gatewayUser = user
+          next()
+          return
+        }
+      } catch {
+        // Token invalid – fall through to public/anonymous handling
+      }
+    }
+
+    // 2. No valid token – check if route is public
+    if (isPublicPath(req.path || req.originalUrl || req.url, req.method)) {
+      req.gatewayUser = createAnonymousUser(req)
+      next()
       return
     }
 
-    try {
-      const payload = jwt.verify<GatewayJwtPayload>(token)
-      const user = await toGatewayUser(payload)
-      if (!user) {
-        rejectUnauthorized(req, res)
-        return
-      }
-      req.gatewayUser = user
-      next()
-    } catch {
-      rejectUnauthorized(req, res)
-    }
+    // 3. Not public and no valid token → reject
+    rejectUnauthorized(req, res)
   }
 }
 
-export function attachGatewayUserHeaders(req: GatewayRequest, setHeader: (name: string, value: string) => void): void {
+export function attachGatewayUserHeaders(
+  req: GatewayRequest,
+  setHeader: (name: string, value: string) => void,
+): void {
   const user = req.gatewayUser
   if (!user) return
 

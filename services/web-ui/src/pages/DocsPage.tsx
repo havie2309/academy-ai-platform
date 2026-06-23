@@ -16,6 +16,7 @@ import {
   Users,
   Lock,
   EyeOff,
+  LogIn,
 } from 'lucide-react'
 import {
   docsApi,
@@ -482,6 +483,7 @@ function isSupportedUploadFile(file: File): boolean {
 export default function DocsPage() {
   const currentUser = authApi.getUser()
   const isAdmin = isAdminLikeRole(currentUser?.roles)
+  const isAnonymous = !authApi.isAuthenticated() || currentUser?.id === 'anonymous'
 
   const [activeTab, setActiveTab] = useState<'documents' | 'vungdulieu'>('documents')
 
@@ -697,6 +699,8 @@ export default function DocsPage() {
         onChange={onFileChosen}
       />
 
+      
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
@@ -707,12 +711,14 @@ export default function DocsPage() {
             Tra cứu và tải lên kho tài nguyên học tập, quy chế đào tạo nội bộ.
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Hỗ trợ file PDF, DOCX, PPTX, XLSX và TXT để tải lên.
+            {isAnonymous
+              ? 'Bạn đang xem với tư cách khách. Đăng nhập để tải lên và xem thêm.'
+              : 'Hỗ trợ file PDF, DOCX, PPTX, XLSX và TXT để tải lên.'}
           </p>
         </div>
 
-        {/* Only show Upload button on Documents tab */}
-        {activeTab === 'documents' && (
+        {/* Show upload button only when authenticated AND on documents tab */}
+        {activeTab === 'documents' && !isAnonymous && (
           <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
             <div className="relative w-full md:w-72 shrink-0">
               <input
@@ -732,6 +738,14 @@ export default function DocsPage() {
               <Upload size={16} />
               Tải lên
             </button>
+          </div>
+        )}
+
+        {/* If anonymous and on documents tab, show login prompt instead of upload */}
+        {activeTab === 'documents' && isAnonymous && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-4 py-2 rounded-xl">
+            <LogIn size={16} className="text-blue-500" />
+            <span>Đăng nhập để tải lên tài liệu</span>
           </div>
         )}
       </div>
@@ -755,20 +769,24 @@ export default function DocsPage() {
             </span>
           </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('vungdulieu')}
-          className={`px-4 py-2.5 text-sm font-semibold transition-all border-b-2 cursor-pointer ${
-            activeTab === 'vungdulieu'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <BarChart3 size={16} />
-            Vùng Dữ Liệu
-          </span>
-        </button>
+
+        {/* Hide Vùng Dữ Liệu tab for anonymous users */}
+        {!isAnonymous && (
+          <button
+            type="button"
+            onClick={() => setActiveTab('vungdulieu')}
+            className={`px-4 py-2.5 text-sm font-semibold transition-all border-b-2 cursor-pointer ${
+              activeTab === 'vungdulieu'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <BarChart3 size={16} />
+              Vùng Dữ Liệu
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Tab Content */}
@@ -887,7 +905,7 @@ export default function DocsPage() {
                     <button
                       type="button"
                       onClick={() => openDoc(doc, false)}
-                      disabled={busyId === doc.id}
+                      disabled={busyId === doc.id || isAnonymous}
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
                     >
                       {busyId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}

@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { chatApi, type ChatSession } from '../api/chat'
-import { authApi } from '../api/auth'
+import { authApi, ANONYMOUS_USER } from '../api/auth'
 
 function sortSessions(list: ChatSession[]): ChatSession[] {
   return [...list].sort(
@@ -26,6 +26,21 @@ interface ChatSessionContextValue {
 }
 
 const ChatSessionContext = createContext<ChatSessionContextValue | null>(null)
+const ANON_SESSIONS_KEY = 'anon_chat_sessions'
+
+function loadAnonSessions(): ChatSession[] {
+  try {
+    const raw = localStorage.getItem(ANON_SESSIONS_KEY)
+    if (!raw) return []
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+function saveAnonSessions(sessions: ChatSession[]) {
+  localStorage.setItem(ANON_SESSIONS_KEY, JSON.stringify(sessions))
+}
 
 export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const [sessions, setSessions] = useState<ChatSession[]>([])
@@ -34,7 +49,18 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
   const refreshInFlightRef = useRef<Promise<void> | null>(null)
   const hasLoadedRef = useRef(false)
 
+  const isAnonymous = authApi.isAnonymous()
+
   const refreshSessions = useCallback(async () => {
+    // If anonymous, load from localStorage
+    if (isAnonymous) {
+      const anonSessions = loadAnonSessions()
+      setSessions(sortSessions(anonSessions))
+      setLoading(false)
+      hasLoadedRef.current = true
+      return
+    }
+
     if (!authApi.isAuthenticated()) {
       setSessions([])
       setLoading(false)
@@ -66,7 +92,7 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
     refreshInFlightRef.current = run
     return run
-  }, [])
+  }, [isAnonymous])
 
   useEffect(() => {
     refreshSessions()
@@ -74,6 +100,20 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
 
   const upsertSession = useCallback((session: ChatSession) => {
     hasLoadedRef.current = true
+    
+    // If anonymous, save to localStorage
+    if (isAnonymous) {
+      setSessions((prev) => {
+        const idx = prev.findIndex((s) => s.id === session.id)
+        const next = idx === -1 
+          ? sortSessions([session, ...prev])
+          : sortSessions(prev.map((s) => s.id === session.id ? { ...s, ...session } : s))
+        saveAnonSessions(next)
+        return next
+      })
+      return
+    }
+
     setSessions((prev) => {
       const idx = prev.findIndex((s) => s.id === session.id)
       if (idx === -1) return sortSessions([session, ...prev])
@@ -81,13 +121,25 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       next[idx] = { ...next[idx], ...session }
       return sortSessions(next)
     })
-  }, [])
+  }, [isAnonymous])
 
   const createSession = useCallback(async (title?: string) => {
+    // If anonymous, create local session without API call
+    if (isAnonymous) {
+      const session: ChatSession = {
+        id: `anon-${Date.now()}`,
+        title: title || 'Hội thoại khách',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      upsertSession(session)
+      return session
+    }
+
     const session = await chatApi.createSession(title)
     upsertSession(session)
     return session
-  }, [upsertSession])
+  }, [isAnonymous, upsertSession])
 
   const removeSession = useCallback(async (id: string) => {
     let previous: ChatSession[] = []
@@ -95,13 +147,21 @@ export function ChatSessionProvider({ children }: { children: ReactNode }) {
       previous = prev
       return prev.filter((s) => s.id !== id)
     })
+
+    // If anonymous, just remove from localStorage
+    if (isAnonymous) {
+      const updated = sessions.filter((s) => s.id !== id)
+      saveAnonSessions(updated)
+      return
+    }
+
     try {
       await chatApi.deleteSession(id)
     } catch (err) {
       setSessions(previous)
       throw err
     }
-  }, [])
+  }, [isAnonymous, sessions])
 
   return (
     <ChatSessionContext.Provider
