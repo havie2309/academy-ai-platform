@@ -207,15 +207,19 @@ async def process_document(job: dict) -> dict:
         security_rank = SECURITY_RANK.get(security_level, 2)
 
         _update_job(db, document_id, status="processing", stage="index")
-        # Store parent nodes
+
+        parent_ids = [p["id"] for p in parent_nodes]
+        chunk_ids = [c["id"] for c in child_nodes]
+
+        # 1) Insert parents vào Mongo trước (không cần Milvus ID).
         parent_docs = []
-        for idx, parent in enumerate(parent_nodes):
+        for p_idx, parent in enumerate(parent_nodes):
             parent_docs.append({
                 "chunkId": parent["id"],
                 "documentId": document_id,
                 "chunkType": "parent",
                 "chunkText": parent["text"],
-                "chunkIndex": -idx - 1,  # -1, -2, -3 ... unique per parent
+                "chunkIndex": -p_idx - 1,
                 "metadata": {
                     **parent["metadata"],
                     "title": title,
@@ -229,17 +233,28 @@ async def process_document(job: dict) -> dict:
                 },
                 "createdAt": _utcnow(),
             })
-        
-        # Store child nodes
+        if parent_docs:
+            db.document_chunks.insert_many(parent_docs)
+
+        # 2) Insert vectors vào Milvus → lấy milvus_ids.
+        milvus_ids = insert_vectors(
+            chunk_ids,
+            [document_id] * len(child_nodes),
+            [security_rank] * len(child_nodes),
+            vectors,
+        )
+
+        # 3) Build child docs với milvusVectorId đã có → insert một lần duy nhất.
         child_docs = []
-        for child, vector in zip(child_nodes, vectors):
+        for c_idx, (child, mid) in enumerate(zip(child_nodes, milvus_ids)):
             child_docs.append({
                 "chunkId": child["id"],
                 "documentId": document_id,
                 "parentId": child["parent_id"],
                 "chunkType": "child",
                 "chunkText": child["text"],
-                "chunkIndex": idx,       # 0, 1, 2 ...
+                "chunkIndex": c_idx,
+                "milvusVectorId": str(mid),
                 "metadata": {
                     **child["metadata"],
                     "title": title,
@@ -250,34 +265,17 @@ async def process_document(job: dict) -> dict:
                     "accessUserIds": job.get("accessUserIds", []),
                     "uploadedById": job.get("uploadedById", ""),
                 },
-                "vector": vector,  # For Milvus
                 "createdAt": _utcnow(),
             })
-        
-        # Insert to MongoDB
-        if parent_docs:
-            db.document_chunks.insert_many(parent_docs)
         if child_docs:
             db.document_chunks.insert_many(child_docs)
-        
-        chunk_ids = [c["id"] for c in child_nodes]
-        document_ids = [document_id] * len(child_nodes)
-        security_ranks = [SECURITY_RANK.get(security_level, 2)] * len(child_nodes)
-        
-        milvus_ids = insert_vectors(chunk_ids, document_ids, security_ranks, vectors)
-        for i, mid in enumerate(milvus_ids):
-            child_docs[i]["milvusVectorId"] = str(mid)
-            db.document_chunks.update_one(
-                {"chunkId": child_docs[i]["chunkId"]},
-                {"$set": {"milvusVectorId": str(mid)}}
-            )
-        
+
+        # 4) Bản mới đã ghi xong → xóa bản cũ, giữ lại đúng chunk_ids/parent_ids vừa insert.
         db.document_chunks.delete_many(
             {"documentId": document_id, "chunkType": "child", "chunkId": {"$nin": chunk_ids}}
         )
-        # Also clean up orphaned parents
         db.document_chunks.delete_many(
-            {"documentId": document_id, "chunkType": "parent"}
+            {"documentId": document_id, "chunkType": "parent", "chunkId": {"$nin": parent_ids}}
         )
         delete_document_except(document_id, chunk_ids)
 
