@@ -52,6 +52,8 @@ Start-Sleep -Seconds 2
 Start-RagService -Name "rag-engine" -Dir "$root\services\rag-engine" -Port 8000
 Start-Sleep -Seconds 1
 Start-RagService -Name "document-processor" -Dir "$root\services\document-processor" -Port 8003
+Start-Sleep -Seconds 1
+Start-RagService -Name "etl-sync" -Dir "$root\services\etl-sync" -Port 8004
 
 Write-Host ""
 Write-Host "RAG services launching in separate windows:"
@@ -59,6 +61,7 @@ Write-Host "  embedding-server   http://localhost:8001/health"
 Write-Host "  rerank-server      http://localhost:8002/health"
 Write-Host "  rag-engine         http://localhost:8000/health"
 Write-Host "  document-processor http://localhost:8003/health"
+Write-Host "  etl-sync           http://localhost:8004/health"
 Write-Host ""
 Write-Host "Ensure Docker has MongoDB, RabbitMQ, Milvus running:"
 Write-Host "  docker compose --profile code up -d mongodb rabbitmq milvus etcd minio"

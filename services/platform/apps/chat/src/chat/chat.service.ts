@@ -11,6 +11,11 @@ import type { Response } from 'express'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { type ChatCitationDto } from './chat.citations'
+import {
+  ChatCacheService,
+  type CachedSessionContext,
+  type CachedSessionMessage,
+} from './chat.cache'
 import { initSse, writeSseError, writeSseEvent } from './chat-sse.util'
 import {
   RagService,
@@ -82,6 +87,8 @@ interface ChatMessageDoc {
   createdAt: Date
 }
 
+type ChatHistoryItem = Pick<ChatMessageDoc, 'role' | 'content'>
+
 @Injectable()
 export class ChatService implements OnModuleInit {
   private readonly logger = new Logger(ChatService.name)
@@ -93,6 +100,7 @@ export class ChatService implements OnModuleInit {
   constructor(
     private readonly config: ConfigService,
     private readonly rag: RagService,
+    private readonly cache: ChatCacheService,
   ) {}
 
   async onModuleInit() {
@@ -135,6 +143,7 @@ export class ChatService implements OnModuleInit {
       updatedAt: now,
     }
     await this.sessions.insertOne(doc)
+    await this.writeSessionContext(doc.sessionId, userId, [], null)
     return this.toSessionDto(doc)
   }
 
@@ -148,6 +157,7 @@ export class ChatService implements OnModuleInit {
     const result = await this.sessions.deleteOne({ sessionId, userId })
     if (result.deletedCount === 0) throw new NotFoundException('Không tìm thấy hội thoại.')
     await this.messages.deleteMany({ sessionId, userId })
+    await this.clearSessionContext(sessionId)
     return { deleted: true }
   }
 
@@ -180,6 +190,7 @@ export class ChatService implements OnModuleInit {
         text,
         this.toRagMessages(history),
         ragUser,
+        sessionId,
       )
       answer = result.answer
       clientCitations = result.citations
@@ -202,6 +213,12 @@ export class ChatService implements OnModuleInit {
       sessionId,
       answer,
       clientCitations,
+      route,
+    )
+    await this.writeSessionContext(
+      sessionId,
+      userId,
+      [...history, { role: 'assistant', content: answer }],
       route,
     )
     const titleUpdate = await this.maybeUpdateSessionTitle(
@@ -250,6 +267,7 @@ export class ChatService implements OnModuleInit {
           text,
           this.toRagMessages(history),
           ragUser,
+          sessionId,
           (citations, metaRoute) => {
             streamed = true
             if (metaRoute) route = metaRoute
@@ -294,6 +312,12 @@ export class ChatService implements OnModuleInit {
         sessionId,
         answer,
         clientCitations,
+        route,
+      )
+      await this.writeSessionContext(
+        sessionId,
+        userId,
+        [...history, { role: 'assistant', content: answer }],
         route,
       )
       const titleUpdate = await this.maybeUpdateSessionTitle(
@@ -344,13 +368,43 @@ export class ChatService implements OnModuleInit {
     }
     await this.messages.insertOne(userMsg)
 
-    const history = await this.messages
-      .find({ sessionId, userId, role: { $in: ['user', 'assistant'] } })
-      .sort({ createdAt: 1 })
-      .limit(MAX_HISTORY)
-      .toArray()
+    const history = await this.loadConversationHistory(
+      userId,
+      sessionId,
+      userMsg,
+    )
 
     return { session, userMsg, history, text }
+  }
+
+  private async loadConversationHistory(
+    userId: string,
+    sessionId: string,
+    latestUserMessage: ChatMessageDoc,
+  ): Promise<ChatHistoryItem[]> {
+    const cached = await this.readSessionContext(sessionId)
+    if (cached?.userId === userId) {
+      const history = this.trimHistory([
+        ...cached.messages,
+        this.toHistoryItem(latestUserMessage),
+      ])
+      await this.writeSessionContext(
+        sessionId,
+        userId,
+        history,
+        cached.lastRoute ?? null,
+      )
+      return history
+    }
+
+    const rows = await this.messages
+      .find({ sessionId, userId, role: { $in: ['user', 'assistant'] } })
+      .sort({ createdAt: -1 })
+      .limit(MAX_HISTORY)
+      .toArray()
+    const history = rows.reverse().map((message) => this.toHistoryItem(message))
+    await this.writeSessionContext(sessionId, userId, history, null)
+    return history
   }
 
   private async persistAssistantMessage(
@@ -511,7 +565,7 @@ export class ChatService implements OnModuleInit {
   }
 
   private buildOpenAiMessages(
-    history: ChatMessageDoc[],
+    history: ChatHistoryItem[],
     citations: ChatCitationDto[],
   ) {
     const contextBlock =
@@ -534,7 +588,7 @@ export class ChatService implements OnModuleInit {
   }
 
   private async streamLlm(
-    history: ChatMessageDoc[],
+    history: ChatHistoryItem[],
     citations: ChatCitationDto[],
     onDelta: (delta: string) => void,
   ): Promise<string> {
@@ -593,7 +647,7 @@ export class ChatService implements OnModuleInit {
   }
 
   private async callLlm(
-    history: ChatMessageDoc[],
+    history: ChatHistoryItem[],
     citations: ChatCitationDto[] = [],
   ): Promise<string> {
     const llm = this.getLlmConfig()
@@ -631,11 +685,85 @@ export class ChatService implements OnModuleInit {
   }
 
   /** Map stored history docs to the role/content shape rag-engine expects. */
-  private toRagMessages(history: ChatMessageDoc[]): RagMessage[] {
+  private toRagMessages(history: ChatHistoryItem[]): RagMessage[] {
     return history.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
     }))
+  }
+
+  private toHistoryItem(message: ChatHistoryItem): CachedSessionMessage {
+    return {
+      role: message.role as 'user' | 'assistant',
+      content: message.content,
+    }
+  }
+
+  private trimHistory(history: ChatHistoryItem[]): CachedSessionMessage[] {
+    return history
+      .filter((item) => item.role === 'user' || item.role === 'assistant')
+      .map((item) => this.toHistoryItem(item))
+      .slice(-MAX_HISTORY)
+  }
+
+  private getSessionContextTtl(): number {
+    return Math.max(
+      300,
+      Number(this.config.get('CHAT_SESSION_CONTEXT_TTL', 3600)) || 3600,
+    )
+  }
+
+  private async readSessionContext(
+    sessionId: string,
+  ): Promise<CachedSessionContext | null> {
+    try {
+      const cached = await this.cache.getSessionContext(sessionId)
+      if (!cached) return null
+      return {
+        ...cached,
+        messages: this.trimHistory(cached.messages ?? []),
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Khong doc duoc session context tu Redis (${sessionId}): ${error instanceof Error ? error.message : error}`,
+      )
+      return null
+    }
+  }
+
+  private async writeSessionContext(
+    sessionId: string,
+    userId: string,
+    history: ChatHistoryItem[],
+    lastRoute: string | null,
+  ): Promise<void> {
+    try {
+      await this.cache.setSessionContext(
+        sessionId,
+        {
+          sessionId,
+          userId,
+          messages: this.trimHistory(history),
+          lastRoute,
+          updatedAt: new Date().toISOString(),
+        },
+        this.getSessionContextTtl(),
+      )
+    } catch (error) {
+      this.logger.warn(
+        `Khong ghi duoc session context vao Redis (${sessionId}): ${error instanceof Error ? error.message : error}`,
+      )
+    }
+  }
+
+  private async clearSessionContext(sessionId: string): Promise<void> {
+    try {
+      await this.cache.clearSession(sessionId)
+    } catch (error) {
+      this.logger.warn(
+        `Khong xoa duoc session context tren Redis (${sessionId}): ${error instanceof Error ? error.message : error}`,
+      )
+    }
   }
 
   private isNoInfoAnswer(answer: string): boolean {

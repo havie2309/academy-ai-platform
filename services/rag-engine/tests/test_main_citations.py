@@ -29,6 +29,20 @@ def _citation(
     }
 
 
+class _FakeSessionCache:
+    def __init__(self):
+        self.items: dict[str, dict] = {}
+
+    def get_session_context(self, session_id: str):
+        return self.items.get(session_id)
+
+    def set_session_context(self, session_id: str, context: dict):
+        self.items[session_id] = context
+
+    def clear_session(self, session_id: str):
+        self.items.pop(session_id, None)
+
+
 def test_client_citations_keep_distinct_chunks_from_same_doc():
     citations = [
         _citation("chunk-1", section_path="Chuong I > Dieu 1"),
@@ -155,6 +169,74 @@ def test_chat_returns_safe_refusal_before_retrieval():
         "citations": [],
         "route": "refusal",
         "blocked_keyword": "mat khau he thong",
+    }
+
+
+def test_chat_uses_cached_session_context_and_updates_it_after_answer():
+    original_cache = rag_main.session_cache
+    original_retrieve = rag_main.retrieve_citations
+    original_complete = rag_main.complete_chat_structured
+    original_refusal = rag_main.maybe_refuse_query
+    try:
+        fake_cache = _FakeSessionCache()
+        fake_cache.set_session_context(
+            "sess-1",
+            {
+                "sessionId": "sess-1",
+                "userId": "body-user",
+                "messages": [
+                    {"role": "user", "content": "Quy che cu the nao?"},
+                    {"role": "assistant", "content": "Day la tra loi cu."},
+                ],
+                "lastRoute": "rag",
+                "updatedAt": "2026-06-19T08:00:00.000Z",
+            },
+        )
+        rag_main.session_cache = fake_cache
+
+        async def fake_refusal(_query: str, user: dict | None = None):
+            assert user and user["userId"] == "body-user"
+            return None
+
+        async def fake_retrieve(_query: str, _user: dict):
+            return [_citation("chunk-1")]
+
+        captured: dict[str, object] = {}
+
+        async def fake_complete(history: list[dict], _citations: list[dict]):
+            captured["history"] = history
+            return ("Thong tin moi duoc tong hop.", ["chunk-1"], [])
+
+        rag_main.maybe_refuse_query = fake_refusal
+        rag_main.retrieve_citations = fake_retrieve
+        rag_main.complete_chat_structured = fake_complete
+
+        result = asyncio.run(
+            rag_main.chat(
+                rag_main.ChatRequest(
+                    query="Cap nhat thong tin moi",
+                    sessionId="sess-1",
+                    messages=[],
+                    user=rag_main.RetrieveUser(userId="body-user"),
+                ),
+                _request_with_headers({}),
+            )
+        )
+    finally:
+        rag_main.session_cache = original_cache
+        rag_main.retrieve_citations = original_retrieve
+        rag_main.complete_chat_structured = original_complete
+        rag_main.maybe_refuse_query = original_refusal
+
+    assert captured["history"] == [
+        {"role": "user", "content": "Quy che cu the nao?"},
+        {"role": "assistant", "content": "Day la tra loi cu."},
+        {"role": "user", "content": "Cap nhat thong tin moi"},
+    ]
+    assert result["answer"] == "Thong tin moi duoc tong hop."
+    assert fake_cache.items["sess-1"]["messages"][-1] == {
+        "role": "assistant",
+        "content": "Thong tin moi duoc tong hop.",
     }
 
 

@@ -21,6 +21,10 @@ export class AuditController {
       status?: string
       action?: string
       resourceType?: string
+      userId?: string
+      resourceId?: string
+      from?: string
+      to?: string
       limit?: string
     },
   ) {
