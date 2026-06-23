@@ -2,24 +2,11 @@
 
 import asyncio
 import logging
-import os
-import shutil
-from datetime import datetime, timezone
 
-from pymongo import MongoClient
-
-from app.config import MONGO_DB, MONGO_URI, ALLOW_ADVERSARIAL_DOCS
-from app.pipeline import process_document
+from app.config import MONGO_DB, ALLOW_ADVERSARIAL_DOCS
+from app.pipeline import _get_mongo, _utcnow, process_document
 
 logger = logging.getLogger(__name__)
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _mongo():
-    return MongoClient(MONGO_URI)
 
 
 async def consume_sample_jobs(limit: int = 50) -> dict:
@@ -32,8 +19,7 @@ async def consume_sample_jobs(limit: int = 50) -> dict:
     Returns:
         Summary of processing results
     """
-    client = _mongo()
-    db = client[MONGO_DB]
+    db = _get_mongo()[MONGO_DB]
 
     query = {"status": "queued", "isSample": True}
 
@@ -130,8 +116,6 @@ async def consume_sample_jobs(limit: int = 50) -> dict:
 
             failed += 1
             results.append({"documentId": doc_id, "status": "failed", "error": str(e)})
-
-    client.close()
 
     return {
         "processed": len(jobs),
