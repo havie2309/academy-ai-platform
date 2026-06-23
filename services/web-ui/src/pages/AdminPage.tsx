@@ -12,7 +12,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
-  TriangleAlert,
 } from 'lucide-react'
 import {
   adminApi,
@@ -33,33 +32,33 @@ const SERVICE_META: Array<{
 }> = [
   {
     key: 'userManagement',
-    label: 'User Management',
-    description: 'Dang nhap, refresh token va ho so nguoi dung.',
+    label: 'Quản lý người dùng',
+    description: 'Đăng nhập, token làm mới và hồ sơ người dùng.',
   },
   {
     key: 'chat',
-    label: 'Chat Service',
-    description: 'Quan ly session, stream va lich su hoi dap.',
+    label: 'Dịch vụ chat',
+    description: 'Quản lý phiên, luồng phát và lịch sử hỏi đáp.',
   },
   {
     key: 'rbac',
-    label: 'RBAC',
-    description: 'Permission matrix, access scope va row filter.',
+    label: 'Phân quyền (RBAC)',
+    description: 'Ma trận quyền, phạm vi truy cập và lọc theo dòng dữ liệu.',
   },
   {
     key: 'adminConfig',
-    label: 'Admin Config',
-    description: 'Versioned policy cho safe refusal va prompt.',
+    label: 'Cấu hình quản trị',
+    description: 'Chính sách có phiên bản cho từ chối an toàn và lời nhắc hệ thống.',
   },
   {
     key: 'audit',
-    label: 'Audit',
-    description: 'Doc audit log va theo doi thay doi nhay cam.',
+    label: 'Nhật ký kiểm tra',
+    description: 'Đọc nhật ký kiểm tra và theo dõi thay đổi nhạy cảm.',
   },
   {
     key: 'rag',
     label: 'RAG Engine',
-    description: 'Retrieve, citation, refusal va SQL orchestration.',
+    description: 'Truy xuất, trích dẫn, từ chối và điều phối SQL.',
   },
 ]
 
@@ -78,10 +77,18 @@ function parseKeywords(text: string): string[] {
 }
 
 function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return 'Chua cap nhat'
+  if (!value) return 'Chưa cập nhật'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('vi-VN')
+}
+
+function statusLabel(status: 'up' | 'down'): string {
+  return status === 'up' ? 'Hoạt động' : 'Ngừng'
+}
+
+function gatewayStatusLabel(status: string | undefined): string {
+  return status === 'ok' ? 'Ổn định' : 'Suy giảm'
 }
 
 function statusTone(status: 'up' | 'down') {
@@ -129,12 +136,12 @@ export default function AdminPage() {
     try {
       const nextHealth = await fetchGatewayHealth()
       if (!nextHealth) {
-        throw new Error('Khong tai duoc health tu API gateway.')
+        throw new Error('Không tải được trạng thái sức khỏe từ API gateway.')
       }
       setHealth(nextHealth)
     } catch (error) {
       setHealthError(
-        error instanceof Error ? error.message : 'Khong tai duoc health.',
+        error instanceof Error ? error.message : 'Không tải được trạng thái sức khỏe.',
       )
     } finally {
       setHealthLoading(false)
@@ -156,7 +163,7 @@ export default function AdminPage() {
       )
     } catch (error) {
       setPolicyError(
-        error instanceof Error ? error.message : 'Khong tai duoc AI policy.',
+        error instanceof Error ? error.message : 'Không tải được chính sách AI.',
       )
     } finally {
       setPolicyLoading(false)
@@ -203,10 +210,10 @@ export default function AdminPage() {
         setSafeRefusalMessage,
         setReason,
       )
-      setSaveMessage('Da luu AI policy thanh cong.')
+      setSaveMessage('Đã lưu chính sách AI thành công.')
     } catch (error) {
       setPolicyError(
-        error instanceof Error ? error.message : 'Khong luu duoc AI policy.',
+        error instanceof Error ? error.message : 'Không lưu được chính sách AI.',
       )
     } finally {
       setSaving(false)
@@ -235,11 +242,11 @@ export default function AdminPage() {
         <div className="max-w-3xl">
           <h1 className="flex items-center gap-3 text-2xl font-bold tracking-tight text-slate-800">
             <LayoutDashboard className="text-blue-600" />
-            Van hanh he thong va AI policy
+            Vận hành hệ thống và chính sách AI
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-slate-500">
-            Quan sat suc khoe cac service va cap nhat chinh sach refusal/blacklist
-            cho tro ly AI ngay tren giao dien quan tri.
+            Quan sát sức khỏe các dịch vụ và cập nhật chính sách từ chối/danh sách chặn
+            cho trợ lý AI ngay trên giao diện quản trị.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {(user?.roles ?? []).map((role) => (
@@ -251,7 +258,7 @@ export default function AdminPage() {
               </span>
             ))}
             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
-              {user?.username ?? 'anonymous'}
+              {user?.username ?? 'ẩn danh'}
             </span>
           </div>
         </div>
@@ -266,7 +273,7 @@ export default function AdminPage() {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-900"
           >
             <RefreshCw size={16} />
-            Tai lai du lieu
+            Tải lại dữ liệu
           </button>
         </div>
       </div>
@@ -302,14 +309,12 @@ export default function AdminPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Gateway status
+                Trạng thái gateway
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-800">
                 {healthLoading
                   ? '...'
-                  : health?.status === 'ok'
-                    ? 'OK'
-                    : 'Degraded'}
+                  : gatewayStatusLabel(health?.status)}
               </p>
             </div>
             <div
@@ -327,45 +332,45 @@ export default function AdminPage() {
             </div>
           </div>
           <p className="mt-3 text-sm text-slate-500">
-            Gateway va cac route proxy hien dang{' '}
-            {health?.status === 'ok' ? 'on dinh.' : 'co service can luu y.'}
+            Gateway và các route proxy hiện{' '}
+            {health?.status === 'ok' ? 'ổn định.' : 'có dịch vụ cần lưu ý.'}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Upstream healthy
+            Dịch vụ upstream hoạt động
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
             {healthLoading ? '...' : `${healthyServices}/${SERVICE_META.length}`}
           </p>
           <p className="mt-3 text-sm text-slate-500">
-            Dang hoat dong tot: {healthyServices} service. Can kiem tra: {degradedServices}.
+            Đang hoạt động tốt: {healthyServices} dịch vụ. Cần kiểm tra: {degradedServices}.
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            AI policy version
+            Phiên bản chính sách AI
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
             {policyLoading ? '...' : `v${policyVersion}`}
           </p>
           <p className="mt-3 text-sm text-slate-500">
-            {enabled ? 'Safe refusal dang bat.' : 'Safe refusal dang tat.'}
+            {enabled ? 'Từ chối an toàn đang bật.' : 'Từ chối an toàn đang tắt.'}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Last policy update
+            Cập nhật chính sách gần nhất
           </p>
           <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
             <Clock3 size={16} className="text-slate-400" />
-            {policyLoading ? 'Dang tai...' : lastUpdated}
+            {policyLoading ? 'Đang tải...' : lastUpdated}
           </p>
           <p className="mt-3 text-sm text-slate-500">
-            Keyword hien co: {parsedKeywords.length}
+            Từ khóa hiện có: {parsedKeywords.length}
           </p>
         </div>
       </section>
@@ -375,10 +380,10 @@ export default function AdminPage() {
           <div>
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
               <Server className="text-blue-600" size={18} />
-              Admin health view
+              Sức khỏe hệ thống
             </h2>
             <p className="mt-1 text-sm text-slate-500">
-              Trang thai gateway va 6 upstream dang duoc proxy trong runtime.
+              Trạng thái gateway và 6 dịch vụ upstream đang được proxy trong môi trường chạy.
             </p>
           </div>
           <button
@@ -387,7 +392,7 @@ export default function AdminPage() {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white"
           >
             <RefreshCw size={15} />
-            Refresh health
+            Làm mới sức khỏe
           </button>
         </div>
 
@@ -414,7 +419,7 @@ export default function AdminPage() {
                       status,
                     )}`}
                   >
-                    {healthLoading ? '...' : status}
+                    {healthLoading ? '...' : statusLabel(status)}
                   </span>
                 </div>
               </article>
@@ -429,10 +434,10 @@ export default function AdminPage() {
             <div>
               <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
                 <Bot className="text-blue-600" size={18} />
-                Admin AI config editor
+                Trình soạn cấu hình AI
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Bat/tat refusal, sua blacklist va thong diep tra loi an toan.
+                Bật/tắt từ chối an toàn, sửa danh sách chặn và thông điệp trả lời an toàn.
               </p>
             </div>
             <button
@@ -441,7 +446,7 @@ export default function AdminPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white"
             >
               <RefreshCw size={15} />
-              Tai lai policy
+              Tải lại chính sách
             </button>
           </div>
 
@@ -449,10 +454,10 @@ export default function AdminPage() {
             <label className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4">
               <div>
                 <span className="text-sm font-semibold text-slate-800">
-                  Kich hoat safe refusal
+                  Kích hoạt từ chối an toàn
                 </span>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                  Neu tat, query nhay cam se khong bi chan boi policy tu admin-config.
+                  Nếu tắt, câu hỏi nhạy cảm sẽ không bị chặn bởi chính sách từ cấu hình quản trị.
                 </p>
               </div>
               <input
@@ -461,7 +466,7 @@ export default function AdminPage() {
                 onChange={(event) => setEnabled(event.target.checked)}
                 data-testid="policy-enabled-toggle"
                 className="mt-1 h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                aria-label="Kich hoat safe refusal"
+                aria-label="Kích hoạt từ chối an toàn"
                 disabled={policyLoading || saving}
               />
             </label>
@@ -471,7 +476,7 @@ export default function AdminPage() {
                 htmlFor="blacklistKeywords"
                 className="text-sm font-semibold text-slate-800"
               >
-                Blacklist keywords
+                Từ khóa danh sách chặn
               </label>
               <textarea
                 id="blacklistKeywords"
@@ -481,10 +486,10 @@ export default function AdminPage() {
                 disabled={policyLoading || saving}
                 rows={8}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                placeholder="Moi dong mot keyword. Co the dung dau phay neu muon."
+                placeholder="Mỗi dòng một từ khóa. Có thể dùng dấu phẩy nếu muốn."
               />
               <p className="text-xs text-slate-500">
-                Hien dang co {parsedKeywords.length} keyword sau khi loai bo trung.
+                Hiện có {parsedKeywords.length} từ khóa sau khi loại bỏ trùng.
               </p>
             </div>
 
@@ -493,7 +498,7 @@ export default function AdminPage() {
                 htmlFor="safeRefusalMessage"
                 className="text-sm font-semibold text-slate-800"
               >
-                Safe refusal message
+                Thông điệp từ chối an toàn
               </label>
               <textarea
                 id="safeRefusalMessage"
@@ -503,13 +508,13 @@ export default function AdminPage() {
                 disabled={policyLoading || saving}
                 rows={5}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                placeholder="Thong diep hien cho nguoi dung khi query bi tu choi."
+                placeholder="Thông điệp hiển thị cho người dùng khi câu hỏi bị từ chối."
               />
             </div>
 
             <div className="space-y-2">
               <label htmlFor="policyReason" className="text-sm font-semibold text-slate-800">
-                Ly do cap nhat
+                Lý do cập nhật
               </label>
               <input
                 id="policyReason"
@@ -518,7 +523,7 @@ export default function AdminPage() {
                 data-testid="policy-reason"
                 disabled={policyLoading || saving}
                 className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                placeholder="Vi du: bo sung tu khoa nhay cam cho dot khao thi"
+                placeholder="Ví dụ: bổ sung từ khóa nhạy cảm cho đợt khảo thí"
               />
             </div>
 
@@ -532,12 +537,12 @@ export default function AdminPage() {
                   !safeRefusalMessage.trim() ||
                   !isDirty
                 }
-                aria-label="Luu cau hinh AI"
+                aria-label="Lưu cấu hình AI"
                 data-testid="policy-save"
                 className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 <Save size={16} />
-                {saving ? 'Dang luu...' : 'Luu AI policy'}
+                {saving ? 'Đang lưu...' : 'Lưu chính sách AI'}
               </button>
               <button
                 type="button"
@@ -547,7 +552,7 @@ export default function AdminPage() {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:text-slate-300"
               >
                 <RotateCcw size={16} />
-                Reset form
+                Đặt lại biểu mẫu
               </button>
             </div>
           </div>
@@ -556,39 +561,39 @@ export default function AdminPage() {
         <aside className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm">
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
             <Sparkles className="text-blue-600" size={18} />
-            Preview va metadata
+            Xem trước và siêu dữ liệu
           </h2>
 
           <div className="mt-5 space-y-5">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Current metadata
+                Siêu dữ liệu hiện tại
               </p>
               <dl className="mt-3 space-y-3 text-sm">
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-slate-500">Config key</dt>
+                  <dt className="text-slate-500">Khóa cấu hình</dt>
                   <dd className="font-semibold text-slate-800">
                     {policy?.config_key ?? 'rag_policy'}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-slate-500">Version</dt>
+                  <dt className="text-slate-500">Phiên bản</dt>
                   <dd className="font-semibold text-slate-800">
                     {policyLoading ? '...' : `v${policyVersion}`}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-slate-500">Updated at</dt>
+                  <dt className="text-slate-500">Cập nhật lúc</dt>
                   <dd className="font-semibold text-slate-800">{lastUpdated}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-slate-500">Enabled</dt>
+                  <dt className="text-slate-500">Đang bật</dt>
                   <dd
                     className={`font-semibold ${
                       enabled ? 'text-emerald-600' : 'text-amber-600'
                     }`}
                   >
-                    {enabled ? 'Yes' : 'No'}
+                    {enabled ? 'Có' : 'Không'}
                   </dd>
                 </div>
               </dl>
@@ -596,7 +601,7 @@ export default function AdminPage() {
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Keyword preview
+                Xem trước từ khóa
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {parsedKeywords.length > 0 ? (
@@ -610,7 +615,7 @@ export default function AdminPage() {
                   ))
                 ) : (
                   <span className="text-sm text-slate-500">
-                    Chua co keyword nao.
+                    Chưa có từ khóa nào.
                   </span>
                 )}
               </div>
@@ -618,28 +623,12 @@ export default function AdminPage() {
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Refusal preview
-              </p>
-              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-900">
-                {safeRefusalMessage.trim() || 'Thong diep refusal se hien o day.'}
-              </div>
-              <div className="mt-3 flex items-start gap-2 text-xs leading-relaxed text-slate-500">
-                <TriangleAlert size={14} className="mt-0.5 shrink-0 text-amber-500" />
-                <span>
-                  Query bi chan se duoc refusal truoc khi retrieve tai lieu, SQL hay
-                  stream token, va event se duoc ghi vao audit/policy log.
-                </span>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Admin role context
+                Ngữ cảnh vai trò quản trị
               </p>
               <p className="mt-3 text-sm text-slate-600">
-                Frontend dang nhan role theo code: {normalizedRoles.join(', ') || 'N/A'}.
-                Route guard va menu admin da duoc normalize de tuong thich ca mock
-                role va role tu backend thuc.
+                Giao diện đang nhận vai trò theo mã: {normalizedRoles.join(', ') || 'Không có'}.
+                Bộ bảo vệ route và menu quản trị đã được chuẩn hóa để tương thích cả vai trò thử nghiệm
+                và vai trò từ backend thực tế.
               </p>
             </div>
           </div>

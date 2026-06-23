@@ -9,23 +9,30 @@ export class RedisService implements OnModuleDestroy {
 
   constructor(private config: ConfigService) {
     this.client = new Redis({
-      host: this.config.get('REDIS_HOST', 'localhost'),
-      port: this.config.get('REDIS_PORT', 6379),
-      password: this.config.get('REDIS_PASSWORD', ''),
-      db: this.config.get('REDIS_DB', 0),
+      host: this.config.get('REDIS_HOST', '127.0.0.1'),
+      port: Number(this.config.get('REDIS_PORT', 6379)),
+      password: this.config.get('REDIS_PASSWORD', '') || undefined,
+      db: Number(this.config.get('REDIS_DB', 0)),
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
       retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
+        if (times > 5) return null
+        return Math.min(times * 200, 2000)
       },
-    });
+    })
+
+    void this.client.connect().catch((err) => {
+      this.logger.warn(`Redis unavailable at startup: ${err.message}`)
+    })
 
     this.client.on('connect', () => {
       this.logger.log('Connected to Redis');
     });
 
     this.client.on('error', (err) => {
-      this.logger.error('Redis error:', err);
-    });
+      this.logger.warn(`Redis error: ${err.message}`)
+    })
   }
 
   // ============================================================

@@ -12,7 +12,6 @@ test('admin can review health and update AI policy', async ({ page }) => {
       safeRefusalMessage: 'Xin loi, yeu cau nay da bi chan.',
     },
   }
-
   await page.route(
     (url) => new URL(url.toString()).pathname.startsWith('/api/'),
     async (route) => {
@@ -92,6 +91,6 @@ test('admin can review health and update AI policy', async ({ page }) => {
     reason: 'Bo sung policy cho dot khao thi',
   })
 
-  await expect(page.getByTestId('policy-save-message')).toContainText('Da luu AI policy thanh cong.')
+  await expect(page.getByTestId('policy-save-message')).toContainText('Đã lưu chính sách AI thành công.')
   await expect(page.getByText('v4').first()).toBeVisible()
 })
