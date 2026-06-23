@@ -14,6 +14,7 @@ from app.config import (
     RERANK_SCORE_MIN,
     RETRIEVAL_TOP_K,
     VECTOR_SCORE_MIN,
+    ALLOW_ADVERSARIAL_DOCS
 )
 from app.milvus_search import search_vectors
 from app.rerank import rerank_citations
@@ -204,10 +205,13 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     client = MongoClient(MONGO_URI)
     db = client[MONGO_DB]
     try:
-        child_rows = list(db.document_chunks.find({
+        query = {
             "chunkId": {"$in": child_chunk_ids},
             "chunkType": "child"  # Only search child nodes
-        }))
+        }
+        if not ALLOW_ADVERSARIAL_DOCS:
+            query["metadata.isUnreasonable"] = {"$ne": True}  # ← Filter out!
+        child_rows = list(db.document_chunks.find(query))
     finally:
         client.close()
 

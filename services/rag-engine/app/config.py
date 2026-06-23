@@ -82,3 +82,5 @@ REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_TTL = int(os.getenv("REDIS_TTL", "3600"))
 SESSION_CONTEXT_TTL = int(os.getenv("CHAT_SESSION_CONTEXT_TTL", "3600"))
 SESSION_CONTEXT_MAX_MESSAGES = int(os.getenv("CHAT_SESSION_CONTEXT_MAX_MESSAGES", "20"))
+
+ALLOW_ADVERSARIAL_DOCS = os.getenv("ALLOW_ADVERSARIAL_DOCS", "false").lower() == "true"

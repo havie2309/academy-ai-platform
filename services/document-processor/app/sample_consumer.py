@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from pymongo import MongoClient
 
-from app.config import MONGO_DB, MONGO_URI
+from app.config import MONGO_DB, MONGO_URI, ALLOW_ADVERSARIAL_DOCS
 from app.pipeline import process_document
 
 logger = logging.getLogger(__name__)
@@ -35,10 +35,13 @@ async def consume_sample_jobs(limit: int = 50) -> dict:
     client = _mongo()
     db = client[MONGO_DB]
 
+    query = {"status": "queued", "isSample": True}
+
+    if not ALLOW_ADVERSARIAL_DOCS:
+        query["isAdversarial"] = {"$ne": True}
+
     # Find queued sample jobs
-    jobs = list(db.processing_jobs.find(
-        {"status": "queued", "isSample": True}
-    ).limit(limit))
+    jobs = list(db.processing_jobs.find(query).limit(limit))
 
     if not jobs:
         logger.info("No queued sample jobs found")

@@ -1,4 +1,31 @@
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# ============================================================
+# Find and load .env file
+# ============================================================
+
+# Get the project root (where .env is located)
+# This script is at: .../academy-ai-platform/services/document-processor/app/config.py
+# The root is 3 levels up: app/ -> document-processor/ -> services/ -> academy-ai-platform/
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+# Try to load .env from various locations
+env_files = [
+    PROJECT_ROOT / ".env",                              # Root .env
+    PROJECT_ROOT / "services/platform/.env",            # Platform .env
+    Path.cwd() / ".env",                                # Current working directory
+    Path.cwd() / ".." / "platform" / ".env",            # Relative to cwd
+]
+
+for env_file in env_files:
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"Loaded .env from: {env_file}")
+        break
+else:
+    print("No .env file found, using defaults")
 
 MONGO_URI = os.getenv(
     "MONGO_URI",
@@ -42,3 +69,4 @@ PADDLEOCR_ENABLED = os.getenv("PADDLEOCR_ENABLED", "true").lower() != "false"
 PADDLEOCR_LANG = os.getenv("PADDLEOCR_LANG", "vi")
 
 SECURITY_RANK = {"public": 1, "internal": 2, "restricted": 3, "confidential": 4}
+ALLOW_ADVERSARIAL_DOCS = os.getenv("ALLOW_ADVERSARIAL_DOCS", "false").lower() == "true"
