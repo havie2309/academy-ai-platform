@@ -46,6 +46,8 @@ sampleDocs.forEach(doc => {
         status: 'queued',
         updatedAt: new Date(),
         isSample: true,
+        isAdversarial: doc.isAdversarial || false,
+        adversarialType: doc.adversarialType || 'none',
         sourceSystem: 'sample_offline'
       },
       $setOnInsert: {
