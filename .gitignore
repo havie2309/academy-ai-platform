@@ -47,3 +47,5 @@ training/exports/**
 !training/**/.gitkeep
 !training/configs/
 !training/configs/**
+
+docs/_local/**
