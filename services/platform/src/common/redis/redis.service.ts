@@ -75,6 +75,36 @@ export class RedisService implements OnModuleDestroy {
     return await this.client.ttl(key);
   }
 
+  async incrementFailedAttempts(userId: string, ttl: number = 900): Promise<number> {
+      const key = `login:failed:${userId}`;
+      const count = await this.client.incr(key);
+      if (count === 1) {
+          await this.client.expire(key, ttl);
+      }
+      return count;
+  }
+
+  async getFailedAttempts(userId: string): Promise<number> {
+      const key = `login:failed:${userId}`;
+      const value = await this.client.get(key);
+      return value ? parseInt(value, 10) : 0;
+  }
+
+  async isAccountLocked(userId: string): Promise<boolean> {
+      const key = `login:locked:${userId}`;
+      return (await this.client.exists(key)) === 1;
+  }
+
+  async lockAccount(userId: string, duration: number = 900): Promise<void> {
+      const key = `login:locked:${userId}`;
+      await this.client.set(key, 'locked', 'EX', duration);
+  }
+
+  async resetFailedAttempts(userId: string): Promise<void> {
+      await this.client.del(`login:failed:${userId}`);
+      await this.client.del(`login:locked:${userId}`);
+  }
+
   // ============================================================
   // JSON operations (for complex objects)
   // ============================================================
