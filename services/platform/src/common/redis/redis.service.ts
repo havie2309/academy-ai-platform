@@ -68,6 +68,50 @@ export class RedisService implements OnModuleDestroy {
     return await this.client.ttl(key);
   }
 
+  async decrement(key: string): Promise<number> {
+    const val = await this.client.decr(key);
+    if (val <= 0) {
+      await this.client.del(key);
+    }
+    return val;
+  }
+
+  /**
+   * Get current count for a key.
+   */
+  async getCount(key: string): Promise<number> {
+    const val = await this.client.get(key);
+    return val ? parseInt(val, 10) : 0;
+  }
+
+  /**
+   * Store a value with TTL.
+   */
+  async setex(key: string, value: string, ttl: number): Promise<void> {
+    await this.client.setex(key, ttl, value);
+  }
+
+  /**
+   * Get value and TTL in one call.
+   */
+  async getWithTTL(key: string): Promise<{ value: string | null; ttl: number }> {
+    const results = await this.client.multi().get(key).ttl(key).exec();
+    if (!results) {
+      return { value: null, ttl: -2 };
+    }
+    // results is [ [Error | null, string | null], [Error | null, number] ]
+    const value = results[0]?.[1] as string | null;
+    const ttl = results[1]?.[1] as number;
+    return { value, ttl };
+  }
+
+  /**
+   * Delete a key.
+   */
+  async del(key: string): Promise<void> {
+    await this.client.del(key);
+  }
+
   // ============================================================
   // JSON operations (for complex objects)
   // ============================================================
