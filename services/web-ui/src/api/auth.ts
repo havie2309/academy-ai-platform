@@ -56,6 +56,14 @@ const mockUsers: Record<string, LoginResponse> = {
   },
 }
 
+export const ANONYMOUS_USER: LoginResponse['user'] = {
+  id: 'anonymous',
+  username: 'anonymous',
+  full_name: 'Khách',
+  roles: ['Anonymous'],
+  unit_id: null,
+}
+
 export const authApi = {
   async login(username: string, password: string): Promise<LoginResponse> {
     if (USE_MOCK_AUTH) {
@@ -126,15 +134,22 @@ export const authApi = {
 
   getUser(): LoginResponse['user'] | null {
     const raw = localStorage.getItem('user')
-    if (!raw) return null
+    if (!raw) {
+      return ANONYMOUS_USER
+    }
     try {
       return JSON.parse(raw)
     } catch {
-      return null
+      return ANONYMOUS_USER
     }
   },
 
   isAuthenticated(): boolean {
     return !!this.getToken()
+  },
+
+  isAnonymous(): boolean {
+    const user = this.getUser()
+    return !this.isAuthenticated() || user?.id === 'anonymous'
   },
 }
