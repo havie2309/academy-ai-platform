@@ -14,12 +14,15 @@ from app.generate import LlmError, complete_chat_structured
 from app.retrieval import retrieve_citations
 from app.router import classify_route
 from app.safe_refusal import maybe_refuse_query, retrieve_refusal_payload
+from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    await init_pool()
     yield
+    await close_pool()
 
 
 app = FastAPI(title="RAG Engine", version="0.3.0", lifespan=lifespan)
