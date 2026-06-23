@@ -14,12 +14,19 @@ from app.config import (
     RERANK_SCORE_MIN,
     RETRIEVAL_TOP_K,
     VECTOR_SCORE_MIN,
-    ALLOW_ADVERSARIAL_DOCS
 )
 from app.milvus_search import search_vectors
 from app.rerank import rerank_citations
 
 cache = RedisCache()
+_mongo_client: MongoClient | None = None
+
+
+def _get_mongo() -> MongoClient:
+    global _mongo_client
+    if _mongo_client is None:
+        _mongo_client = MongoClient(MONGO_URI)
+    return _mongo_client
 
 COMPARE_KEYWORDS = (
     "so sánh",
@@ -202,39 +209,24 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     if not child_chunk_ids:
         return []
 
-    client = MongoClient(MONGO_URI)
-    db = client[MONGO_DB]
-    try:
-        query = {
-            "chunkId": {"$in": child_chunk_ids},
-            "chunkType": "child"  # Only search child nodes
-        }
-        if not ALLOW_ADVERSARIAL_DOCS:
-            query["metadata.isUnreasonable"] = {"$ne": True}  # ← Filter out!
-        child_rows = list(db.document_chunks.find(query))
-    finally:
-        client.close()
+    db = _get_mongo()[MONGO_DB]
+    child_rows = list(db.document_chunks.find({
+        "chunkId": {"$in": child_chunk_ids},
+        "chunkType": "child",
+    }))
 
     if not child_rows:
         return []
 
-    parent_ids = list(set([
-        row.get("parentId") for row in child_rows 
-        if row.get("parentId")
-    ]))
+    parent_ids = list({row["parentId"] for row in child_rows if row.get("parentId")})
 
     if not parent_ids:
         return []
 
-    client = MongoClient(MONGO_URI)
-    db = client[MONGO_DB]
-    try:
-        parent_rows = list(db.document_chunks.find({
-            "chunkId": {"$in": parent_ids},
-            "chunkType": "parent"
-        }))
-    finally:
-        client.close()
+    parent_rows = list(db.document_chunks.find({
+        "chunkId": {"$in": parent_ids},
+        "chunkType": "parent",
+    }))
 
     filtered_parents = []
     for row in parent_rows:

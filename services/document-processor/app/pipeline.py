@@ -28,8 +28,14 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _mongo() -> MongoClient:
-    return MongoClient(MONGO_URI)
+_mongo_client: MongoClient | None = None
+
+
+def _get_mongo() -> MongoClient:
+    global _mongo_client
+    if _mongo_client is None:
+        _mongo_client = MongoClient(MONGO_URI)
+    return _mongo_client
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -171,8 +177,7 @@ async def process_document(job: dict) -> dict:
     title = job.get("title", document_id)
     mime_type = job.get("mimeType", "")
 
-    client = _mongo()
-    db = client[MONGO_DB]
+    db = _get_mongo()[MONGO_DB]
 
     try:
         _update_job(db, document_id, status="processing", stage="extract")
@@ -301,5 +306,3 @@ async def process_document(job: dict) -> dict:
             error=str(exc)[:500],
         )
         raise
-    finally:
-        client.close()
