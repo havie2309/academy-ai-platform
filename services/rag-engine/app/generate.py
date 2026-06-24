@@ -335,20 +335,35 @@ def build_messages(
 ) -> list[dict]:
     """System prompt (+ retrieved context) followed by the conversation history.
 
-    `citations` carry the full chunk `text` used as grounding context. History
-    already ends with the latest user turn (mirrors the chat service).
+    Builds a Markdown-hierarchical context instead of a flat list.
+    Groups citations by title and section_path, then renders as:
+      # Title
+      ## Section Path
+      content...
     """
     if citations:
-        context = "\n\nNgữ cảnh tham khảo (trích từ kho tài liệu):\n" + "\n".join(
-            f"[{i + 1}] chunk_id={c.get('chunk_id', '')} | {c.get('title', 'Tài liệu')} ({c.get('source', 'Kho tài liệu')}): "
-            f"{c.get('text') or c.get('snippet', '')}"
-            for i, c in enumerate(citations)
-        )
+        # Group citations by title, then by section_path
+        groups: dict[str, dict[str, list[str]]] = {}
+        for c in citations:
+            title = c.get('title', 'Tài liệu không tên')
+            path = c.get('section_path', '')
+            text = c.get('text') or c.get('snippet', '')
+            if not text:
+                continue
+            groups.setdefault(title, {}).setdefault(path, []).append(text)
+        
+        # Build Markdown hierarchy
+        md_parts = []
+        for title, paths in groups.items():
+            md_parts.append(f"# {title}")
+            for path, texts in paths.items():
+                if path:
+                    md_parts.append(f"## {path}")
+                for t in texts:
+                    md_parts.append(t.strip())
+        context = "\n\n".join(md_parts) if md_parts else ""
     else:
-        context = (
-            "\n\nKhông tìm thấy tài liệu liên quan trong kho. "
-            "Hãy trả lời rằng không tìm thấy thông tin trong tài liệu được cung cấp."
-        )
+        context = "Không tìm thấy tài liệu liên quan trong kho."
 
     output_contract = (
         "\n\nBẮT BUỘC đầu ra JSON hợp lệ theo schema:\n"
@@ -376,7 +391,7 @@ def build_messages(
             "- Trả lời tối thiểu 2 câu tiếng Việt, gồm: (1) kết luận chính, (2) lý do/điều kiện áp dụng từ ngữ cảnh.\n"
             "- Nếu có điều kiện ngoại lệ trong ngữ cảnh thì nêu ngắn gọn."
         )
-    system = SYSTEM_PROMPT + context + output_contract + anti_refusal + expand_answer
+    system = SYSTEM_PROMPT + f"\n\nNgữ cảnh tham khảo:\n{context}" + output_contract + anti_refusal + expand_answer
     convo = [
         {"role": m["role"], "content": m["content"]}
         for m in history

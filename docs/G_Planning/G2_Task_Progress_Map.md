@@ -22,7 +22,7 @@
 |------|------------|----------------|
 | Bootstrap M0 | compose, smoke, scripts, seed | verify `up-code.ps1` full stack, connectivity checklist |
 | AI profile M1 | Ollama + embedding/rerank dev path | profile `ai` 2 máy hoàn chỉnh |
-| Parent-child RAG | chunking/retrieval flow mới đã vào code | regression end-to-end re-ingest/citation/push-down filter |
+| Parent-child RAG | Đã hoàn thiện parent‑child chunking: chỉ tạo parent tại Điều/Mục; bổ sung unit test `test_chunker.py` pass. | ~~regression end-to-end~~ (đã smoke‑test end‑to‑end thành công) |
 | Admin ops | health, policy, audit backend/API helper | audit panel/detail/export trong `/admin`, quota/token usage, account management |
 | ETL integration | SQL Server connector có API | smoke nguồn thật, UI ETL |
 | Self-service | có khung web-ui | chưa có module nghiệp vụ đầy đủ |

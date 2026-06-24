@@ -201,7 +201,17 @@ async def process_document(job: dict) -> dict:
             raise ValueError("Không tạo được chunk từ nội dung.")
 
         _update_job(db, document_id, status="processing", stage="embed")
-        vectors = await embed_texts([c["text"] for c in child_nodes])
+        
+        # Inject metadata before embedding
+        # Build enriched texts: [Văn bản: title] -> [Vị trí: section_path] -> [Nội dung]: text
+        embed_inputs = []
+        for child in child_nodes:
+            section_path = child["metadata"].get("section_path", "")
+            child_text = child["text"]
+            enriched = f"[Văn bản: {title}] -> [Vị trí: {section_path}] -> [Nội dung]: {child_text}"
+            embed_inputs.append(enriched)
+        
+        vectors = await embed_texts(embed_inputs)
 
         if len(vectors) != len(child_nodes):
             raise ValueError(
