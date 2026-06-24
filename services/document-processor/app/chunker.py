@@ -66,9 +66,10 @@ def chunk_document_parent_child(
     """
     Parent-Child chunking for academic documents.
     
-    Algorithm B:
-    - Parent: Full section (e.g., entire Article) → stored in MongoDB
-    - Child: Small chunks for vector search → stored in Milvus
+    Algorithm B (modified):
+    - Parent: Only created at Điều/Mục level (NOT Phần/Chương).
+    - Phần/Chương are stored as metadata (`chapter_header`) and in the section_path.
+    - Child: Small chunks for vector search.
     
     Returns:
     {
@@ -86,87 +87,49 @@ def chunk_document_parent_child(
     child_nodes = []
     hierarchy = SectionHierarchy()
     
-    current_section = ""
-    current_metadata = {"section_path": ""}
+    # Section accumulator (flushed only on Điều/Mục)
+    current_text = ""
     current_headers: list[str] = []
+    last_chapter = ""
+    current_section_type = ""
     
-    # Step 1: Split by headers and build sections
-    sections: list[dict] = []
-    
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            current_section += "\n"
-            continue
+    # Helper to flush a section into a parent node
+    def flush_section():
+        nonlocal current_text, current_headers, last_chapter, current_section_type
+        if not current_text.strip():
+            return
         
-        header_type = detect_header(stripped)
-        
-        if header_type:
-            # If we have accumulated content, save it
-            if current_section.strip():
-                sections.append({
-                    "text": current_section.strip(),
-                    "metadata": {
-                        "section_path": hierarchy.get_path(),
-                        "headers": current_headers.copy(),
-                        "section_type": header_type,
-                    }
-                })
-            
-            # Update hierarchy
-            current_headers.append(stripped)
-            hierarchy.push(stripped)
-            current_section = stripped + "\n"
-        else:
-            current_section += line + "\n"
-    
-    # Don't forget the last section
-    if current_section.strip():
-        sections.append({
-            "text": current_section.strip(),
-            "metadata": {
-                "section_path": hierarchy.get_path(),
-                "headers": current_headers.copy(),
-            }
-        })
-    
-    # Step 2: Build parent and child nodes
-    for section in sections:
-        section_text = section["text"]
-        metadata = section["metadata"]
-        
-        # Skip if section is too short
-        if len(section_text) < 20:
-            continue
-        
-        parent_id = f"parent-{uuid.uuid4().hex[:8]}"
-        
-        # Truncate parent if too long
-        if len(section_text) > max_parent_size:
-            parent_text = section_text[:max_parent_size] + "..."
-        else:
-            parent_text = section_text
+        # Build section metadata
+        metadata = {
+            "section_path": hierarchy.get_path(),
+            "headers": current_headers.copy(),
+            "chapter_header": last_chapter,
+            "section_type": current_section_type,
+        }
         
         # Create parent node
+        parent_id = f"parent-{uuid.uuid4().hex[:8]}"
+        parent_text = current_text.strip()
+        if len(parent_text) > max_parent_size:
+            parent_text = parent_text[:max_parent_size] + "..."
+        
         parent_nodes.append({
             "id": parent_id,
             "text": parent_text,
             "metadata": {
                 **metadata,
                 "chunk_type": "parent",
-                "full_text": section_text[:500],  # Store preview
-                "original_length": len(section_text),
+                "full_text": current_text.strip()[:500],
+                "original_length": len(current_text.strip()),
             },
             "child_ids": []
         })
         
-        # Step 3: Break parent into child chunks
-        child_chunks = chunk_by_length(section_text, max_child_size, overlap)
-        
+        # Create child chunks from this section's text
+        child_chunks = chunk_by_length(current_text.strip(), max_child_size, overlap)
         for idx, child_text in enumerate(child_chunks):
             if not child_text.strip():
                 continue
-                
             child_id = f"child-{uuid.uuid4().hex[:8]}"
             child_nodes.append({
                 "id": child_id,
@@ -182,6 +145,43 @@ def chunk_document_parent_child(
                 }
             })
             parent_nodes[-1]["child_ids"].append(child_id)
+        
+        # Reset accumulator
+        current_text = ""
+        current_headers = []
+        current_section_type = ""
+    
+    # Main loop
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            current_text += "\n"
+            continue
+        
+        header_type = detect_header(stripped)
+        
+        if header_type:
+            if header_type in ("phan", "chuong"):
+                # Update hierarchy and chapter context, but DO NOT flush
+                hierarchy.push(stripped)
+                last_chapter = stripped
+                # DO NOT add to current_text – prevents chapter from becoming a parent itself
+                continue
+            else:  # dieu or muc
+                # Flush the previous section before starting a new one
+                flush_section()
+                
+                # Start new section with this header
+                current_text = stripped + "\n"
+                current_headers = [stripped]
+                current_section_type = header_type
+                # Ensure hierarchy path includes the new header (push it)
+                hierarchy.push(stripped)
+        else:
+            current_text += line + "\n"
+    
+    # Flush the last section
+    flush_section()
     
     return {
         "parent_nodes": parent_nodes,

@@ -4,10 +4,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-# Cross-encoder reranker. Override via RERANK_MODEL for production (e.g. BAAI/bge-reranker-v2-m3).
+# Use a strong multilingual cross-encoder for Vietnamese legal/technical text.
+# Available models from fastembed: 
+#   - jinaai/jina-reranker-v2-base-multilingual (best multilingual, 1.11 GB)
+#   - BAAI/bge-reranker-base (MIT, 1.04 GB, may be less multilingual)
+#   - Xenova/ms-marco-MiniLM-L-12-v2 (tiny, low quality)
+# Override via RERANK_MODEL env var.
 MODEL_NAME = os.getenv(
     "RERANK_MODEL",
-    "Xenova/ms-marco-MiniLM-L-6-v2",
+    "jinaai/jina-reranker-v2-base-multilingual",
 )
 
 _encoder = None
