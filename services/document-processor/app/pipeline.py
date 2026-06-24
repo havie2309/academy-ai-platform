@@ -19,7 +19,7 @@ from app.config import (
     SECURITY_RANK,
 )
 from app.extract import extract_text
-from app.milvus_store import delete_document_except, insert_vectors
+from app.milvus_store import delete_chunk_ids, delete_document_except, insert_vectors
 
 VALID_SCOPE_TYPES = {"all", "role", "department", "custom"}
 
@@ -30,6 +30,63 @@ def _utcnow() -> datetime:
 
 def _mongo() -> MongoClient:
     return MongoClient(MONGO_URI)
+
+
+def _compact_ws(text: object) -> str:
+    return " ".join(str(text or "").split())
+
+
+def _with_section_prefix(
+    text: str,
+    *,
+    section_path: str = "",
+    parent_preview: str = "",
+) -> str:
+    parts: list[str] = []
+    section = _compact_ws(section_path)
+    preview = _compact_ws(parent_preview)
+    body = text.strip()
+
+    if section:
+        parts.append(section)
+    if preview and preview not in body:
+        parts.append(preview)
+    parts.append(body)
+    return "\n\n".join(part for part in parts if part)
+
+
+def _child_embedding_text(child: dict) -> str:
+    meta = child.get("metadata", {})
+    return _with_section_prefix(
+        child.get("text", ""),
+        section_path=meta.get("section_path") or meta.get("sectionPath") or "",
+        parent_preview=meta.get("parent_preview") or meta.get("parentPreview") or "",
+    )
+
+
+def _cleanup_partial_parent_child_index(
+    db,
+    document_id: str,
+    parent_ids: list[str],
+    child_ids: list[str],
+) -> None:
+    if parent_ids:
+        db.document_chunks.delete_many(
+            {
+                "documentId": document_id,
+                "chunkType": "parent",
+                "chunkId": {"$in": parent_ids},
+            }
+        )
+    if child_ids:
+        db.document_chunks.delete_many(
+            {
+                "documentId": document_id,
+                "chunkType": "child",
+                "chunkId": {"$in": child_ids},
+            }
+        )
+        delete_chunk_ids(child_ids)
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -173,6 +230,8 @@ async def process_document(job: dict) -> dict:
 
     client = _mongo()
     db = client[MONGO_DB]
+    parent_ids: list[str] = []
+    chunk_ids: list[str] = []
 
     try:
         _update_job(db, document_id, status="processing", stage="extract")
@@ -196,7 +255,7 @@ async def process_document(job: dict) -> dict:
             raise ValueError("Không tạo được chunk từ nội dung.")
 
         _update_job(db, document_id, status="processing", stage="embed")
-        vectors = await embed_texts([c["text"] for c in child_nodes])
+        vectors = await embed_texts([_child_embedding_text(c) for c in child_nodes])
 
         if len(vectors) != len(child_nodes):
             raise ValueError(
@@ -293,6 +352,7 @@ async def process_document(job: dict) -> dict:
                 "status": "completed"}
 
     except Exception as exc:
+        _cleanup_partial_parent_child_index(db, document_id, parent_ids, chunk_ids)
         _update_job(
             db,
             document_id,

@@ -1,11 +1,18 @@
-import httpx
+import logging
 import re
+
+import httpx
 from pymongo import MongoClient
 
-from app.access import can_view_chunk
+from app.access import (
+    build_milvus_document_expr,
+    can_view_chunk,
+    resolve_accessible_document_ids,
+)
 from app.cache import RedisCache
 from app.citation_select import limit_chunks_per_doc
 from app.config import (
+    ALLOW_ADVERSARIAL_DOCS,
     EMBEDDING_BASE_URL,
     MAX_CHUNKS_PER_DOC,
     MONGO_DB,
@@ -14,25 +21,22 @@ from app.config import (
     RERANK_SCORE_MIN,
     RETRIEVAL_TOP_K,
     VECTOR_SCORE_MIN,
-    ALLOW_ADVERSARIAL_DOCS
 )
 from app.milvus_search import search_vectors
 from app.rerank import rerank_citations
 
+logger = logging.getLogger(__name__)
 cache = RedisCache()
 
 COMPARE_KEYWORDS = (
-    "so sánh",
     "so sanh",
-    "khác nhau",
-    "cũ và mới",
-    "mới và cũ",
-    "quy định cũ",
+    "khac nhau",
+    "cu va moi",
+    "moi va cu",
     "quy dinh cu",
-    "quy định mới",
     "quy dinh moi",
 )
-OLD_DOC_KEYWORDS = ("conflict", "cũ", "cu", "old")
+OLD_DOC_KEYWORDS = ("conflict", "cu", "old")
 YEAR_RE = re.compile(r"(20\d{2})(?:\D+(20\d{2}))?")
 
 
@@ -47,17 +51,16 @@ async def embed_query(text: str) -> list[float]:
 
 
 def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dict:
-    """Build citation from parent node (for LLM context)."""
     meta = row.get("metadata", {})
     text = row.get("chunkText", "")
-    snippet = text[:280] + ("…" if len(text) > 280 else "")
+    snippet = text[:280] + ("..." if len(text) > 280 else "")
     citation = {
         "doc_id": row.get("documentId", ""),
         "chunk_id": chunk_id,
-        "title": meta.get("title", "Tài liệu"),
+        "title": meta.get("title", "Tai lieu"),
         "snippet": snippet,
         "text": text,
-        "source": meta.get("title", "Kho tài liệu"),
+        "source": meta.get("title", "Kho tai lieu"),
         "score": vector_score,
     }
     section_path = meta.get("sectionPath") or meta.get("section_path")
@@ -68,7 +71,7 @@ def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dic
 
 def _is_compare_query(query: str) -> bool:
     q = query.lower()
-    return any(k in q for k in COMPARE_KEYWORDS)
+    return any(keyword in q for keyword in COMPARE_KEYWORDS)
 
 
 def _extract_year_pairs(text: str) -> list[tuple[int, int]]:
@@ -82,13 +85,13 @@ def _extract_year_pairs(text: str) -> list[tuple[int, int]]:
     return pairs
 
 
-def _doc_text(c: dict) -> str:
+def _doc_text(citation: dict) -> str:
     return " ".join(
         [
-            str(c.get("doc_id", "")),
-            str(c.get("title", "")),
-            str(c.get("source", "")),
-            str(c.get("snippet", "")),
+            str(citation.get("doc_id", "")),
+            str(citation.get("title", "")),
+            str(citation.get("source", "")),
+            str(citation.get("snippet", "")),
         ]
     ).lower()
 
@@ -103,25 +106,26 @@ def _apply_year_policy(query: str, citations: list[dict]) -> list[dict]:
         return citations
 
     if query_pairs:
-        query_years = {y for p in query_pairs for y in p}
+        query_years = {year for pair in query_pairs for year in pair}
         matched = []
-        for c in citations:
-            years = {y for p in _extract_year_pairs(_doc_text(c)) for y in p}
+        for citation in citations:
+            years = {
+                year for pair in _extract_year_pairs(_doc_text(citation)) for year in pair
+            }
             if years and years & query_years:
-                matched.append(c)
+                matched.append(citation)
         if matched:
             return matched
 
-    # No explicit year in query: keep newest academic year if identifiable.
     with_year = []
-    for c in citations:
-        pairs = _extract_year_pairs(_doc_text(c))
+    for citation in citations:
+        pairs = _extract_year_pairs(_doc_text(citation))
         if pairs:
             latest_end = max(end for _, end in pairs)
-            with_year.append((latest_end, c))
+            with_year.append((latest_end, citation))
     if with_year:
         max_end = max(end for end, _ in with_year)
-        return [c for end, c in with_year if end == max_end]
+        return [citation for end, citation in with_year if end == max_end]
 
     return citations
 
@@ -130,28 +134,29 @@ def _filter_old_conflict_docs(query: str, citations: list[dict]) -> list[dict]:
     if _is_compare_query(query):
         return citations
     filtered = []
-    for c in citations:
-        text = _doc_text(c)
-        if any(k in text for k in OLD_DOC_KEYWORDS):
+    for citation in citations:
+        text = _doc_text(citation)
+        if any(keyword in text for keyword in OLD_DOC_KEYWORDS):
             continue
-        filtered.append(c)
+        filtered.append(citation)
     return filtered
 
 
 def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
     if not citations:
         return []
-    # Base filter by vector similarity.
     after_vector = [
-        c for c in citations if float(c.get("score", 0.0) or 0.0) >= VECTOR_SCORE_MIN
+        citation
+        for citation in citations
+        if float(citation.get("score", 0.0) or 0.0) >= VECTOR_SCORE_MIN
     ]
     if not after_vector:
         after_vector = citations[:]
 
     rerank_scores = [
-        float(c.get("rerank_score"))
-        for c in after_vector
-        if c.get("rerank_score") is not None
+        float(citation.get("rerank_score"))
+        for citation in after_vector
+        if citation.get("rerank_score") is not None
     ]
     if not rerank_scores:
         return after_vector
@@ -159,85 +164,131 @@ def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
     top = max(rerank_scores)
     floor = max(RERANK_SCORE_MIN, top - RERANK_SCORE_DELTA)
     after_rerank = [
-        c
-        for c in after_vector
-        if c.get("rerank_score") is None or float(c.get("rerank_score")) >= floor
+        citation
+        for citation in after_vector
+        if citation.get("rerank_score") is None
+        or float(citation.get("rerank_score")) >= floor
     ]
     return after_rerank or after_vector
 
 
 async def retrieve_citations(query: str, user: dict) -> list[dict]:
     """
-    Retrieve citations using Parent-Child strategy:
-    1. Search child nodes (small chunks) in Milvus
-    2. Get parent IDs from child hits
-    3. Retrieve parent nodes (full context) from MongoDB
-    4. Return parent nodes as citations (LLM gets full context)
+    Retrieve parent citations from child-vector hits.
+
+    Access metadata remains source-of-truth in Mongo `documents`, but we now
+    push the accessible document ids down into Milvus before the vector search.
+    Mongo post-filtering is kept as defense in depth.
     """
-    query = query.strip()
-    if not query:
+    query_text = query.strip()
+    if not query_text:
         return []
-    
-    # Check cache first
+
     user_id = user.get("userId")
-    cached = cache.get_retrieval(query, user_id)
+    cached = cache.get_retrieval(query_text, user_id)
     if cached:
-        print(f"Cache hit for: {query[:50]}...")
+        logger.debug("Cache hit for retrieval query: %s", query_text[:50])
         return cached
 
     try:
-        vector = await embed_query(query)
+        vector = await embed_query(query_text)
     except Exception:
-        return []
-
-    try:
-        hits = search_vectors(vector, RETRIEVAL_TOP_K)
-    except Exception:
-        return []
-
-    if not hits:
-        return []
-
-    child_chunk_ids = [h["chunk_id"] for h in hits if h.get("chunk_id")]
-    if not child_chunk_ids:
         return []
 
     client = MongoClient(MONGO_URI)
     db = client[MONGO_DB]
     try:
-        query = {
+        accessible_doc_ids: list[str] | None = None
+        milvus_expr: str | None = None
+        try:
+            accessible_doc_ids = resolve_accessible_document_ids(
+                db,
+                user,
+                allow_adversarial=ALLOW_ADVERSARIAL_DOCS,
+            )
+            if not accessible_doc_ids:
+                return []
+            milvus_expr = build_milvus_document_expr(accessible_doc_ids)
+        except Exception:
+            logger.warning(
+                "ACL push-down failed; continuing with post-filter retrieval only."
+            )
+            accessible_doc_ids = None
+            milvus_expr = None
+
+        try:
+            hits = search_vectors(vector, RETRIEVAL_TOP_K, expr=milvus_expr)
+        except Exception:
+            return []
+
+        if not hits:
+            return []
+
+        child_chunk_ids = [hit["chunk_id"] for hit in hits if hit.get("chunk_id")]
+        if not child_chunk_ids:
+            return []
+
+        child_query = {
             "chunkId": {"$in": child_chunk_ids},
-            "chunkType": "child"  # Only search child nodes
+            "chunkType": "child",
         }
+        if accessible_doc_ids:
+            child_query["documentId"] = {"$in": accessible_doc_ids}
         if not ALLOW_ADVERSARIAL_DOCS:
-            query["metadata.isUnreasonable"] = {"$ne": True}  # ← Filter out!
-        child_rows = list(db.document_chunks.find(query))
-    finally:
-        client.close()
+            child_query["metadata.isUnreasonable"] = {"$ne": True}
+        child_rows = list(db.document_chunks.find(child_query))
+        if not child_rows:
+            return []
 
-    if not child_rows:
-        return []
+        child_rows_by_id = {
+            row.get("chunkId"): row for row in child_rows if row.get("chunkId")
+        }
+        parent_best_scores: dict[str, float] = {}
+        for hit in hits:
+            chunk_id = hit.get("chunk_id")
+            if not chunk_id:
+                continue
+            row = child_rows_by_id.get(chunk_id)
+            if not row:
+                continue
+            parent_id = row.get("parentId")
+            if not parent_id:
+                continue
+            score = float(hit.get("score") or 0.0)
+            parent_best_scores[parent_id] = max(
+                parent_best_scores.get(parent_id, score),
+                score,
+            )
 
-    parent_ids = list(set([
-        row.get("parentId") for row in child_rows 
-        if row.get("parentId")
-    ]))
+        parent_ids = list(parent_best_scores.keys())
+        if not parent_ids:
+            return []
 
-    if not parent_ids:
-        return []
-
-    client = MongoClient(MONGO_URI)
-    db = client[MONGO_DB]
-    try:
-        parent_rows = list(db.document_chunks.find({
+        parent_query = {
             "chunkId": {"$in": parent_ids},
-            "chunkType": "parent"
-        }))
+            "chunkType": "parent",
+        }
+        if accessible_doc_ids:
+            parent_query["documentId"] = {"$in": accessible_doc_ids}
+        parent_rows = list(db.document_chunks.find(parent_query))
     finally:
         client.close()
+
+    parents_by_id = {
+        row.get("chunkId"): row for row in parent_rows if row.get("chunkId")
+    }
+    ordered_parent_rows = [
+        parents_by_id[parent_id]
+        for parent_id, _ in sorted(
+            parent_best_scores.items(),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        if parent_id in parents_by_id
+    ]
 
     filtered_parents = []
-    for row in parent_rows:
+    for row in ordered_parent_rows:
         meta = row.get("metadata", {})
         if can_view_chunk(meta, user):
             filtered_parents.append(row)
@@ -247,32 +298,21 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
 
     citations = []
     for row in filtered_parents:
-        # Find the score from the original child hit
-        child_meta = row.get("metadata", {})
-        child_ids = child_meta.get("childIds", [])
-        
-        # Use the best score from child hits
-        best_score = None
-        for hit in hits:
-            if hit.get("chunk_id") in child_ids:
-                score = hit.get("score")
-                if best_score is None or (score and score > best_score):
-                    best_score = score
-        
-        citation = _build_citation(row, row.get("chunkId"), best_score)
-        citations.append(citation)
+        best_score = parent_best_scores.get(row.get("chunkId", ""), None)
+        citations.append(_build_citation(row, row.get("chunkId"), best_score))
 
-    reranked = await rerank_citations(query, citations)
+    reranked = await rerank_citations(query_text, citations)
     selected = _apply_score_thresholds(reranked)
-    selected = _filter_old_conflict_docs(query, selected)
-    selected = _apply_year_policy(query, selected)
+    selected = _filter_old_conflict_docs(query_text, selected)
+    selected = _apply_year_policy(query_text, selected)
     selected.sort(
-        key=lambda c: float(c.get("rerank_score", c.get("score", -9999))),
+        key=lambda citation: float(
+            citation.get("rerank_score", citation.get("score", -9999))
+        ),
         reverse=True,
     )
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
-    
-    cache.set_retrieval(query, selected, user_id)
-    print(f"Cache miss for: {query[:50]}...")
 
+    cache.set_retrieval(query_text, selected, user_id)
+    logger.debug("Cache miss for retrieval query: %s", query_text[:50])
     return selected

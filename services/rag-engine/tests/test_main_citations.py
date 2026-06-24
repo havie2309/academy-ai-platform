@@ -240,6 +240,79 @@ def test_chat_uses_cached_session_context_and_updates_it_after_answer():
     }
 
 
+def test_chat_returns_reject_route_without_retrieval():
+    original_refusal = rag_main.maybe_refuse_query
+    original_retrieve = rag_main.retrieve_citations
+    try:
+        async def fake_refusal(_query: str, user: dict | None = None):
+            assert user and user["userId"] == "body-user"
+            return None
+
+        async def fail_retrieval(*_args, **_kwargs):
+            raise AssertionError("retrieve_citations should not be called")
+
+        rag_main.maybe_refuse_query = fake_refusal
+        rag_main.retrieve_citations = fail_retrieval
+
+        result = asyncio.run(
+            rag_main.chat(
+                rag_main.ChatRequest(
+                    query="Thoi tiet hom nay the nao?",
+                    user=rag_main.RetrieveUser(userId="body-user"),
+                ),
+                _request_with_headers({}),
+            )
+        )
+    finally:
+        rag_main.maybe_refuse_query = original_refusal
+        rag_main.retrieve_citations = original_retrieve
+
+    assert result["route"] == "reject"
+    assert result["citations"] == []
+    assert "khong tim thay thong tin" in result["answer"].lower()
+
+
+def test_chat_runs_task_assist_without_retrieval():
+    original_refusal = rag_main.maybe_refuse_query
+    original_retrieve = rag_main.retrieve_citations
+    original_task_assist = rag_main.complete_task_assist
+    try:
+        async def fake_refusal(_query: str, user: dict | None = None):
+            assert user and user["userId"] == "body-user"
+            return None
+
+        async def fail_retrieval(*_args, **_kwargs):
+            raise AssertionError("retrieve_citations should not be called")
+
+        async def fake_task_assist(history: list[dict]):
+            assert history[-1]["content"] == "Viet giup toi email xin nghi hoc mot buoi."
+            return "Ban nhap email xin nghi hoc."
+
+        rag_main.maybe_refuse_query = fake_refusal
+        rag_main.retrieve_citations = fail_retrieval
+        rag_main.complete_task_assist = fake_task_assist
+
+        result = asyncio.run(
+            rag_main.chat(
+                rag_main.ChatRequest(
+                    query="Viet giup toi email xin nghi hoc mot buoi.",
+                    user=rag_main.RetrieveUser(userId="body-user"),
+                ),
+                _request_with_headers({}),
+            )
+        )
+    finally:
+        rag_main.maybe_refuse_query = original_refusal
+        rag_main.retrieve_citations = original_retrieve
+        rag_main.complete_task_assist = original_task_assist
+
+    assert result == {
+        "answer": "Ban nhap email xin nghi hoc.",
+        "citations": [],
+        "route": "task_assist",
+    }
+
+
 def _request_with_headers(headers: dict[str, str]) -> Request:
     return Request(
         {

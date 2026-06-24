@@ -51,6 +51,7 @@ Mode này hiện chạy toàn bộ profile `code`, bao gồm cả **container `u
 Nếu dùng Mode B:
 
 - Không chạy thêm `user-management` local trên cổng `3001` cùng lúc.
+- Nếu thấy lỗi bind `3001`, nghĩa là local `user-management` chưa tắt hẳn.
 - Có thể vẫn chạy local `api-gateway`, `chat`, `rbac`, `admin-config`, `audit`, `web-ui`, `rag-engine` và các Python service khác.
 
 ### 2.4. Thứ tự khởi động khuyến nghị

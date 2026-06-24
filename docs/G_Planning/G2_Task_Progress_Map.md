@@ -1,40 +1,40 @@
-# G2 — Task Progress Map
+# G2 - Task Progress Map
 
-## 1. Mục đích
+## 1. Muc dich
 
-- Tóm tắt nhanh cái gì đã xong, cái gì mới làm một phần và cái gì nên làm tiếp.
-- Đây là lớp đọc nhanh; backlog đầy đủ vẫn ở [../task list.md](<../task list.md>).
+- Tom tat nhanh cai gi da xong, cai gi moi lam mot phan va cai gi nen lam tiep.
+- Day la lop doc nhanh; backlog day du van o [../task list.md](<../task list.md>).
 
-## 2. Đã hoàn thành đáng kể
+## 2. Da hoan thanh dang ke
 
-| Nhóm | Nội dung |
+| Nhom | Noi dung |
 |------|----------|
 | Auth | Login, refresh cookie flow, logout, seed IAM, hash + salt + iterations |
 | Chat | Session history, SSE, markdown, citation UI, RAG bridge |
 | Documents | Upload, metadata validation, versioning, ingest status poll |
-| AI | Grounding, safe refusal, eval harness, SQL format/safety nền |
-| Admin | Health view, policy editor |
+| AI | Grounding, safe refusal, eval harness, SQL format/safety nen |
+| Admin | Health view, policy editor, quota/token ops, account management, audit viewer/export |
 | ETL | Source/job/run schema, scheduler, transform/load, lineage/error log |
 
-## 3. Hoàn thành một phần
+## 3. Hoan thanh mot phan
 
-| Nhóm | Phần đã có | Phần còn thiếu |
+| Nhom | Phan da co | Phan con thieu |
 |------|------------|----------------|
-| Bootstrap M0 | compose, smoke, scripts, seed | verify `up-code.ps1` full stack, connectivity checklist |
-| AI profile M1 | Ollama + embedding/rerank dev path | profile `ai` 2 máy hoàn chỉnh |
-| Parent-child RAG | chunking/retrieval flow mới đã vào code | regression end-to-end re-ingest/citation/push-down filter |
-| Admin ops | health, policy, audit backend/API helper | audit panel/detail/export trong `/admin`, quota/token usage, account management |
-| ETL integration | SQL Server connector có API | smoke nguồn thật, UI ETL |
-| Self-service | có khung web-ui | chưa có module nghiệp vụ đầy đủ |
+| Bootstrap M0 | compose, smoke, scripts, seed, data-service connectivity va user-management bootstrap da verify | `generate_seed.py` re-run, `up-ai.ps1`, quickstart 2 may |
+| AI profile M1 | Ollama + embedding/rerank dev path | profile `ai` 2 may hoan chinh |
+| Parent-child RAG | chunking/retrieval flow moi da co section-path on dinh, prefix embed, re-ingest cleanup, router `reject/task_assist` va Milvus metadata push-down theo `document_id`; regression test pass 2026-06-24 (`test_chunker`, `test_pipeline_parent_child`, `test_retrieval`, `test_main_citations`, `test_sql`) | live full-stack smoke voi Milvus that |
+| Admin hardening | health, policy, quota/token usage, account status/session management, audit panel/detail/export trong `/admin`; admin API helper + Playwright coverage | rate-limit, penetration hardening, production hardening cho nhanh quan tri |
+| ETL integration | SQL Server connector co API | smoke nguon that, UI ETL |
+| Self-service | co khung web-ui | chua co module nghiep vu day du |
 
-## 4. Ưu tiên tiếp theo nên làm
+## 4. Uu tien tiep theo nen lam
 
-1. Đóng các việc M0 còn hở: verify full stack, connectivity, seed fresh DB.
-2. Nghiệm thu lại parent-child ingest/retrieval/citation trước khi build thêm tính năng AI mới.
-3. Làm `K-10` admin quota/token/account ops vì đây là lỗ hổng rõ nhất ở phần quản trị.
-4. Hoàn thiện profile `ai` và smoke 2 máy để tránh mắc kẹt ở local-only.
+1. Dong cac viec M0 con ho: re-run `generate_seed.py`, bo sung `up-ai.ps1`, hoan thien quickstart 2 may.
+2. Lam `K-04 / G-07`: docs timeline/chunk preview va hardening rate-limit sau khi nhanh RAG core da co router `reject/task_assist` + Milvus metadata push-down.
+3. Hoan thien profile `ai` va smoke 2 may de tranh mac ket o local-only.
+4. Day sau hon `E-03 / E-04` de siet scope alignment va rerank/context tuning.
 
-## 5. Quy tắc cập nhật
+## 5. Quy tac cap nhat
 
-- Khi pull code mới có thay đổi hành vi đáng kể, cập nhật bảng "Hoàn thành một phần" trước.
-- Khi một task chuyển từ partial sang done, đồng bộ lại cả file này và `task list.md`.
+- Khi pull code moi co thay doi hanh vi dang ke, cap nhat bang "Hoan thanh mot phan" truoc.
+- Khi mot task chuyen tu partial sang done, dong bo lai ca file nay va `task list.md`.

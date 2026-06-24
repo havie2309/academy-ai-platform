@@ -197,6 +197,7 @@ export class AuthService {
       ip,
       userAgent,
     )
+    await this.users.logLogin(session.user_id, 'token_refresh', ip, userAgent, true)
 
     const access_token = this.signAccessToken(user)
 

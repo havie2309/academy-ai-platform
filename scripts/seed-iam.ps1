@@ -17,4 +17,4 @@ if (-not $running) {
 docker cp $SqlFile pm2_postgres:/tmp/12-seed-iam.sql
 docker exec pm2_postgres psql -U pm2_user -d pm2 -f /tmp/12-seed-iam.sql
 
-Write-Host "IAM seed applied. Login: admin / gv001 / hv001 / p2 - password 123456"
+Write-Host "IAM seed applied. Example logins: admin / BGD / p2_01 / 676156 / GV5976 - password 123456"
