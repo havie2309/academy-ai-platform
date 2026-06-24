@@ -7,11 +7,11 @@ from pymongo import MongoClient
 
 from app.chunker import chunk_document_parent_child
 from app.config import (
-    CHUNK_MAX_PARENT_SIZE,
     CHUNK_MAX_CHILD_SIZE,
+    CHUNK_MAX_PARENT_SIZE,
     CHUNK_OVERLAP,
-    EMBEDDING_BATCH_SIZE,
     EMBEDDING_BASE_URL,
+    EMBEDDING_BATCH_SIZE,
     EMBEDDING_MAX_RETRIES,
     EMBEDDING_RETRY_BACKOFF_MS,
     MONGO_DB,
@@ -28,8 +28,14 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _mongo() -> MongoClient:
-    return MongoClient(MONGO_URI)
+_mongo_client: MongoClient | None = None
+
+
+def _get_mongo() -> MongoClient:
+    global _mongo_client
+    if _mongo_client is None:
+        _mongo_client = MongoClient(MONGO_URI)
+    return _mongo_client
 
 
 def _compact_ws(text: object) -> str:
@@ -55,13 +61,17 @@ def _with_section_prefix(
     return "\n\n".join(part for part in parts if part)
 
 
-def _child_embedding_text(child: dict) -> str:
+def _child_embedding_text(child: dict, *, title: str = "") -> str:
     meta = child.get("metadata", {})
-    return _with_section_prefix(
+    body = _with_section_prefix(
         child.get("text", ""),
         section_path=meta.get("section_path") or meta.get("sectionPath") or "",
         parent_preview=meta.get("parent_preview") or meta.get("parentPreview") or "",
     )
+    title_text = _compact_ws(title)
+    if not title_text:
+        return body
+    return f"Van ban: {title_text}\n\n{body}"
 
 
 def _cleanup_partial_parent_child_index(
@@ -228,8 +238,7 @@ async def process_document(job: dict) -> dict:
     title = job.get("title", document_id)
     mime_type = job.get("mimeType", "")
 
-    client = _mongo()
-    db = client[MONGO_DB]
+    db = _get_mongo()[MONGO_DB]
     parent_ids: list[str] = []
     chunk_ids: list[str] = []
 
@@ -245,17 +254,19 @@ async def process_document(job: dict) -> dict:
             raw_text,
             max_child_size=CHUNK_MAX_CHILD_SIZE,
             max_parent_size=CHUNK_MAX_PARENT_SIZE,
-            overlap=CHUNK_OVERLAP
+            overlap=CHUNK_OVERLAP,
         )
-    
+
         parent_nodes = chunk_result["parent_nodes"]
         child_nodes = chunk_result["child_nodes"]
-        
+
         if not child_nodes:
             raise ValueError("Không tạo được chunk từ nội dung.")
 
         _update_job(db, document_id, status="processing", stage="embed")
-        vectors = await embed_texts([_child_embedding_text(c) for c in child_nodes])
+        vectors = await embed_texts(
+            [_child_embedding_text(child, title=title) for child in child_nodes]
+        )
 
         if len(vectors) != len(child_nodes):
             raise ValueError(
@@ -267,35 +278,35 @@ async def process_document(job: dict) -> dict:
 
         _update_job(db, document_id, status="processing", stage="index")
 
-        parent_ids = [p["id"] for p in parent_nodes]
-        chunk_ids = [c["id"] for c in child_nodes]
+        parent_ids = [parent["id"] for parent in parent_nodes]
+        chunk_ids = [child["id"] for child in child_nodes]
 
-        # 1) Insert parents vào Mongo trước (không cần Milvus ID).
         parent_docs = []
         for p_idx, parent in enumerate(parent_nodes):
-            parent_docs.append({
-                "chunkId": parent["id"],
-                "documentId": document_id,
-                "chunkType": "parent",
-                "chunkText": parent["text"],
-                "chunkIndex": -p_idx - 1,
-                "metadata": {
-                    **parent["metadata"],
-                    "title": title,
-                    "securityLevel": security_level,
-                    "scopeType": job.get("scopeType", "all"),
-                    "accessRoleCodes": job.get("accessRoleCodes", []),
-                    "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
-                    "accessUserIds": job.get("accessUserIds", []),
-                    "uploadedById": job.get("uploadedById", ""),
-                    "childIds": parent.get("child_ids", []),
-                },
-                "createdAt": _utcnow(),
-            })
+            parent_docs.append(
+                {
+                    "chunkId": parent["id"],
+                    "documentId": document_id,
+                    "chunkType": "parent",
+                    "chunkText": parent["text"],
+                    "chunkIndex": -p_idx - 1,
+                    "metadata": {
+                        **parent["metadata"],
+                        "title": title,
+                        "securityLevel": security_level,
+                        "scopeType": job.get("scopeType", "all"),
+                        "accessRoleCodes": job.get("accessRoleCodes", []),
+                        "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
+                        "accessUserIds": job.get("accessUserIds", []),
+                        "uploadedById": job.get("uploadedById", ""),
+                        "childIds": parent.get("child_ids", []),
+                    },
+                    "createdAt": _utcnow(),
+                }
+            )
         if parent_docs:
             db.document_chunks.insert_many(parent_docs)
 
-        # 2) Insert vectors vào Milvus → lấy milvus_ids.
         milvus_ids = insert_vectors(
             chunk_ids,
             [document_id] * len(child_nodes),
@@ -303,38 +314,46 @@ async def process_document(job: dict) -> dict:
             vectors,
         )
 
-        # 3) Build child docs với milvusVectorId đã có → insert một lần duy nhất.
         child_docs = []
         for c_idx, (child, mid) in enumerate(zip(child_nodes, milvus_ids)):
-            child_docs.append({
-                "chunkId": child["id"],
-                "documentId": document_id,
-                "parentId": child["parent_id"],
-                "chunkType": "child",
-                "chunkText": child["text"],
-                "chunkIndex": c_idx,
-                "milvusVectorId": str(mid),
-                "metadata": {
-                    **child["metadata"],
-                    "title": title,
-                    "securityLevel": security_level,
-                    "scopeType": job.get("scopeType", "all"),
-                    "accessRoleCodes": job.get("accessRoleCodes", []),
-                    "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
-                    "accessUserIds": job.get("accessUserIds", []),
-                    "uploadedById": job.get("uploadedById", ""),
-                },
-                "createdAt": _utcnow(),
-            })
+            child_docs.append(
+                {
+                    "chunkId": child["id"],
+                    "documentId": document_id,
+                    "parentId": child["parent_id"],
+                    "chunkType": "child",
+                    "chunkText": child["text"],
+                    "chunkIndex": c_idx,
+                    "milvusVectorId": str(mid),
+                    "metadata": {
+                        **child["metadata"],
+                        "title": title,
+                        "securityLevel": security_level,
+                        "scopeType": job.get("scopeType", "all"),
+                        "accessRoleCodes": job.get("accessRoleCodes", []),
+                        "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
+                        "accessUserIds": job.get("accessUserIds", []),
+                        "uploadedById": job.get("uploadedById", ""),
+                    },
+                    "createdAt": _utcnow(),
+                }
+            )
         if child_docs:
             db.document_chunks.insert_many(child_docs)
 
-        # 4) Bản mới đã ghi xong → xóa bản cũ, giữ lại đúng chunk_ids/parent_ids vừa insert.
         db.document_chunks.delete_many(
-            {"documentId": document_id, "chunkType": "child", "chunkId": {"$nin": chunk_ids}}
+            {
+                "documentId": document_id,
+                "chunkType": "child",
+                "chunkId": {"$nin": chunk_ids},
+            }
         )
         db.document_chunks.delete_many(
-            {"documentId": document_id, "chunkType": "parent", "chunkId": {"$nin": parent_ids}}
+            {
+                "documentId": document_id,
+                "chunkType": "parent",
+                "chunkId": {"$nin": parent_ids},
+            }
         )
         delete_document_except(document_id, chunk_ids)
 
@@ -345,11 +364,13 @@ async def process_document(job: dict) -> dict:
             stage="done",
             chunk_count=len(child_nodes),
         )
-        
-        return {"documentId": document_id,
-                "chunkCount": len(child_nodes),
-                "parentCount": len(parent_nodes),
-                "status": "completed"}
+
+        return {
+            "documentId": document_id,
+            "chunkCount": len(child_nodes),
+            "parentCount": len(parent_nodes),
+            "status": "completed",
+        }
 
     except Exception as exc:
         _cleanup_partial_parent_child_index(db, document_id, parent_ids, chunk_ids)
@@ -361,5 +382,3 @@ async def process_document(job: dict) -> dict:
             error=str(exc)[:500],
         )
         raise
-    finally:
-        client.close()

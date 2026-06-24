@@ -28,15 +28,26 @@ from app.rerank import rerank_citations
 logger = logging.getLogger(__name__)
 cache = RedisCache()
 
+
+def _get_mongo() -> MongoClient:
+    return MongoClient(MONGO_URI)
+
+
 COMPARE_KEYWORDS = (
+    "so sánh",
     "so sanh",
+    "khác nhau",
     "khac nhau",
+    "cũ và mới",
     "cu va moi",
+    "mới và cũ",
     "moi va cu",
+    "quy định cũ",
     "quy dinh cu",
+    "quy định mới",
     "quy dinh moi",
 )
-OLD_DOC_KEYWORDS = ("conflict", "cu", "old")
+OLD_DOC_KEYWORDS = ("conflict", "cũ", "cu", "old")
 YEAR_RE = re.compile(r"(20\d{2})(?:\D+(20\d{2}))?")
 
 
@@ -176,9 +187,9 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     """
     Retrieve parent citations from child-vector hits.
 
-    Access metadata remains source-of-truth in Mongo `documents`, but we now
-    push the accessible document ids down into Milvus before the vector search.
-    Mongo post-filtering is kept as defense in depth.
+    Access metadata remains source-of-truth in Mongo `documents`, but we also
+    push the accessible document ids down into Milvus before vector search.
+    Mongo post-filtering stays as defense in depth.
     """
     query_text = query.strip()
     if not query_text:
@@ -195,11 +206,12 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     except Exception:
         return []
 
-    client = MongoClient(MONGO_URI)
+    client = _get_mongo()
     db = client[MONGO_DB]
     try:
         accessible_doc_ids: list[str] | None = None
         milvus_expr: str | None = None
+
         try:
             accessible_doc_ids = resolve_accessible_document_ids(
                 db,
@@ -236,6 +248,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
             child_query["documentId"] = {"$in": accessible_doc_ids}
         if not ALLOW_ADVERSARIAL_DOCS:
             child_query["metadata.isUnreasonable"] = {"$ne": True}
+
         child_rows = list(db.document_chunks.find(child_query))
         if not child_rows:
             return []

@@ -66,6 +66,7 @@ def _split_into_sections(text: str) -> list[dict]:
                     "section_path": section_path,
                     "headers": [part for part in section_path.split(" > ") if part],
                     "section_type": active_level,
+                    "chapter_header": path.get("chuong") or path.get("phan") or "",
                 },
             }
         )
@@ -97,6 +98,7 @@ def _split_into_sections(text: str) -> list[dict]:
                         "section_path": "",
                         "headers": [],
                         "section_type": "",
+                        "chapter_header": "",
                     },
                 }
             ]
@@ -120,8 +122,8 @@ def chunk_document(
     """
     Backward-compatible structure-aware chunking for existing tests/tooling.
 
-    The parent-child ingest path below now uses `_split_into_sections`, but some
-    tests and fallback code still expect the old `chunk_document` contract.
+    The parent-child ingest path below uses `_split_into_sections`, but some
+    tests and fallback code still expect the older `chunk_document` contract.
     """
     cleaned = text.replace("\r\n", "\n").strip()
     if not cleaned:
@@ -175,7 +177,9 @@ def chunk_document_parent_child(
     Parent-child chunking for academic documents.
 
     Parent nodes keep section-level context in MongoDB, while child nodes stay
-    small for embedding/Milvus lookup.
+    small for embedding and Milvus lookup. `Phan` / `Chuong` remain metadata in
+    `section_path` and `chapter_header`; parent nodes are emitted for `Dieu`,
+    `Muc`, or plain-text fallback sections.
     """
     cleaned = text.replace("\r\n", "\n").strip()
     if not cleaned:
@@ -186,9 +190,13 @@ def chunk_document_parent_child(
     child_nodes: list[dict] = []
 
     for section in sections:
-        section_text = section["text"]
         metadata = section["metadata"]
-        if len(section_text) < 20:
+        section_type = metadata.get("section_type", "")
+        section_text = section["text"].strip()
+
+        if not section_text:
+            continue
+        if section_type in {"phan", "chuong"}:
             continue
 
         parent_id = f"parent-{uuid.uuid4().hex[:8]}"
