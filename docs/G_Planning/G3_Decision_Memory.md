@@ -23,6 +23,7 @@
 | DEC-PM2-13 | Tài liệu phải tách rõ `current implementation` và `target architecture` | Tránh trình bày kiến trúc mục tiêu như thể đã có trong repo | Active |
 | DEC-PM2-14 | Khi docs mâu thuẫn với code, phải cập nhật docs hoặc đánh dấu `planned/partial`; không được âm thầm coi planned là implemented | Giữ docs đủ tin cậy để dev/reviewer/AI dùng làm source of truth | Active |
 | DEC-PM2-15 | Mọi đợt chỉnh docs lớn do review redirect phải tạo file `Check-tren` riêng | Giữ trace cho các lần AI cần học lại cách bám implementation thật | Active |
+| DEC-PM2-16 | API Gateway triển khai rate limiting, circuit breaker và load shedding sử dụng Redis | Bảo vệ hệ thống khỏi quá tải và lỗi lan truyền; sử dụng Redis để lưu trạng thái phân tán cho circuit breaker, rate limit và concurrent counter | Active |
 
 ## 3. Hệ quả thực tế
 

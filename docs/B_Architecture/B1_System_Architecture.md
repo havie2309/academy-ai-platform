@@ -75,6 +75,7 @@
 - Cache session/context ở Redis.
 - Config động của refusal/prompt qua `admin-config`.
 - Chuẩn lỗi thống nhất giữa gateway, chat, rag, docs và admin.
+- **Rate limiting, circuit breaker và load shedding** – được triển khai tại `api-gateway` sử dụng Redis để lưu trạng thái phân tán, bảo vệ upstream khỏi quá tải và lỗi lan truyền.
 
 ## 7. Rủi ro kiến trúc cần nhớ
 

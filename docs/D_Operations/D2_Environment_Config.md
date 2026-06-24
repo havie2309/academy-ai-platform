@@ -51,6 +51,19 @@
 - `SQL_READONLY_*`
 - catalog/config cho curated schema
 
+### API Gateway – Khả năng phục hồi (Resilience)
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `RATE_LIMIT_AUTH` | `60` | Số request tối đa mỗi phút cho người dùng đã đăng nhập |
+| `RATE_LIMIT_ANON` | `10` | Số request tối đa mỗi phút cho người dùng chưa đăng nhập |
+| `LOAD_SHEDDING_MAX_CONCURRENT` | `100` | Số lượng request đồng thời tối đa trước khi từ chối với mã 503 |
+| `CIRCUIT_FAILURE_THRESHOLD_<service>` | `5` | Số lần thất bại để mở circuit cho mỗi upstream (ví dụ: `CIRCUIT_FAILURE_THRESHOLD_CHAT`) |
+| `CIRCUIT_TIMEOUT_<service>` | `30` | Số giây circuit giữ trạng thái `OPEN` trước khi chuyển sang `HALF_OPEN` |
+| `CIRCUIT_HALFOPEN_MAX_<service>` | `1` | Số request tối đa được phép ở trạng thái `HALF_OPEN` cho mỗi upstream |
+
+Các biến này được `api-gateway` sử dụng để bảo vệ các dịch vụ upstream khỏi quá tải và lỗi lan truyền.
+
 ## 4. Quy tắc quản lý secret
 
 - Không commit `.env` thật.
