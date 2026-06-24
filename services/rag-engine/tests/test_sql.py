@@ -11,9 +11,24 @@ from app.sql_scope import SqlScopeError, apply_scope  # noqa: E402
 
 class SqlGuardrailAndScopeTests(unittest.TestCase):
     def test_classify_route_sql_keywords(self):
-        self.assertEqual(classify_route("GPA học viên 676156 là bao nhiêu?"), "sql")
-        self.assertEqual(classify_route("Lịch dạy của giảng viên"), "sql")
-        self.assertEqual(classify_route("Quy định vắng 25% học phần"), "rag")
+        self.assertEqual(classify_route("GPA hoc vien 676156 la bao nhieu?"), "sql")
+        self.assertEqual(classify_route("Lich day cua giang vien"), "sql")
+        self.assertEqual(classify_route("Quy dinh vang 25% hoc phan"), "rag")
+
+    def test_classify_route_task_assist_keywords(self):
+        self.assertEqual(
+            classify_route("Viet giup toi email xin nghi hoc mot buoi."),
+            "task_assist",
+        )
+
+    def test_classify_route_task_assist_does_not_steal_lookup_query(self):
+        self.assertEqual(
+            classify_route("Tom tat quy dinh vang 25% hoc phan."),
+            "rag",
+        )
+
+    def test_classify_route_rejects_obvious_off_topic_query(self):
+        self.assertEqual(classify_route("Thoi tiet hom nay the nao?"), "reject")
 
     def test_guardrail_blocks_delete(self):
         with self.assertRaises(SqlGuardrailError):

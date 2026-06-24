@@ -56,6 +56,77 @@ export interface AuditLogFilters {
   limit?: number
 }
 
+export interface AdminOpsOverview {
+  generated_at: string
+  quota_policy: {
+    rate_limit_auth_per_minute: number
+    rate_limit_anon_per_minute: number
+    load_shedding_max_concurrent: number
+    access_token_ttl: string
+    refresh_token_ttl_days: number
+    login_max_attempts: number
+    login_lock_duration_seconds: number
+  }
+  account_summary: {
+    total_users: number
+    active_users: number
+    inactive_users: number
+    locked_users: number
+    admin_like_users: number
+    temporary_locked_users: number
+  }
+  token_summary: {
+    active_refresh_sessions: number
+    sessions_expiring_24h: number
+    refreshes_24h: number
+    revoked_sessions_24h: number
+  }
+  usage_summary: {
+    failed_logins_24h: number
+    successful_logins_24h: number
+    chat_sessions_7d: number
+    chat_messages_7d: number
+    active_chat_users_7d: number
+  }
+  sources: {
+    mongo_available: boolean
+    redis_available: boolean
+  }
+}
+
+export interface ManagedAccount {
+  user_id: string
+  username: string
+  email: string
+  full_name: string | null
+  department: string | null
+  max_security_level: number
+  status: 'active' | 'inactive' | 'locked'
+  roles: string[]
+  last_login_at: string | null
+  temporary_locked: boolean
+  active_refresh_sessions: number
+  last_refreshed_at: string | null
+  failed_logins_7d: number
+  refreshes_7d: number
+  chat_sessions_total: number
+  chat_messages_30d: number
+  last_chat_at: string | null
+}
+
+export interface ManagedAccountFilters {
+  search?: string
+  status?: 'active' | 'inactive' | 'locked'
+  role?: string
+  limit?: number
+}
+
+export interface ManagedAccountMutationResult {
+  message: string
+  revoked_count: number
+  account: ManagedAccount | null
+}
+
 function toSearchParams(filters: AuditLogFilters): URLSearchParams {
   const params = new URLSearchParams()
   if (filters.status?.trim()) params.set('status', filters.status.trim())
@@ -67,6 +138,15 @@ function toSearchParams(filters: AuditLogFilters): URLSearchParams {
   if (filters.resourceId?.trim()) params.set('resourceId', filters.resourceId.trim())
   if (filters.from?.trim()) params.set('from', filters.from.trim())
   if (filters.to?.trim()) params.set('to', filters.to.trim())
+  if (filters.limit) params.set('limit', String(filters.limit))
+  return params
+}
+
+function toAccountSearchParams(filters: ManagedAccountFilters): URLSearchParams {
+  const params = new URLSearchParams()
+  if (filters.search?.trim()) params.set('search', filters.search.trim())
+  if (filters.status?.trim()) params.set('status', filters.status.trim())
+  if (filters.role?.trim()) params.set('role', filters.role.trim())
   if (filters.limit) params.set('limit', String(filters.limit))
   return params
 }
@@ -129,6 +209,53 @@ export const adminApi = {
       headers: { Accept: 'application/json' },
     })
     if (res.status === 404) return null
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async getOpsOverview(): Promise<AdminOpsOverview> {
+    const res = await fetchWithAuth('/api/users/admin/overview', {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async getManagedAccounts(
+    filters: ManagedAccountFilters = {},
+  ): Promise<ManagedAccount[]> {
+    const params = toAccountSearchParams(filters)
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetchWithAuth(`/api/users/admin/accounts${suffix}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async updateManagedAccountStatus(
+    userId: string,
+    status: ManagedAccount['status'],
+  ): Promise<ManagedAccountMutationResult> {
+    const res = await fetchWithAuth(`/api/users/admin/accounts/${userId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async revokeManagedAccountSessions(
+    userId: string,
+  ): Promise<ManagedAccountMutationResult> {
+    const res = await fetchWithAuth(
+      `/api/users/admin/accounts/${userId}/revoke-sessions`,
+      {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      },
+    )
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },

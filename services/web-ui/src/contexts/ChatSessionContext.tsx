@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react'
 import { chatApi, type ChatSession } from '../api/chat'
-import { authApi, ANONYMOUS_USER } from '../api/auth'
+import { authApi } from '../api/auth'
 
 function sortSessions(list: ChatSession[]): ChatSession[] {
   return [...list].sort(

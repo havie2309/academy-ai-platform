@@ -65,6 +65,21 @@ Ràng buộc đầu ra:
 - Nếu không tìm thấy thông tin trong tài liệu, "answer" phải là câu từ chối chuẩn và "used_chunk_ids" phải là [].
 """.strip()
 
+TASK_ASSIST_SYSTEM_PROMPT = """
+Ban la tro ly ao cua hoc vien, ho tro can bo, giang vien va hoc vien xu ly nhanh
+cac tac vu nhu soan email, thong bao, checklist, ke hoach ngan va dien giai noi dung.
+
+NGUYEN TAC TRA LOI:
+- Luon tra loi bang tieng Viet.
+- Dua ra ban nhap hoac goi y thuc dung, gon va de sua.
+- Khong khang dinh day la quy dinh chinh thuc neu nguoi dung khong cung cap tai lieu.
+- Neu yeu cau phu thuoc quy dinh noi bo cu the, phai noi ro day chi la goi y chung
+  va khuyen doi chieu voi van ban/tai lieu chinh thuc.
+- Khong tu dat ten don vi, ma van ban, thoi gian hay thong tin ca nhan ma nguoi dung
+  chua cung cap.
+- Neu phu hop, co the tra loi bang bullet hoac mau van ban ngan.
+""".strip()
+
 
 class LlmError(RuntimeError):
     """Raised when the upstream LLM call fails."""
@@ -400,6 +415,15 @@ def build_messages(
     return [{"role": "system", "content": system}, *convo]
 
 
+def build_task_assist_messages(history: list[dict]) -> list[dict]:
+    convo = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history
+        if m.get("role") in ("user", "assistant") and m.get("content")
+    ]
+    return [{"role": "system", "content": TASK_ASSIST_SYSTEM_PROMPT}, *convo]
+
+
 async def complete_chat_raw(
     history: list[dict],
     citations: list[dict],
@@ -467,6 +491,30 @@ async def complete_chat_structured(
         if retry_answer and not _is_no_info_answer(retry_answer):
             return retry_answer, [], []
     return answer, used_chunk_ids, reference_chunk_ids
+
+
+async def complete_task_assist(history: list[dict]) -> str:
+    """Direct non-grounded helper answer for drafting/task-assist requests."""
+    url, model, headers = _llm_target()
+    messages = build_task_assist_messages(history)
+    async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
+        res = await client.post(
+            url,
+            headers=headers,
+            json={
+                "model": model,
+                "messages": messages,
+                "temperature": 0.4,
+            },
+        )
+        if res.status_code >= 400:
+            raise LlmError(f"LLM API loi ({res.status_code}): {res.text[:200]}")
+        data = res.json()
+    content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
+    answer = _clean_answer_text(str(content or ""))
+    if not answer:
+        raise LlmError("LLM tra ve rong.")
+    return answer
 
 
 async def stream_chat(
