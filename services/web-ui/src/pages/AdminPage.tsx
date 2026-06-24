@@ -21,6 +21,8 @@ import {
   type StoredAdminConfig,
 } from '../api/admin'
 import { authApi } from '../api/auth'
+import AdminAuditSection from '../components/admin/AdminAuditSection'
+import AdminOpsSection from '../components/admin/AdminOpsSection'
 import { formatRoleLabel, normalizeRoles } from '../lib/authz'
 
 type UpstreamKey = keyof GatewayHealth['upstream']
@@ -634,6 +636,9 @@ export default function AdminPage() {
           </div>
         </aside>
       </section>
+
+      <AdminOpsSection />
+      <AdminAuditSection />
     </div>
   )
 }

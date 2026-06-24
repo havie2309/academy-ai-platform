@@ -66,11 +66,14 @@ curl.exe http://localhost:11434/api/tags
 docker compose --profile code up -d postgres mongodb
 ```
 
+> Nếu `up-code.ps1` báo lỗi bind cổng `3001`, nghĩa là local `user-management`
+> đang chạy sẵn trên máy. Dừng process đó hoặc quay về Mode A trong runbook.
+
 Seed tài khoản đăng nhập (chạy 1 lần sau khi Postgres khoẻ):
 
 ```powershell
 ./scripts/seed-iam.ps1
-# Tài khoản: admin / gv001 / hv001 / p2  —  mật khẩu: 123456
+# Ví dụ tài khoản: admin / BGD / p2_01 / 676156 / GV5976  —  mật khẩu: 123456
 ```
 
 ### 4. Chạy backend (NestJS monorepo — 3 terminal)

@@ -81,3 +81,22 @@ def delete_document_except(document_id: str, keep_chunk_ids: list[str]) -> None:
     if stale_ids:
         col.delete(expr=f"id in {stale_ids}")
         col.flush()
+
+
+def delete_chunk_ids(chunk_ids: list[str]) -> None:
+    """Delete vectors for specific chunk ids without touching older siblings."""
+    connect_milvus()
+    if not utility.has_collection(MILVUS_COLLECTION) or not chunk_ids:
+        return
+
+    col = Collection(MILVUS_COLLECTION)
+    col.load()
+    quoted = ", ".join(f'"{chunk_id}"' for chunk_id in chunk_ids)
+    stale = col.query(
+        expr=f"chunk_id in [{quoted}]",
+        output_fields=["id"],
+    )
+    stale_ids = [row["id"] for row in stale]
+    if stale_ids:
+        col.delete(expr=f"id in {stale_ids}")
+        col.flush()

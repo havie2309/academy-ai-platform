@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from app.cache import RedisCache
 from app.config import SESSION_CONTEXT_MAX_MESSAGES
-from app.generate import LlmError, complete_chat_structured
+from app.generate import LlmError, complete_chat_structured, complete_task_assist
 from app.retrieval import retrieve_citations
 from app.router import classify_route
 from app.safe_refusal import maybe_refuse_query, retrieve_refusal_payload
@@ -190,6 +190,21 @@ def _fold_text(text: str) -> str:
     lowered = text.lower()
     normalized = unicodedata.normalize("NFD", lowered)
     return "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+
+
+REJECT_ANSWER = (
+    "Toi khong tim thay thong tin nay trong tai lieu duoc cung cap. "
+    "Hien tro ly chi ho tro cau hoi ve dao tao, khao thi, tai lieu noi bo "
+    "va cac tac vu hoc vu lien quan."
+)
+
+
+def _reject_payload() -> dict:
+    return {
+        "answer": REJECT_ANSWER,
+        "citations": [],
+        "route": "reject",
+    }
 
 
 def _keyword_tokens(text: str) -> set[str]:
@@ -409,6 +424,27 @@ async def chat(body: ChatRequest, request: Request):
                 403 if exc.status == "deny" else 502,
                 str(exc),
             ) from exc
+    if route == "reject":
+        payload = _reject_payload()
+        _write_session_context(
+            body.sessionId,
+            user,
+            history,
+            str(payload.get("answer") or ""),
+            "reject",
+        )
+        return payload
+    if route == "task_assist":
+        try:
+            answer = await complete_task_assist(history)
+        except LlmError as exc:
+            raise HTTPException(502, str(exc)) from exc
+        _write_session_context(body.sessionId, user, history, answer, "task_assist")
+        return {
+            "answer": answer,
+            "citations": [],
+            "route": "task_assist",
+        }
 
     try:
         citations = await retrieve_citations(body.query, user)
@@ -470,6 +506,36 @@ async def chat_stream(body: ChatRequest, request: Request):
             for i in range(0, len(answer), step):
                 yield _sse("token", {"delta": answer[i : i + step]})
             yield _sse("done", {"answer": answer, "route": "sql"})
+            return
+
+        if route == "reject":
+            answer = REJECT_ANSWER
+            _write_session_context(body.sessionId, user, history, answer, "reject")
+            yield _sse("meta", {"citations": [], "route": "reject"})
+            step = 24
+            for i in range(0, len(answer), step):
+                yield _sse("token", {"delta": answer[i : i + step]})
+            yield _sse("done", {"answer": answer, "route": "reject"})
+            return
+
+        if route == "task_assist":
+            try:
+                answer = await complete_task_assist(history)
+            except LlmError as exc:
+                yield _sse("error", {"message": str(exc)})
+                return
+            _write_session_context(
+                body.sessionId,
+                user,
+                history,
+                answer,
+                "task_assist",
+            )
+            yield _sse("meta", {"citations": [], "route": "task_assist"})
+            step = 24
+            for i in range(0, len(answer), step):
+                yield _sse("token", {"delta": answer[i : i + step]})
+            yield _sse("done", {"answer": answer, "route": "task_assist"})
             return
 
         try:
