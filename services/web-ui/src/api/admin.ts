@@ -19,8 +19,15 @@ export interface GatewayHealth {
 
 export interface RagPolicyConfig {
   enabled: boolean
-  blacklistKeywords: string[]
+  guardrailRules: GuardrailRule[]
   safeRefusalMessage: string
+}
+
+export interface GuardrailRule {
+  id: string
+  label: string
+  enabled: boolean
+  phrases: string[]
 }
 
 export interface StoredAdminConfig<T> {
@@ -181,7 +188,7 @@ export const adminApi = {
 
   async updateRagPolicy(input: {
     enabled: boolean
-    blacklistKeywords: string[]
+    guardrailRules: GuardrailRule[]
     safeRefusalMessage: string
     reason?: string
   }): Promise<StoredAdminConfig<RagPolicyConfig>> {

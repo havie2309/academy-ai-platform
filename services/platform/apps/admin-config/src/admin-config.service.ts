@@ -11,8 +11,22 @@ import { PostgresService } from '../../../src/common/postgres.service'
 
 export interface RagPolicyConfig {
   enabled: boolean
-  blacklistKeywords: string[]
+  guardrailRules: GuardrailRule[]
   safeRefusalMessage: string
+}
+
+export interface GuardrailRule {
+  id: string
+  label: string
+  enabled: boolean
+  phrases: string[]
+}
+
+export interface GuardrailRulePatch {
+  id?: string
+  label?: string
+  enabled?: boolean
+  phrases?: string[]
 }
 
 export interface StoredAdminConfig<T> {
@@ -32,6 +46,8 @@ const DEFAULT_BLACKLIST = [
   'bypass quyen',
   'vuot quyen truy cap',
 ]
+const DEFAULT_GUARDRAIL_RULE_ID = 'default-keyword-blocklist'
+const DEFAULT_GUARDRAIL_RULE_LABEL = 'Danh sach tu khoa bi chan'
 
 function normalizeUnique(values: string[] | undefined): string[] {
   const seen = new Set<string>()
@@ -45,6 +61,60 @@ function normalizeUnique(values: string[] | undefined): string[] {
     normalized.push(item)
   }
   return normalized
+}
+
+function defaultGuardrailRules(): GuardrailRule[] {
+  return [
+    {
+      id: DEFAULT_GUARDRAIL_RULE_ID,
+      label: DEFAULT_GUARDRAIL_RULE_LABEL,
+      enabled: true,
+      phrases: [...DEFAULT_BLACKLIST],
+    },
+  ]
+}
+
+function normalizeRules(
+  rules: GuardrailRulePatch[] | undefined,
+): GuardrailRule[] {
+  const normalized: GuardrailRule[] = []
+  const seen = new Set<string>()
+  for (const rule of rules ?? []) {
+    const phrases = normalizeUnique(rule.phrases)
+    const id = String(rule.id ?? '').trim() || `rule-${normalized.length + 1}`
+    if (!phrases.length || seen.has(id)) continue
+    seen.add(id)
+    normalized.push({
+      id,
+      label:
+        String(rule.label ?? '').trim() ||
+        `Rule ${normalized.length + 1}`,
+      enabled: rule.enabled !== false,
+      phrases,
+    })
+  }
+  return normalized.length ? normalized : defaultGuardrailRules()
+}
+
+function migrateLegacyPolicy(
+  value: Partial<RagPolicyConfig> & { blacklistKeywords?: string[] },
+): RagPolicyConfig {
+  return {
+    enabled: value.enabled !== false,
+    guardrailRules:
+      value.guardrailRules && value.guardrailRules.length > 0
+        ? normalizeRules(value.guardrailRules)
+        : normalizeRules([
+            {
+              id: DEFAULT_GUARDRAIL_RULE_ID,
+              label: DEFAULT_GUARDRAIL_RULE_LABEL,
+              enabled: true,
+              phrases: value.blacklistKeywords ?? DEFAULT_BLACKLIST,
+            },
+          ]),
+    safeRefusalMessage:
+      String(value.safeRefusalMessage ?? '').trim() || DEFAULT_SAFE_REFUSAL,
+  }
 }
 
 @Injectable()
@@ -79,7 +149,7 @@ export class AdminConfigService implements OnModuleInit {
   private defaultRagPolicy(): RagPolicyConfig {
     return {
       enabled: true,
-      blacklistKeywords: [...DEFAULT_BLACKLIST],
+      guardrailRules: defaultGuardrailRules(),
       safeRefusalMessage: DEFAULT_SAFE_REFUSAL,
     }
   }
@@ -93,7 +163,10 @@ export class AdminConfigService implements OnModuleInit {
   }
 
   private sanitizePatch(
-    patch: Partial<RagPolicyConfig>,
+    patch: Omit<Partial<RagPolicyConfig>, 'guardrailRules'> & {
+      guardrailRules?: GuardrailRulePatch[]
+      blacklistKeywords?: string[]
+    },
     current: RagPolicyConfig,
   ): RagPolicyConfig {
     const safeRefusalMessage =
@@ -107,10 +180,19 @@ export class AdminConfigService implements OnModuleInit {
     return {
       enabled:
         typeof patch.enabled === 'boolean' ? patch.enabled : current.enabled,
-      blacklistKeywords:
-        patch.blacklistKeywords != null
-          ? normalizeUnique(patch.blacklistKeywords)
-          : current.blacklistKeywords,
+      guardrailRules:
+        patch.guardrailRules != null
+          ? normalizeRules(patch.guardrailRules)
+          : patch.blacklistKeywords != null
+            ? normalizeRules([
+                {
+                  id: DEFAULT_GUARDRAIL_RULE_ID,
+                  label: DEFAULT_GUARDRAIL_RULE_LABEL,
+                  enabled: true,
+                  phrases: patch.blacklistKeywords,
+                },
+              ])
+            : current.guardrailRules,
       safeRefusalMessage,
     }
   }
@@ -125,7 +207,7 @@ export class AdminConfigService implements OnModuleInit {
       config_key: row.config_key,
       version: row.version,
       updated_at: row.updated_at.toISOString(),
-      value: row.config_value,
+      value: migrateLegacyPolicy(row.config_value),
     }
   }
 
@@ -169,7 +251,11 @@ export class AdminConfigService implements OnModuleInit {
 
   async updateRagPolicy(
     user: AuthUser,
-    patch: Partial<RagPolicyConfig> & { reason?: string },
+    patch: Omit<Partial<RagPolicyConfig>, 'guardrailRules'> & {
+      guardrailRules?: GuardrailRulePatch[]
+      blacklistKeywords?: string[]
+      reason?: string
+    },
     ipAddress?: string,
     userAgent?: string,
   ): Promise<StoredAdminConfig<RagPolicyConfig>> {

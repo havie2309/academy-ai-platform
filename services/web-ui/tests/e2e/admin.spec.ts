@@ -10,7 +10,14 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
     updated_at: '2026-06-18T08:00:00.000Z',
     value: {
       enabled: true,
-      blacklistKeywords: ['de thi', 'dap an'],
+      guardrailRules: [
+        {
+          id: 'default-keyword-blocklist',
+          label: 'Danh sach tu khoa bi chan',
+          enabled: true,
+          phrases: ['de thi', 'dap an'],
+        },
+      ],
       safeRefusalMessage: 'Xin loi, yeu cau nay da bi chan.',
     },
   }
@@ -111,12 +118,26 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
       ...auditLogs[0],
       old_value: {
         enabled: false,
-        blacklistKeywords: ['de thi'],
+        guardrailRules: [
+          {
+            id: 'default-keyword-blocklist',
+            label: 'Danh sach tu khoa bi chan',
+            enabled: true,
+            phrases: ['de thi'],
+          },
+        ],
         safeRefusalMessage: 'Thong diep cu',
       },
       new_value: {
         enabled: true,
-        blacklistKeywords: ['de thi', 'dap an', 'noi dung cam'],
+        guardrailRules: [
+          {
+            id: 'default-keyword-blocklist',
+            label: 'Danh sach tu khoa bi chan',
+            enabled: true,
+            phrases: ['de thi', 'dap an', 'noi dung cam'],
+          },
+        ],
         safeRefusalMessage: 'Tam thoi chua the ho tro yeu cau nay.',
       },
     },
@@ -171,7 +192,12 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
       if (url.pathname === '/api/admin-config/rag-policy' && request.method() === 'PUT') {
         const next = request.postDataJSON() as {
           enabled: boolean
-          blacklistKeywords: string[]
+          guardrailRules: Array<{
+            id: string
+            label: string
+            enabled: boolean
+            phrases: string[]
+          }>
           safeRefusalMessage: string
         }
 
@@ -270,7 +296,14 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
 
   expect(payload).toMatchObject({
     enabled: true,
-    blacklistKeywords: ['de thi', 'dap an', 'noi dung cam'],
+    guardrailRules: [
+      {
+        id: 'default-keyword-blocklist',
+        label: 'Danh sách từ khóa bị chặn',
+        enabled: true,
+        phrases: ['de thi', 'dap an', 'noi dung cam'],
+      },
+    ],
     safeRefusalMessage: 'Tam thoi chua the ho tro yeu cau nay.',
     reason: 'Bo sung policy cho dot khao thi',
   })

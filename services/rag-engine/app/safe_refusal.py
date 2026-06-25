@@ -29,12 +29,18 @@ DEFAULT_BLACKLIST = [
     "vuot quyen truy cap",
 ]
 RAG_POLICY_KEY = "rag_policy"
+DEFAULT_GUARDRAIL_RULE = {
+    "id": "default-keyword-blocklist",
+    "label": "Danh sach tu khoa bi chan",
+    "enabled": True,
+    "phrases": DEFAULT_BLACKLIST[:],
+}
 
 _POLICY_LOCK = asyncio.Lock()
 _POLICY_CACHE: dict[str, object] = {
     "value": {
         "enabled": True,
-        "blacklistKeywords": DEFAULT_BLACKLIST[:],
+        "guardrailRules": [DEFAULT_GUARDRAIL_RULE.copy()],
         "safeRefusalMessage": DEFAULT_SAFE_REFUSAL,
     },
     "expires_at": 0.0,
@@ -61,6 +67,30 @@ def normalize_keywords(values: list[str] | None) -> list[str]:
     return normalized
 
 
+def normalize_guardrail_rules(rules: list[dict] | None) -> list[dict]:
+    normalized: list[dict] = []
+    seen: set[str] = set()
+    for index, rule in enumerate(rules or []):
+        if not isinstance(rule, dict):
+            continue
+        phrases = normalize_keywords(rule.get("phrases"))
+        if not phrases:
+            continue
+        rule_id = str(rule.get("id") or f"rule-{index + 1}").strip()
+        if not rule_id or rule_id in seen:
+            continue
+        seen.add(rule_id)
+        normalized.append(
+            {
+                "id": rule_id,
+                "label": str(rule.get("label") or f"Rule {index + 1}").strip(),
+                "enabled": bool(rule.get("enabled", True)),
+                "phrases": phrases,
+            }
+        )
+    return normalized or [DEFAULT_GUARDRAIL_RULE.copy()]
+
+
 def match_blacklist(query: str, keywords: list[str] | None) -> str | None:
     folded_query = _fold_text(query)
     for keyword in normalize_keywords(keywords):
@@ -69,14 +99,36 @@ def match_blacklist(query: str, keywords: list[str] | None) -> str | None:
     return None
 
 
+def match_guardrail_rules(query: str, rules: list[dict] | None) -> tuple[str, str] | None:
+    folded_query = _fold_text(query)
+    for rule in normalize_guardrail_rules(rules):
+        if not rule.get("enabled", True):
+            continue
+        for phrase in normalize_keywords(rule.get("phrases")):
+            if _fold_text(phrase) in folded_query:
+                return str(rule.get("id") or ""), phrase
+    return None
+
+
 def _policy_from_payload(payload: dict) -> dict:
     value = payload.get("value") if isinstance(payload, dict) else None
     source = value if isinstance(value, dict) else payload
     safe_refusal = str(source.get("safeRefusalMessage") or "").strip()
+    guardrail_rules = source.get("guardrailRules")
+    blacklist_keywords = source.get("blacklistKeywords") or DEFAULT_BLACKLIST
     return {
         "enabled": bool(source.get("enabled", True)),
-        "blacklistKeywords": normalize_keywords(
-            source.get("blacklistKeywords") or DEFAULT_BLACKLIST
+        "guardrailRules": normalize_guardrail_rules(
+            guardrail_rules
+            if isinstance(guardrail_rules, list)
+            else [
+                {
+                    "id": DEFAULT_GUARDRAIL_RULE["id"],
+                    "label": DEFAULT_GUARDRAIL_RULE["label"],
+                    "enabled": True,
+                    "phrases": blacklist_keywords,
+                }
+            ]
         ),
         "safeRefusalMessage": safe_refusal or DEFAULT_SAFE_REFUSAL,
     }
@@ -126,6 +178,7 @@ async def log_policy_event(
     *,
     user: dict | None,
     question: str,
+    matched_rule_id: str,
     matched_keyword: str,
     status: str = "blocked",
 ) -> None:
@@ -141,14 +194,15 @@ async def log_policy_event(
         await conn.execute(
             """
             INSERT INTO policy_events (
-              policy_key, matched_keyword, user_id, question, status
-            ) VALUES ($1, $2, $3, $4, $5)
+              policy_key, matched_keyword, user_id, question, status, reason
+            ) VALUES ($1, $2, $3, $4, $5, $6)
             """,
             RAG_POLICY_KEY,
             matched_keyword,
             (user or {}).get("userId"),
             question,
             status,
+            matched_rule_id,
         )
     except Exception:
         return
@@ -162,13 +216,15 @@ async def maybe_refuse_query(query: str, user: dict | None = None) -> dict | Non
     if not policy.get("enabled", True):
         return None
 
-    matched_keyword = match_blacklist(query, policy.get("blacklistKeywords"))
-    if not matched_keyword:
+    matched = match_guardrail_rules(query, policy.get("guardrailRules"))
+    if not matched:
         return None
+    matched_rule_id, matched_keyword = matched
 
     await log_policy_event(
         user=user,
         question=query,
+        matched_rule_id=matched_rule_id,
         matched_keyword=matched_keyword,
         status="blocked",
     )
@@ -177,6 +233,7 @@ async def maybe_refuse_query(query: str, user: dict | None = None) -> dict | Non
         "citations": [],
         "route": "refusal",
         "blocked_keyword": matched_keyword,
+        "blocked_rule_id": matched_rule_id,
     }
 
 
@@ -186,4 +243,5 @@ def retrieve_refusal_payload(refusal: dict) -> dict:
         "route": "refusal",
         "message": refusal.get("answer") or DEFAULT_SAFE_REFUSAL,
         "blocked_keyword": refusal.get("blocked_keyword"),
+        "blocked_rule_id": refusal.get("blocked_rule_id"),
     }

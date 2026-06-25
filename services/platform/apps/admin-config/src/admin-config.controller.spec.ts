@@ -18,7 +18,14 @@ describe('AdminConfigController', () => {
               updated_at: '2026-06-18T00:00:00.000Z',
               value: {
                 enabled: true,
-                blacklistKeywords: ['mat khau he thong'],
+                guardrailRules: [
+                  {
+                    id: 'default-keyword-blocklist',
+                    label: 'Danh sach tu khoa bi chan',
+                    enabled: true,
+                    phrases: ['mat khau he thong'],
+                  },
+                ],
                 safeRefusalMessage: 'blocked',
               },
             }),
