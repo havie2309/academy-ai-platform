@@ -35,7 +35,9 @@ export class ChatCacheService {
   ): Promise<void> {
     const key = `${this.PREFIX}session:${sessionId}`
     await this.redis.setJson(key, context, ttl)
-    this.logger.debug(`Session cached: ${sessionId}`)
+    this.logger.debug(
+      `Session cached: ${sessionId} messages=${context.messages.length} route=${context.lastRoute ?? 'none'}`,
+    )
   }
 
   async clearSession(sessionId: string): Promise<void> {

@@ -23,6 +23,8 @@ MILVUS_COLLECTION = os.getenv("MILVUS_COLLECTION", "document_chunks")
 RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "30"))
 RERANK_TOP_K = int(os.getenv("RERANK_TOP_K", "8"))
 MAX_CHUNKS_PER_DOC = int(os.getenv("MAX_CHUNKS_PER_DOC", "3"))
+RERANK_DOC_MAX_CHARS = int(os.getenv("RERANK_DOC_MAX_CHARS", "1800"))
+RAG_CONTEXT_MAX_CHARS = int(os.getenv("RAG_CONTEXT_MAX_CHARS", "6000"))
 RERANK_BASE_URL = os.getenv("RERANK_BASE_URL", "http://localhost:8002")
 RERANK_ENABLED = os.getenv("RERANK_ENABLED", "true").lower() != "false"
 VECTOR_SCORE_MIN = float(os.getenv("VECTOR_SCORE_MIN", "0.25"))

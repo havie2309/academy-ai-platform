@@ -1,7 +1,135 @@
 import { Request, Response, NextFunction } from 'express';
 import { RedisService } from '../../../src/common/redis/redis.service';
 import { ConfigService } from '@nestjs/config';
-import { GatewayRequest } from './gateway-auth';
+import { GatewayRequest, GatewayUser } from './gateway-auth';
+
+const DEFAULT_ROLE_LIMITS: Record<string, number> = {
+  ADMIN: 180,
+  BGD: 180,
+  P2: 120,
+  P7: 90,
+  GIANG_VIEN: 90,
+  HOC_VIEN: 60,
+};
+
+const ROLE_LIMIT_PRIORITY = [
+  'ADMIN',
+  'BGD',
+  'P2',
+  'P7',
+  'GIANG_VIEN',
+  'HOC_VIEN',
+];
+
+export interface RateLimitPolicy {
+  key: string;
+  limit: number;
+  policy: string;
+  window: number;
+}
+
+function readNumberConfig(
+  config: ConfigService,
+  key: string,
+  fallback: number,
+): number {
+  const value = config.get<string | number | undefined>(key);
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return fallback;
+}
+
+function isAnonymousGatewayUser(user?: GatewayUser): boolean {
+  return (
+    !user ||
+    user.userId === 'anonymous' ||
+    user.normalizedRoles.includes('ANONYMOUS')
+  );
+}
+
+function resolveClientIdentifier(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0]?.trim() || 'unknown';
+  }
+  if (Array.isArray(forwarded) && forwarded[0]) {
+    return String(forwarded[0]).split(',')[0]?.trim() || 'unknown';
+  }
+  return req.ip || req.socket?.remoteAddress || 'unknown';
+}
+
+function resolveRolePolicy(
+  config: ConfigService,
+  user: GatewayUser,
+  fallbackLimit: number,
+): { policy: string; limit: number } {
+  const normalizedRoles = Array.from(
+    new Set(user.normalizedRoles.filter((role) => role !== 'ANONYMOUS')),
+  );
+
+  for (const role of ROLE_LIMIT_PRIORITY) {
+    if (!normalizedRoles.includes(role)) continue;
+    return {
+      policy: role,
+      limit: readNumberConfig(
+        config,
+        `RATE_LIMIT_ROLE_${role}`,
+        DEFAULT_ROLE_LIMITS[role] ?? fallbackLimit,
+      ),
+    };
+  }
+
+  for (const role of normalizedRoles) {
+    const configured = config.get<string | number | undefined>(
+      `RATE_LIMIT_ROLE_${role}`,
+    );
+    if (configured === undefined || configured === null || configured === '') {
+      continue;
+    }
+    return {
+      policy: role,
+      limit: readNumberConfig(config, `RATE_LIMIT_ROLE_${role}`, fallbackLimit),
+    };
+  }
+
+  return {
+    policy: 'AUTHENTICATED',
+    limit: fallbackLimit,
+  };
+}
+
+export function resolveRateLimitPolicy(
+  req: Request,
+  user: GatewayUser | undefined,
+  config: ConfigService,
+): RateLimitPolicy {
+  const window = readNumberConfig(config, 'RATE_LIMIT_WINDOW', 60);
+  if (!user || isAnonymousGatewayUser(user)) {
+    const identifier = resolveClientIdentifier(req);
+    return {
+      key: `rate:anonymous:${identifier}`,
+      limit: readNumberConfig(config, 'RATE_LIMIT_ANON', 10),
+      policy: 'ANONYMOUS',
+      window,
+    };
+  }
+
+  const authFallback = readNumberConfig(config, 'RATE_LIMIT_AUTH', 60);
+  const { limit, policy } = resolveRolePolicy(config, user, authFallback);
+  return {
+    key: `rate:${policy.toLowerCase()}:${user.userId}`,
+    limit,
+    policy,
+    window,
+  };
+}
 
 export function createRateLimitMiddleware(
   redis: RedisService,
@@ -10,30 +138,32 @@ export function createRateLimitMiddleware(
   return async (req: Request, res: Response, next: NextFunction) => {
     const gatewayReq = req as GatewayRequest;
     const user = gatewayReq.gatewayUser;
-
-    // Identifier: userId for authenticated, IP for anonymous
-    const identifier = user?.userId || req.ip || 'unknown';
-    const isAuthenticated = !!user;
-
-    // Configurable limits
-    const limit = isAuthenticated
-      ? config.get<number>('RATE_LIMIT_AUTH', 60)   // 60 req/min for logged-in users
-      : config.get<number>('RATE_LIMIT_ANON', 10);  // 10 req/min for anonymous
-    const window = config.get<number>('RATE_LIMIT_WINDOW', 60); // seconds
-
-    const key = `rate:${identifier}`;
+    const { key, limit, policy, window } = resolveRateLimitPolicy(
+      req,
+      user,
+      config,
+    );
 
     try {
       const count = await redis.increment(key, window);
+      res.setHeader('X-RateLimit-Limit', String(limit));
+      res.setHeader('X-RateLimit-Remaining', String(Math.max(limit - count, 0)));
+      res.setHeader('X-RateLimit-Policy', policy);
+
       if (count > limit) {
+        const ttl = await redis.ttl(key).catch(() => window);
+        const retryAfter = ttl > 0 ? ttl : window;
+        res.setHeader('Retry-After', String(retryAfter));
         res.status(429).json({
-          message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
-          retryAfter: window,
+          message: 'Qua nhieu yeu cau. Vui long thu lai sau.',
+          retryAfter,
+          limit,
+          policy,
         });
         return;
       }
     } catch (error) {
-      // Redis error – allow the request but log the issue
+      // Redis error - allow the request but log the issue.
       console.error('Rate limit error:', error);
     }
 

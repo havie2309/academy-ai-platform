@@ -248,6 +248,8 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
   await expect(page.getByTestId('admin-page')).toBeVisible()
   await expect(page.getByTestId('health-card-userManagement')).toBeVisible()
   await expect(page.getByTestId('health-card-rag')).toBeVisible()
+  await expect(page.getByTestId('admin-system-technical')).not.toHaveAttribute('open', '')
+  await expect(page.getByTestId('admin-policy-technical')).not.toHaveAttribute('open', '')
   await expect(page.getByTestId('policy-keywords')).toHaveValue('de thi\ndap an')
   await expect(page.getByTestId('admin-ops-section')).toBeVisible()
   await expect(page.getByTestId('account-row-USR005')).toContainText('676156')
@@ -275,12 +277,27 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
 
   await expect(page.getByTestId('policy-save-message')).toBeVisible()
   await expect(page.getByText('v4').first()).toBeVisible()
+  await page.getByTestId('admin-policy-technical').locator('summary').click()
+  await expect(page.getByTestId('admin-policy-technical')).toHaveAttribute('open', '')
+  await expect(page.getByTestId('admin-policy-technical')).toContainText('rag_policy')
+
+  await page.getByTestId('account-detail-USR005').click()
+  await expect(page.getByText('Số phiên trò chuyện')).toBeVisible()
+  await expect(page.getByText('Tin nhắn trong 30 ngày')).toBeVisible()
 
   const statusPayload = await expectJsonRequest(
     page,
     '/api/users/admin/accounts/USR005/status',
     async () => {
+      const dialogPromise = new Promise<void>((resolve) => {
+        page.once('dialog', async (dialog) => {
+          expect(dialog.message()).toContain('Khóa tài khoản')
+          await dialog.accept()
+          resolve()
+        })
+      })
       await page.getByTestId('account-lock-USR005').click()
+      await dialogPromise
     },
   )
 
@@ -290,26 +307,27 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
   const auditDetailPanel = page.getByTestId('audit-detail-panel')
 
   await expect(auditSection).toBeVisible()
-  await expect(page.getByTestId('audit-row-101')).toContainText('policy.update')
-  await expect(auditDetailPanel).toContainText('#101 | policy.update')
+  await expect(page.getByTestId('audit-row-101')).toContainText('Cập nhật chính sách AI')
+  await expect(auditDetailPanel).toContainText('Cập nhật chính sách AI')
+  await page.getByTestId('audit-technical-details').locator('summary').click()
+  await expect(page.getByTestId('audit-technical-details')).toHaveAttribute('open', '')
   await expect(auditDetailPanel).toContainText('safeRefusalMessage')
 
   await page.getByTestId('audit-row-102').click()
-  await expect(auditDetailPanel).toContainText('#102 | account.lock')
+  await expect(auditDetailPanel).toContainText('Khóa tài khoản')
   await expect(auditDetailPanel).toContainText('Tam khoa de dieu tra dang nhap bat thuong')
+  await expect(auditDetailPanel).toContainText('account.lock')
 
-  await auditSection.getByPlaceholder('login, update, delete...').fill('policy.update')
-  await auditSection
-    .getByPlaceholder('auth, admin_config, document...')
-    .fill('admin_config')
-  await auditSection.getByPlaceholder('admin', { exact: true }).fill('admin')
-  await auditSection
-    .getByPlaceholder('rag-policy, DOC-001...')
-    .fill('rag_policy')
-  await auditSection.locator('input[type="datetime-local"]').nth(0).fill('2026-06-24T13:30')
-  await auditSection.locator('input[type="datetime-local"]').nth(1).fill('2026-06-24T14:00')
-  await auditSection.getByRole('combobox').nth(0).selectOption('success')
-  await auditSection.getByRole('combobox').nth(1).selectOption('100')
+  await auditSection.getByTestId('audit-action-filter').fill('policy.update')
+  await auditSection.getByTestId('audit-resource-type-filter').fill('admin_config')
+  await auditSection.getByTestId('audit-user-filter').fill('admin')
+  await expect(auditSection.getByTestId('audit-filter-technical')).not.toHaveAttribute('open', '')
+  await auditSection.getByTestId('audit-filter-technical').locator('summary').click()
+  await auditSection.getByTestId('audit-resource-id-filter').fill('rag_policy')
+  await auditSection.getByTestId('audit-from-filter').fill('2026-06-24T13:30')
+  await auditSection.getByTestId('audit-to-filter').fill('2026-06-24T14:00')
+  await auditSection.getByTestId('audit-status-filter').selectOption('success')
+  await auditSection.getByTestId('audit-limit-filter').selectOption('100')
 
   const filterRequestPromise = page.waitForRequest((request) => {
     if (request.method() !== 'GET') return false
@@ -350,7 +368,9 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
 
   await page.getByTestId('audit-export-json').click()
   await exportJsonRequestPromise
-  await expect(auditSection).toContainText('Da xuat 2 dong audit theo bo loc hien tai (JSON).')
+  await expect(auditSection).toContainText(
+    'Đã xuất 2 bản ghi nhật ký theo bộ lọc hiện tại (JSON).',
+  )
 
   const exportCsvRequestPromise = page.waitForRequest((request) => {
     if (request.method() !== 'GET') return false
@@ -371,5 +391,35 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
 
   await page.getByTestId('audit-export-csv').click()
   await exportCsvRequestPromise
-  await expect(auditSection).toContainText('Da xuat 2 dong audit theo bo loc hien tai (CSV).')
+  await expect(auditSection).toContainText(
+    'Đã xuất 2 bản ghi nhật ký theo bộ lọc hiện tại (CSV).',
+  )
+})
+
+test('non-admin is redirected away from the admin route', async ({ page }) => {
+  await page.route(
+    (url) => new URL(url.toString()).pathname.startsWith('/api/'),
+    async (route) => {
+      const request = route.request()
+      const url = new URL(request.url())
+
+      if (url.pathname === '/api/chat/sessions' && request.method() === 'GET') {
+        await route.fulfill({ json: [] })
+        return
+      }
+
+      await route.abort()
+    },
+  )
+
+  await loginAs(page, 'hv001')
+
+  await expect(page).toHaveURL(/\/chat$/)
+  await expect(page.getByTestId('chat-page')).toBeVisible()
+
+  await page.goto('/admin')
+
+  await expect(page).toHaveURL(/\/chat$/)
+  await expect(page.getByTestId('chat-page')).toBeVisible()
+  await expect(page.getByTestId('admin-page')).toHaveCount(0)
 })

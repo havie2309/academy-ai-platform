@@ -14,7 +14,9 @@ export const logger = createLogger({
 @Injectable()
 export class LoggerMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction) {
-    const correlationId = req.headers['x-correlation-id'] as string || uuidv4();
+    const correlationId = (req.headers['x-correlation-id'] as string) || uuidv4();
+    const startedAt = Date.now();
+    let finished = false;
     req.headers['x-correlation-id'] = correlationId;
     res.setHeader('x-correlation-id', correlationId);
 
@@ -26,10 +28,26 @@ export class LoggerMiddleware implements NestMiddleware {
     });
 
     res.on('finish', () => {
+      finished = true;
       logger.info({
         message: 'request completed',
         correlationId,
+        method: req.method,
+        url: req.url,
         statusCode: res.statusCode,
+        durationMs: Date.now() - startedAt,
+      });
+    });
+
+    res.on('close', () => {
+      if (finished) return;
+      logger.warn({
+        message: 'request closed before finish',
+        correlationId,
+        method: req.method,
+        url: req.url,
+        statusCode: res.statusCode,
+        durationMs: Date.now() - startedAt,
       });
     });
 

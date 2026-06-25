@@ -128,6 +128,116 @@ class CitationSelectTests(unittest.TestCase):
 
 
 class RetrievalFlowTests(unittest.TestCase):
+    def test_retrieve_citations_matches_role_aliases_before_acl_pushdown(self):
+        fake_cache = _FakeCache()
+        fake_db = _FakeDb(
+            documents=[
+                {
+                    "docId": "doc-lecturer",
+                    "securityLevel": "internal",
+                    "scopeType": "role",
+                    "accessRoleCodes": ["GV"],
+                    "accessDepartmentCodes": [],
+                    "accessUserIds": [],
+                    "uploadedById": "u-2",
+                },
+                {
+                    "docId": "doc-student",
+                    "securityLevel": "internal",
+                    "scopeType": "role",
+                    "accessRoleCodes": ["HV"],
+                    "accessDepartmentCodes": [],
+                    "accessUserIds": [],
+                    "uploadedById": "u-3",
+                },
+            ],
+            chunks=[
+                {
+                    "chunkId": "child-gv",
+                    "documentId": "doc-lecturer",
+                    "parentId": "parent-gv",
+                    "chunkType": "child",
+                    "metadata": {
+                        "securityLevel": "internal",
+                        "scopeType": "role",
+                        "accessRoleCodes": ["GV"],
+                    },
+                },
+                {
+                    "chunkId": "child-hv",
+                    "documentId": "doc-student",
+                    "parentId": "parent-hv",
+                    "chunkType": "child",
+                    "metadata": {
+                        "securityLevel": "internal",
+                        "scopeType": "role",
+                        "accessRoleCodes": ["HV"],
+                    },
+                },
+                {
+                    "chunkId": "parent-gv",
+                    "documentId": "doc-lecturer",
+                    "chunkType": "parent",
+                    "chunkText": "Noi dung danh cho giang vien.",
+                    "metadata": {
+                        "title": "Tai lieu GV",
+                        "securityLevel": "internal",
+                        "scopeType": "role",
+                        "accessRoleCodes": ["GV"],
+                    },
+                },
+                {
+                    "chunkId": "parent-hv",
+                    "documentId": "doc-student",
+                    "chunkType": "parent",
+                    "chunkText": "Noi dung danh cho hoc vien.",
+                    "metadata": {
+                        "title": "Tai lieu HV",
+                        "securityLevel": "internal",
+                        "scopeType": "role",
+                        "accessRoleCodes": ["HV"],
+                    },
+                },
+            ],
+        )
+
+        captured: dict[str, object] = {}
+
+        def _fake_search(_vector: list[float], _top_k: int, *, expr: str | None = None):
+            captured["expr"] = expr
+            return [
+                {"chunk_id": "child-gv", "score": 0.9},
+                {"chunk_id": "child-hv", "score": 0.7},
+            ]
+
+        async def _fake_rerank(_query: str, citations: list[dict]):
+            return [{**citation, "rerank_score": citation["score"]} for citation in citations]
+
+        with (
+            patch.object(retrieval, "cache", fake_cache),
+            patch.object(retrieval, "embed_query", return_value=[0.1, 0.2]),
+            patch.object(retrieval, "search_vectors", new=_fake_search),
+            patch.object(retrieval, "MongoClient", return_value=_FakeMongoClient(fake_db)),
+            patch.object(retrieval, "rerank_citations", new=_fake_rerank),
+        ):
+            result = asyncio.run(
+                retrieval.retrieve_citations(
+                    "quy dinh cho giang vien",
+                    {
+                        "userId": "u-1",
+                        "roles": ["Giang Vien"],
+                        "normalizedRoles": ["GIANG_VIEN"],
+                        "department": "CNTT",
+                        "maxSecurityLevel": 2,
+                    },
+                )
+            )
+
+        self.assertEqual([item["chunk_id"] for item in result], ["parent-gv"])
+        expr = str(captured.get("expr") or "")
+        self.assertIn("doc-lecturer", expr)
+        self.assertNotIn("doc-student", expr)
+
     def test_retrieve_citations_uses_parent_child_flow_and_keeps_query_text_for_rerank(self):
         fake_cache = _FakeCache()
         fake_db = _FakeDb(

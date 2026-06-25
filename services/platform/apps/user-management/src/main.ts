@@ -8,6 +8,8 @@ async function bootstrap() {
     credentials: true,
   })
   app.setGlobalPrefix('api')
-  await app.listen(process.env.USER_MANAGEMENT_PORT ?? 3001)
+  const port = process.env.USER_MANAGEMENT_PORT ?? 3001
+  await app.listen(port)
+  console.log(`user-management listening on http://localhost:${port}`)
 }
 bootstrap()

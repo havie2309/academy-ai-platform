@@ -180,7 +180,6 @@ export class DocumentsController {
   }
 
   @Get(':id/ingest-status')
-  @UseGuards(AuthGuard('jwt'))
   ingestStatus(@Req() req: Request, @Param('id') id: string) {
     const user = extractUserFromRequest(req)
     return this.docs.getIngestStatus(id, toRequestUser(user))

@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import {
   AlertCircle,
   Ban,
-  Gauge,
   KeyRound,
   LockKeyhole,
   RefreshCw,
@@ -19,8 +18,17 @@ import {
 } from '../../api/admin'
 import { authApi } from '../../api/auth'
 import { formatRoleLabel } from '../../lib/authz'
+import AdminTechnicalDetails from './AdminTechnicalDetails'
 
-const ROLE_OPTIONS = ['ADMIN', 'BGD', 'P2', 'P7', 'GIANG_VIEN', 'HOC_VIEN', 'KHAO_THI']
+const ROLE_OPTIONS = [
+  'ADMIN',
+  'BGD',
+  'P2',
+  'P7',
+  'GIANG_VIEN',
+  'HOC_VIEN',
+  'KHAO_THI',
+]
 
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) return 'Chưa có'
@@ -55,6 +63,14 @@ function accountStatusTone(status: ManagedAccount['status']): string {
   }
 }
 
+function formatAccessWindow(accessTokenTtl: string, refreshTokenTtlDays: number): string {
+  return `${accessTokenTtl} / ${refreshTokenTtlDays} ngày`
+}
+
+function buildAccountLabel(account: ManagedAccount): string {
+  return account.full_name || account.username
+}
+
 export default function AdminOpsSection() {
   const currentUser = authApi.getUser()
 
@@ -68,6 +84,7 @@ export default function AdminOpsSection() {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
 
   const buildFilters = () => ({
     search: search.trim() || undefined,
@@ -104,7 +121,7 @@ export default function AdminOpsSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Không tải được dữ liệu quota/token/account ops.',
+          : 'Không tải được dữ liệu quản trị tài khoản.',
       )
     })
   }, [])
@@ -129,6 +146,7 @@ export default function AdminOpsSection() {
     setRoleFilter('all')
     setError(null)
     setMessage(null)
+    setExpandedUserId(null)
     setAccountsLoading(true)
     try {
       setAccounts(await adminApi.getManagedAccounts({ limit: 40 }))
@@ -165,6 +183,25 @@ export default function AdminOpsSection() {
     }
   }
 
+  const confirmSensitiveAction = (
+    title: string,
+    description: string,
+    impact: string,
+  ): boolean => {
+    return window.confirm(`${title}\n\n${description}\n\n${impact}`)
+  }
+
+  const accountsNeedingAttention = overview
+    ? overview.account_summary.locked_users + overview.account_summary.temporary_locked_users
+    : 0
+
+  const suspendedOrLockedAccounts = overview
+    ? overview.account_summary.inactive_users + overview.account_summary.locked_users
+    : 0
+
+  const openSessions = overview?.token_summary.active_refresh_sessions ?? 0
+  const riskyLogins = overview?.usage_summary.failed_logins_24h ?? 0
+
   return (
     <section
       className="mt-6 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm"
@@ -174,11 +211,11 @@ export default function AdminOpsSection() {
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
             <UserCog className="text-blue-600" size={18} />
-            Quota, token và quản lý tài khoản
+            Tài khoản và phiên đăng nhập
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Theo dõi policy rate-limit, usage của refresh token/session và thao tác khóa,
-            mở khóa hoặc thu hồi phiên của tài khoản người dùng.
+            Theo dõi các tài khoản cần xử lý, tình trạng khóa hoặc tạm ngưng và hỗ trợ
+            thu hồi phiên đăng nhập khi cần.
           </p>
         </div>
         <button
@@ -188,14 +225,14 @@ export default function AdminOpsSection() {
               setError(
                 nextError instanceof Error
                   ? nextError.message
-                  : 'Không tải lại được quota/token/account ops.',
+                  : 'Không tải lại được dữ liệu quản trị tài khoản.',
               )
             })
           }}
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white"
         >
           <RefreshCw size={15} />
-          Làm mới quản trị
+          Tải lại tài khoản
         </button>
       </div>
 
@@ -221,8 +258,8 @@ export default function AdminOpsSection() {
           <AlertCircle className="mt-0.5 shrink-0" size={16} />
           <span>
             {!overview.sources.mongo_available
-              ? 'MongoDB chưa sẵn sàng nên usage chat đang hiển thị ở mức 0.'
-              : 'Redis chưa sẵn sàng nên không đọc được khóa tạm thời do đăng nhập sai.'}
+              ? 'MongoDB chưa sẵn sàng nên số liệu hoạt động trò chuyện có thể chưa đầy đủ.'
+              : 'Redis chưa sẵn sàng nên trạng thái khóa tạm do đăng nhập sai có thể chưa phản ánh đủ.'}
           </span>
         </div>
       )}
@@ -230,124 +267,147 @@ export default function AdminOpsSection() {
       <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Tổng tài khoản
+            Tài khoản cần xử lý
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
-            {overviewLoading ? '...' : overview?.account_summary.total_users ?? 0}
+            {overviewLoading ? '...' : accountsNeedingAttention}
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            Admin-like: {overview?.account_summary.admin_like_users ?? 0}
-          </p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Tài khoản cần lưu ý
-          </p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">
-            {overviewLoading
-              ? '...'
-              : (overview?.account_summary.locked_users ?? 0) +
-                (overview?.account_summary.temporary_locked_users ?? 0)}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">
-            DB locked: {overview?.account_summary.locked_users ?? 0} · Redis lock:{' '}
+            Đã khóa: {overview?.account_summary.locked_users ?? 0} · Tạm khóa do đăng nhập sai:{' '}
             {overview?.account_summary.temporary_locked_users ?? 0}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Refresh token đang hoạt động
+            Tài khoản bị khóa hoặc tạm ngưng
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
-            {overviewLoading ? '...' : overview?.token_summary.active_refresh_sessions ?? 0}
+            {overviewLoading ? '...' : suspendedOrLockedAccounts}
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            Hết hạn trong 24h: {overview?.token_summary.sessions_expiring_24h ?? 0}
+            Tạm ngưng: {overview?.account_summary.inactive_users ?? 0} · Đã khóa:{' '}
+            {overview?.account_summary.locked_users ?? 0}
           </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Login lỗi 24h
+            Phiên đăng nhập đang mở
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
-            {overviewLoading ? '...' : overview?.usage_summary.failed_logins_24h ?? 0}
+            {overviewLoading ? '...' : openSessions}
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            Refresh 24h: {overview?.token_summary.refreshes_24h ?? 0}
+            Sắp hết hạn trong 24 giờ: {overview?.token_summary.sessions_expiring_24h ?? 0}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            Đăng nhập cần kiểm tra
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">
+            {overviewLoading ? '...' : riskyLogins}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Đăng nhập thành công 24 giờ: {overview?.usage_summary.successful_logins_24h ?? 0}
           </p>
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-            <Gauge className="text-blue-600" size={16} />
-            Chính sách quota / guardrail
-          </h3>
-          <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Rate limit user đăng nhập</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.quota_policy.rate_limit_auth_per_minute ?? 0}/phút
-              </dd>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Rate limit anonymous</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.quota_policy.rate_limit_anon_per_minute ?? 0}/phút
-              </dd>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Load shedding</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.quota_policy.load_shedding_max_concurrent ?? 0} request đồng thời
-              </dd>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">TTL access / refresh</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.quota_policy.access_token_ttl ?? '...'} /{' '}
-                {overview?.quota_policy.refresh_token_ttl_days ?? 0} ngày
-              </dd>
-            </div>
-          </dl>
-        </div>
+      <div className="mt-6">
+        <AdminTechnicalDetails
+          testId="admin-ops-technical"
+          description="Giữ lại các chỉ số quota, thời hạn phiên và dữ liệu nguồn để hỗ trợ kiểm tra sâu khi cần."
+        >
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                  <Shield className="text-blue-600" size={16} />
+                  Giới hạn yêu cầu và chống quá tải
+                </h3>
+                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-500">Giới hạn yêu cầu cho đăng nhập</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.quota_policy.rate_limit_auth_per_minute ?? 0}/phút
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Giới hạn yêu cầu ẩn danh</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.quota_policy.rate_limit_anon_per_minute ?? 0}/phút
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Ngưỡng chống quá tải</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.quota_policy.load_shedding_max_concurrent ?? 0} yêu cầu đồng thời
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Giới hạn đăng nhập sai</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.quota_policy.login_max_attempts ?? 0} lần
+                    </dd>
+                  </div>
+                </dl>
+              </div>
 
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-            <Shield className="text-blue-600" size={16} />
-            Tín hiệu sử dụng gần đây
-          </h3>
-          <dl className="mt-4 grid gap-3 text-sm md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Chat sessions 7 ngày</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.usage_summary.chat_sessions_7d ?? 0}
-              </dd>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-bold text-slate-800">Thời hạn phiên đăng nhập</h3>
+                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-500">Access / refresh token</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview
+                        ? formatAccessWindow(
+                            overview.quota_policy.access_token_ttl,
+                            overview.quota_policy.refresh_token_ttl_days,
+                          )
+                        : '...'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Khóa tạm sau khi đăng nhập sai</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.quota_policy.login_lock_duration_seconds ?? 0} giây
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="text-sm font-bold text-slate-800">Nguồn dữ liệu</h3>
+                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                  <div>
+                    <dt className="text-slate-500">MongoDB</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.sources.mongo_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Redis</dt>
+                    <dd className="mt-1 font-semibold text-slate-800">
+                      {overview?.sources.redis_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Chat messages 7 ngày</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.usage_summary.chat_messages_7d ?? 0}
-              </dd>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                Raw overview payload
+              </p>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                {overview ? JSON.stringify(overview, null, 2) : 'Chưa có dữ liệu'}
+              </pre>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Người dùng chat hoạt động</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.usage_summary.active_chat_users_7d ?? 0}
-              </dd>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-              <dt className="text-slate-500">Login thành công 24h</dt>
-              <dd className="mt-1 font-semibold text-slate-800">
-                {overview?.usage_summary.successful_logins_24h ?? 0}
-              </dd>
-            </div>
-          </dl>
-        </div>
+          </div>
+        </AdminTechnicalDetails>
       </div>
 
       <div className="mt-6 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
@@ -358,7 +418,8 @@ export default function AdminOpsSection() {
               Quản lý tài khoản
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Tìm kiếm, lọc trạng thái và thao tác trên phiên refresh token của người dùng.
+              Mặc định chỉ hiển thị các thông tin cần dùng hằng ngày. Chọn “Xem chi tiết”
+              khi cần xem sâu hơn.
             </p>
           </div>
 
@@ -371,7 +432,7 @@ export default function AdminOpsSection() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm username, họ tên, email, đơn vị"
+                placeholder="Tìm theo tên, username, email hoặc đơn vị"
                 className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
               />
             </div>
@@ -420,17 +481,18 @@ export default function AdminOpsSection() {
           <table className="min-w-full border-separate border-spacing-y-3">
             <thead>
               <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
-                <th className="px-3">Tài khoản</th>
-                <th className="px-3">Vai trò / trạng thái</th>
-                <th className="px-3">Token / bảo mật</th>
-                <th className="px-3">Sử dụng</th>
+                <th className="px-3">Họ tên / username / email</th>
+                <th className="px-3">Vai trò</th>
+                <th className="px-3">Trạng thái</th>
+                <th className="px-3">Phiên đăng nhập đang mở</th>
+                <th className="px-3">Đăng nhập gần nhất</th>
                 <th className="px-3">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {accountsLoading && (
                 <tr>
-                  <td colSpan={5} className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500">
+                  <td colSpan={6} className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500">
                     Đang tải danh sách tài khoản...
                   </td>
                 </tr>
@@ -438,7 +500,7 @@ export default function AdminOpsSection() {
 
               {!accountsLoading && accounts.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500">
+                  <td colSpan={6} className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500">
                     Không có tài khoản nào khớp bộ lọc hiện tại.
                   </td>
                 </tr>
@@ -446,146 +508,291 @@ export default function AdminOpsSection() {
 
               {!accountsLoading &&
                 accounts.map((account) => {
+                  const isExpanded = expandedUserId === account.user_id
                   const isSelf = currentUser?.id === account.user_id
+                  const displayName = buildAccountLabel(account)
                   return (
-                    <tr
-                      key={account.user_id}
-                      data-testid={`account-row-${account.user_id}`}
-                      className="rounded-2xl bg-white shadow-sm"
-                    >
-                      <td className="rounded-l-2xl px-3 py-4 align-top">
-                        <div className="space-y-1">
-                          <p className="font-semibold text-slate-800">{account.full_name || account.username}</p>
-                          <p className="text-sm text-slate-500">{account.username}</p>
-                          <p className="text-xs text-slate-400">{account.email}</p>
-                          <p className="text-xs text-slate-400">
-                            {account.department || 'Chưa có đơn vị'} · Mức mật {account.max_security_level}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          {(account.roles.length > 0 ? account.roles : ['Không có vai trò']).map((role) => (
+                    <Fragment key={account.user_id}>
+                      <tr
+                        key={account.user_id}
+                        data-testid={`account-row-${account.user_id}`}
+                        className="rounded-2xl bg-white shadow-sm"
+                      >
+                        <td className="rounded-l-2xl px-3 py-4 align-top">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-slate-800">{displayName}</p>
+                            <p className="text-sm text-slate-500">{account.username}</p>
+                            <p className="text-xs text-slate-400">{account.email}</p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 align-top">
+                          <div className="flex flex-wrap gap-2">
+                            {(account.roles.length > 0 ? account.roles : ['Chưa gán vai trò']).map(
+                              (role) => (
+                                <span
+                                  key={role}
+                                  className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                                >
+                                  {formatRoleLabel(role)}
+                                </span>
+                              ),
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 align-top">
+                          <div className="flex flex-wrap gap-2">
                             <span
-                              key={role}
-                              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
+                              className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${accountStatusTone(
+                                account.status,
+                              )}`}
                             >
-                              {formatRoleLabel(role)}
+                              {accountStatusLabel(account.status)}
                             </span>
-                          ))}
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${accountStatusTone(
-                              account.status,
-                            )}`}
-                          >
-                            {accountStatusLabel(account.status)}
-                          </span>
-                          {account.temporary_locked && (
-                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">
-                              Redis lock
-                            </span>
-                          )}
-                          {isSelf && (
-                            <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700">
-                              Bạn
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-4 align-top text-sm text-slate-600">
-                        <p className="font-semibold text-slate-800">
-                          {account.active_refresh_sessions} phiên refresh đang mở
-                        </p>
-                        <p className="mt-1">Refresh 7 ngày: {account.refreshes_7d}</p>
-                        <p className="mt-1">Login lỗi 7 ngày: {account.failed_logins_7d}</p>
-                        <p className="mt-1">
-                          Gần nhất: {formatTimestamp(account.last_refreshed_at)}
-                        </p>
-                      </td>
-                      <td className="px-3 py-4 align-top text-sm text-slate-600">
-                        <p className="font-semibold text-slate-800">
-                          {account.chat_sessions_total} chat sessions
-                        </p>
-                        <p className="mt-1">Tin nhắn 30 ngày: {account.chat_messages_30d}</p>
-                        <p className="mt-1">Đăng nhập gần nhất: {formatTimestamp(account.last_login_at)}</p>
-                        <p className="mt-1">Chat gần nhất: {formatTimestamp(account.last_chat_at)}</p>
-                      </td>
-                      <td className="rounded-r-2xl px-3 py-4 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={busyKey !== null}
-                            onClick={() =>
-                              void runAction(
-                                `active:${account.user_id}`,
-                                () => adminApi.updateManagedAccountStatus(account.user_id, 'active'),
-                              )
-                            }
-                            data-testid={`account-activate-${account.user_id}`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <UserCheck size={14} />
-                            Kích hoạt
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyKey !== null || isSelf}
-                            onClick={() =>
-                              void runAction(
-                                `inactive:${account.user_id}`,
-                                () =>
-                                  adminApi.updateManagedAccountStatus(
-                                    account.user_id,
-                                    'inactive',
-                                  ),
-                              )
-                            }
-                            data-testid={`account-inactivate-${account.user_id}`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Ban size={14} />
-                            Tạm ngưng
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyKey !== null || isSelf}
-                            onClick={() =>
-                              void runAction(
-                                `locked:${account.user_id}`,
-                                () =>
-                                  adminApi.updateManagedAccountStatus(
-                                    account.user_id,
-                                    'locked',
-                                  ),
-                              )
-                            }
-                            data-testid={`account-lock-${account.user_id}`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <LockKeyhole size={14} />
-                            Khóa
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyKey !== null}
-                            onClick={() =>
-                              void runAction(
-                                `revoke:${account.user_id}`,
-                                () =>
+                            {account.temporary_locked && (
+                              <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-amber-700">
+                                Tạm khóa đăng nhập
+                              </span>
+                            )}
+                            {isSelf && (
+                              <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-700">
+                                Bạn
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                          <p className="font-semibold text-slate-800">
+                            {account.active_refresh_sessions} phiên
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Làm mới gần nhất: {formatTimestamp(account.last_refreshed_at)}
+                          </p>
+                        </td>
+                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                          {formatTimestamp(account.last_login_at)}
+                        </td>
+                        <td className="rounded-r-2xl px-3 py-4 align-top">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={busyKey !== null}
+                              onClick={() =>
+                                void runAction(`active:${account.user_id}`, () =>
+                                  adminApi.updateManagedAccountStatus(account.user_id, 'active'),
+                                )
+                              }
+                              data-testid={`account-activate-${account.user_id}`}
+                              className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <UserCheck size={14} />
+                              Kích hoạt
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyKey !== null || isSelf}
+                              onClick={() => {
+                                const confirmed = confirmSensitiveAction(
+                                  'Tạm ngưng tài khoản',
+                                  `Bạn có chắc muốn tạm ngưng tài khoản “${displayName}” không?`,
+                                  'Người dùng sẽ không thể tiếp tục sử dụng hệ thống cho đến khi được kích hoạt lại.',
+                                )
+                                if (!confirmed) return
+                                void runAction(`inactive:${account.user_id}`, () =>
+                                  adminApi.updateManagedAccountStatus(account.user_id, 'inactive'),
+                                )
+                              }}
+                              data-testid={`account-inactivate-${account.user_id}`}
+                              className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Ban size={14} />
+                              Tạm ngưng
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyKey !== null || isSelf}
+                              onClick={() => {
+                                const confirmed = confirmSensitiveAction(
+                                  'Khóa tài khoản',
+                                  `Bạn có chắc muốn khóa tài khoản “${displayName}” không?`,
+                                  'Tài khoản sẽ bị chặn truy cập cho đến khi quản trị viên mở lại.',
+                                )
+                                if (!confirmed) return
+                                void runAction(`locked:${account.user_id}`, () =>
+                                  adminApi.updateManagedAccountStatus(account.user_id, 'locked'),
+                                )
+                              }}
+                              data-testid={`account-lock-${account.user_id}`}
+                              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <LockKeyhole size={14} />
+                              Khóa
+                            </button>
+                            <button
+                              type="button"
+                              disabled={busyKey !== null}
+                              onClick={() => {
+                                const confirmed = confirmSensitiveAction(
+                                  'Thu hồi đăng nhập',
+                                  `Bạn có chắc muốn thu hồi các phiên đăng nhập đang mở của “${displayName}” không?`,
+                                  'Người dùng sẽ cần đăng nhập lại trên các thiết bị đang sử dụng.',
+                                )
+                                if (!confirmed) return
+                                void runAction(`revoke:${account.user_id}`, () =>
                                   adminApi.revokeManagedAccountSessions(account.user_id),
-                              )
-                            }
-                            data-testid={`account-revoke-${account.user_id}`}
-                            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <KeyRound size={14} />
-                            Thu hồi phiên
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                                )
+                              }}
+                              data-testid={`account-revoke-${account.user_id}`}
+                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <KeyRound size={14} />
+                              Thu hồi đăng nhập
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedUserId((current) =>
+                                  current === account.user_id ? null : account.user_id,
+                                )
+                              }
+                              data-testid={`account-detail-${account.user_id}`}
+                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-white"
+                            >
+                              {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {isExpanded && (
+                        <tr key={`${account.user_id}:detail`}>
+                          <td colSpan={6} className="px-0 pt-0">
+                            <div className="mx-2 mb-1 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                              <div className="grid gap-4 lg:grid-cols-3">
+                                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                    Hoạt động đăng nhập
+                                  </p>
+                                  <dl className="mt-3 space-y-2 text-sm">
+                                    <div>
+                                      <dt className="text-slate-500">Phiên đăng nhập đang mở</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.active_refresh_sessions}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt className="text-slate-500">Làm mới phiên trong 7 ngày</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.refreshes_7d}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt className="text-slate-500">Đăng nhập lỗi trong 7 ngày</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.failed_logins_7d}
+                                      </dd>
+                                    </div>
+                                  </dl>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                    Hoạt động gần đây
+                                  </p>
+                                  <dl className="mt-3 space-y-2 text-sm">
+                                    <div>
+                                      <dt className="text-slate-500">Số phiên trò chuyện</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.chat_sessions_total}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt className="text-slate-500">Tin nhắn trong 30 ngày</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.chat_messages_30d}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt className="text-slate-500">Lần trò chuyện gần nhất</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {formatTimestamp(account.last_chat_at)}
+                                      </dd>
+                                    </div>
+                                  </dl>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                    Hồ sơ và bảo mật
+                                  </p>
+                                  <dl className="mt-3 space-y-2 text-sm">
+                                    <div>
+                                      <dt className="text-slate-500">Đơn vị / phòng ban</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.department || 'Chưa có'}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt className="text-slate-500">Mức bảo mật</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.max_security_level}
+                                      </dd>
+                                    </div>
+                                    <div>
+                                      <dt className="text-slate-500">Tình trạng khóa tạm</dt>
+                                      <dd className="mt-1 font-semibold text-slate-800">
+                                        {account.temporary_locked ? 'Có' : 'Không'}
+                                      </dd>
+                                    </div>
+                                  </dl>
+                                </div>
+                              </div>
+
+                              <div className="mt-4">
+                                <AdminTechnicalDetails description="ID nội bộ và dữ liệu chi tiết dành cho kiểm tra sâu khi cần.">
+                                  <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                                    <dl className="grid gap-3 text-sm md:grid-cols-2">
+                                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                        <dt className="text-slate-500">Raw ID</dt>
+                                        <dd className="mt-1 font-semibold text-slate-800">
+                                          {account.user_id}
+                                        </dd>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                        <dt className="text-slate-500">Username gốc</dt>
+                                        <dd className="mt-1 font-semibold text-slate-800">
+                                          {account.username}
+                                        </dd>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                        <dt className="text-slate-500">Refresh gần nhất</dt>
+                                        <dd className="mt-1 font-semibold text-slate-800">
+                                          {formatTimestamp(account.last_refreshed_at)}
+                                        </dd>
+                                      </div>
+                                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                                        <dt className="text-slate-500">Đăng nhập gần nhất</dt>
+                                        <dd className="mt-1 font-semibold text-slate-800">
+                                          {formatTimestamp(account.last_login_at)}
+                                        </dd>
+                                      </div>
+                                    </dl>
+
+                                    <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
+                                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                                        Raw account payload
+                                      </p>
+                                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                                        {JSON.stringify(account, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                </AdminTechnicalDetails>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
             </tbody>

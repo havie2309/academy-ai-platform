@@ -20,10 +20,8 @@ export class ApiGatewayService {
     let rag: 'up' | 'down' = 'down';
 
     try {
-      const res = await fetch(`${userMgmtUrl}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+      const res = await fetch(`${userMgmtUrl}/api/auth/health`, {
+        method: 'GET',
         signal: AbortSignal.timeout(3000),
       });
       userManagement = res.status < 500 ? 'up' : 'down';

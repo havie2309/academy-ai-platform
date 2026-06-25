@@ -1,15 +1,43 @@
 & .\scripts\up-code.ps1
 docker compose stop user-management     # outdated container, run `npm run start:dev user-management` to start a new one
 
+function Start-NestDevApp {
+    param(
+        [string]$Name
+    )
+
+    Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile',
+        '-Command',
+        "cd '$PWD\\services\\platform'; npx nest start $Name --watch"
+    )
+}
+
+function Start-PythonService {
+    param(
+        [string]$Path,
+        [string]$Command
+    )
+
+    Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile',
+        '-Command',
+        "cd '$PWD\\$Path'; $Command"
+    )
+}
+
 # Start NestJS services
-Start-Process powershell -ArgumentList "-NoExit", "cd services/platform; npm run start:dev api-gateway"
-Start-Process powershell -ArgumentList "-NoExit", "cd services/platform; npm run start:dev user-management"
-Start-Process powershell -ArgumentList "-NoExit", "cd services/platform; npm run start:dev chat"
+Start-NestDevApp -Name 'api-gateway'
+Start-NestDevApp -Name 'user-management'
+Start-NestDevApp -Name 'chat'
+Start-NestDevApp -Name 'rbac'
+Start-NestDevApp -Name 'admin-config'
+Start-NestDevApp -Name 'audit'
 
 # Start AI services
-Start-Process powershell -ArgumentList "-NoExit", "cd services/embedding-server; py -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload"
-Start-Process powershell -ArgumentList "-NoExit", "cd services/rerank-server; py -m uvicorn main:app --host 0.0.0.0 --port 8002 --reload"
-Start-Process powershell -ArgumentList "-NoExit", "cd services/rag-engine; py -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+Start-PythonService -Path 'services/embedding-server' -Command 'py -m uvicorn main:app --host 0.0.0.0 --port 8001 --reload'
+Start-PythonService -Path 'services/rerank-server' -Command 'py -m uvicorn main:app --host 0.0.0.0 --port 8002 --reload'
+Start-PythonService -Path 'services/rag-engine' -Command 'py -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload'
 
 # ============================================================
 # WAIT FOR EMBEDDING SERVER BEFORE STARTING DOCUMENT PROCESSOR
@@ -46,7 +74,11 @@ if (-not $ready) {
 }
 
 # Start document-processor (now that embedding is ready)
-Start-Process powershell -ArgumentList "-NoExit", "cd services/document-processor; py -m uvicorn main:app --host 0.0.0.0 --port 8003 --reload"
+Start-PythonService -Path 'services/document-processor' -Command 'py -m uvicorn main:app --host 0.0.0.0 --port 8003 --reload'
 
 # Start Web UI
-Start-Process powershell -ArgumentList "-NoExit", "cd services/web-ui; npm run dev"
+Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile',
+    '-Command',
+    "cd '$PWD\\services\\web-ui'; npm run dev"
+)
