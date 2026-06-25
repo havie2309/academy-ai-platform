@@ -422,19 +422,20 @@ async def chat(body: ChatRequest, request: Request):
     if route == "sql":
         try:
             result = await run_sql_query(body.query, user)
-            _write_session_context(
-                body.sessionId,
-                user,
-                history,
-                str(result.get("answer") or ""),
-                "sql",
-            )
-            return result
+            if result.get("row_count", 0) > 0:
+                _write_session_context(
+                    body.sessionId,
+                    user,
+                    history,
+                    str(result.get("answer") or ""),
+                    "sql",
+                )
+                return result
+            # row_count = 0 → warehouse không có dữ liệu → fallback sang RAG
         except SqlPipelineError as exc:
-            raise HTTPException(
-                403 if exc.status == "deny" else 502,
-                str(exc),
-            ) from exc
+            if exc.status == "deny":
+                raise HTTPException(403, str(exc)) from exc
+            # Lỗi kỹ thuật → fallback sang RAG
     if route == "reject":
         payload = _reject_payload()
         _write_session_context(
@@ -505,19 +506,26 @@ async def chat_stream(body: ChatRequest, request: Request):
             return
 
         if route == "sql":
+            _sql_has_data = False
             try:
                 result = await run_sql_query(body.query, user)
+                if result.get("row_count", 0) > 0:
+                    _sql_has_data = True
+                    answer = result.get("answer", "")
+                    _write_session_context(body.sessionId, user, history, answer, "sql")
+                    yield _sse("meta", {"citations": [], "route": "sql"})
+                    step = 24
+                    for i in range(0, len(answer), step):
+                        yield _sse("token", {"delta": answer[i : i + step]})
+                    yield _sse("done", {"answer": answer, "route": "sql"})
+                # row_count = 0 → fallback sang RAG
             except SqlPipelineError as exc:
-                yield _sse("error", {"message": str(exc)})
+                if exc.status == "deny":
+                    yield _sse("error", {"message": str(exc)})
+                    return
+                # Lỗi kỹ thuật → fallback sang RAG
+            if _sql_has_data:
                 return
-            answer = result.get("answer", "")
-            _write_session_context(body.sessionId, user, history, answer, "sql")
-            yield _sse("meta", {"citations": [], "route": "sql"})
-            step = 24
-            for i in range(0, len(answer), step):
-                yield _sse("token", {"delta": answer[i : i + step]})
-            yield _sse("done", {"answer": answer, "route": "sql"})
-            return
 
         if route == "reject":
             answer = REJECT_ANSWER
