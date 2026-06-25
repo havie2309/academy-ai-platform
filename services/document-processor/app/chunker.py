@@ -177,9 +177,9 @@ def chunk_document_parent_child(
     Parent-child chunking for academic documents.
 
     Parent nodes keep section-level context in MongoDB, while child nodes stay
-    small for embedding and Milvus lookup. `Phan` / `Chuong` remain metadata in
-    `section_path` and `chapter_header`; parent nodes are emitted for `Dieu`,
-    `Muc`, or plain-text fallback sections.
+    small for embedding and Milvus lookup.
+    **Note**: 'Phan' / 'Chuong' sections are now processed (they were previously skipped).
+    They will create a parent node truncated to `max_parent_size` to avoid loss of content.
     """
     cleaned = text.replace("\r\n", "\n").strip()
     if not cleaned:
@@ -196,9 +196,8 @@ def chunk_document_parent_child(
 
         if not section_text:
             continue
-        if section_type in {"phan", "chuong"}:
-            continue
 
+        # All sections, including 'phan' and 'chuong', are processed.
         parent_id = f"parent-{uuid.uuid4().hex[:8]}"
         parent_text = (
             f"{section_text[:max_parent_size]}..."
@@ -246,20 +245,102 @@ def chunk_document_parent_child(
     return {"parent_nodes": parent_nodes, "child_nodes": child_nodes}
 
 
+# ============================================================
+#  Word-boundary helpers
+# ============================================================
+
+_BOUNDARY_RE = re.compile(r'[\s\.,;!?:"\'()\-]')
+
+
+def _prev_word_boundary(text: str, pos: int) -> int:
+    """
+    Return the index of the last whitespace or punctuation character before `pos`.
+    If none is found, return 0.
+    """
+    match = _BOUNDARY_RE.search(text[:pos][::-1])
+    if match:
+        return pos - 1 - match.start()
+    return 0
+
+
+def _next_word_boundary(text: str, pos: int) -> int:
+    """
+    Return the smallest index >= pos that is a whitespace or punctuation character.
+    If none is found, return len(text).
+    """
+    match = _BOUNDARY_RE.search(text[pos:])
+    if match:
+        return pos + match.start()
+    return len(text)
+
+
 def chunk_by_length(text: str, max_size: int, overlap_ratio: float = 0.1) -> list[str]:
-    """Simple length-based chunking with overlap."""
+    """
+    Split text into chunks of approximately `max_size` characters,
+    with overlap, and ensure no chunk cuts a word in half.
+
+    If the entire text is shorter than or equal to max_size, it is returned as one chunk.
+    """
     if not text:
         return []
 
+    text = text.strip()
+    if not text:
+        return []
+
+    # If the whole text fits in one chunk, return it as is.
+    if len(text) <= max_size:
+        return [text]
+
     overlap = max(0, int(max_size * overlap_ratio))
+    # Limit overlap to at most half of max_size to avoid excessive overlapping.
+    overlap = min(overlap, max_size // 2)
+
     chunks: list[str] = []
     start = 0
-    while start < len(text):
-        end = min(start + max_size, len(text))
+    text_len = len(text)
+
+    while start < text_len:
+        # Tentative end
+        tentative_end = min(start + max_size, text_len)
+
+        # Adjust end to the last boundary before or at tentative_end
+        boundary_idx = _prev_word_boundary(text, tentative_end)
+        if boundary_idx > start:
+            end = boundary_idx + 1  # include the boundary character
+        else:
+            # No boundary found, fallback to tentative_end
+            end = tentative_end
+
+        # Ensure we don't go past text length
+        if end > text_len:
+            end = text_len
+
+        # Extract chunk and strip
         chunk = text[start:end].strip()
         if chunk:
             chunks.append(chunk)
-        if end >= len(text):
+
+        # If we've reached the end, break
+        if end >= text_len:
             break
-        start = max(0, end - overlap)
+
+        # Prepare next start with overlap, but ensure we always advance at least 1.
+        next_start = end - overlap
+        if next_start <= start:
+            next_start = start + 1
+        next_start = _next_word_boundary(text, next_start)
+        if next_start <= start:
+            next_start = start + 1
+
+        # Safety: if the next_start is not less than text_len, break to avoid infinite loop.
+        if next_start >= text_len:
+            # Take the remaining text as the last chunk
+            remaining = text[start:].strip()
+            if remaining:
+                chunks.append(remaining)
+            break
+
+        start = next_start
+
     return chunks

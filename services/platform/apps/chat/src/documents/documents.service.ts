@@ -399,6 +399,59 @@ export class DocumentsService implements OnModuleInit {
     }
   }
 
+    /**
+   * Get first N child chunks of a document for preview.
+   */
+  async getChunks(
+    docId: string,
+    user: RequestUser,
+    limit = 5,
+  ): Promise<{ chunks: any[]; total: number }> {
+    this.ensureReady()
+    const doc = await this.documents.findOne({ docId })
+    if (!doc) throw new NotFoundException('Không tìm thấy tài liệu.')
+    if (!this.canView(doc, user)) {
+      throw new ForbiddenException('Bạn không có quyền xem tài liệu này.')
+    }
+
+    const chunks = await this.db
+      .collection('document_chunks')
+      .find(
+        {
+          documentId: docId,
+          chunkType: 'child',
+        },
+        {
+          sort: { chunkIndex: 1, createdAt: 1 },
+          limit,
+          projection: {
+            chunkId: 1,
+            chunkText: 1,
+            chunkIndex: 1,
+            metadata: 1,
+            createdAt: 1,
+          },
+        },
+      )
+      .toArray()
+
+    const total = await this.db
+      .collection('document_chunks')
+      .countDocuments({ documentId: docId, chunkType: 'child' })
+
+    return {
+      chunks: chunks.map((c) => ({
+        id: c.chunkId,
+        text: c.chunkText,
+        index: c.chunkIndex,
+        section_path: c.metadata?.section_path || null,
+        page: c.metadata?.page || null,
+        created_at: c.createdAt?.toISOString?.() || null,
+      })),
+      total,
+    }
+  }
+
   async remove(docId: string, user: RequestUser): Promise<{ deleted: true }> {
     this.ensureReady()
     const doc = await this.documents.findOne({ docId })

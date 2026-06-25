@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Eye, ChevronRight, CheckCircle, Clock, AlertCircle, Scissors, Cpu, Database} from 'lucide-react'
 import {
   Search,
   FileText,
@@ -27,6 +28,7 @@ import {
 } from '../api/docs'
 import { authApi } from '../api/auth'
 import { isAdminLikeRole } from '../lib/authz'
+import React from 'react'
 
 const UPLOAD_CATEGORIES = ['Quy chế', 'Tài liệu môn học', 'Lịch thi', 'Khác']
 
@@ -55,6 +57,25 @@ const ROLE_OPTIONS: { code: string; label: string }[] = [
   { code: 'GIANG_VIEN', label: 'Giảng viên' },
   { code: 'HOC_VIEN', label: 'Học viên' },
 ]
+
+const STAGE_ORDER = ['queued', 'extract', 'chunk', 'embed', 'index', 'done']
+const STAGE_LABELS: Record<string, string> = {
+  queued: 'Chờ xử lý',
+  extract: 'Trích xuất',
+  chunk: 'Chia đoạn',
+  embed: 'Vector hóa',
+  index: 'Chỉ mục',
+  done: 'Hoàn tất',
+}
+const STAGE_ICONS: Record<string, React.ReactNode> = {
+  queued: <Clock size={14} />,
+  extract: <FileText size={14} />,
+  chunk: <Scissors size={14} />,
+  embed: <Cpu size={14} />,
+  index: <Database size={14} />,
+  done: <CheckCircle size={14} />,
+}
+// You may need to import Scissors, Cpu, Database from lucide-react
 
 interface VungDuLieuData {
   user: {
@@ -503,6 +524,18 @@ export default function DocsPage() {
   const [uploadRoles, setUploadRoles] = useState<string[]>([])
   const [uploadDepartments, setUploadDepartments] = useState('')
   const [uploadUserIds, setUploadUserIds] = useState('')
+    // Preview chunks modal
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null)
+  const [previewChunks, setPreviewChunks] = useState<Array<{
+    id: string
+    text: string
+    index: number
+    section_path: string | null
+    page: number | null
+    created_at: string | null
+  }>>([])
+  const [previewTotal, setPreviewTotal] = useState(0)
+  const [previewLoading, setPreviewLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -683,6 +716,22 @@ export default function DocsPage() {
       setError(err instanceof Error ? err.message : 'Xóa thất bại.')
     } finally {
       setBusyId(null)
+    }
+  }
+
+  const openPreview = async (doc: DocItem) => {
+    setPreviewDocId(doc.id)
+    setPreviewLoading(true)
+    setPreviewChunks([])
+    setPreviewTotal(0)
+    try {
+      const data = await docsApi.getChunks(doc.id, 5)
+      setPreviewChunks(data.chunks)
+      setPreviewTotal(data.total)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể tải chunk preview.')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -870,6 +919,72 @@ export default function DocsPage() {
                   <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
                     {doc.title}
                   </h3>
+                  {/* Ingest timeline */}
+                  {doc.ingest_status && (
+                    <div className="-mt-5 mb-2">
+                      <div className="flex items-center gap-1">
+                        {STAGE_ORDER.map((stage, idx) => {
+                          const currentIndex = STAGE_ORDER.indexOf(doc.ingest_stage || 'queued')
+                          const isDone = doc.ingest_status === 'completed'
+                          const isActive = stage === doc.ingest_stage
+                          const isPast = STAGE_ORDER.indexOf(stage) <= currentIndex
+                          const isFailed = doc.ingest_status === 'failed'
+
+                          return (
+                            <React.Fragment key={stage}>
+                              <div
+                                className={`flex flex-col items-center flex-1 ${
+                                  isFailed
+                                    ? 'text-red-400'
+                                    : isDone || isPast
+                                    ? 'text-emerald-500'
+                                    : isActive
+                                    ? 'text-blue-500'
+                                    : 'text-slate-300'
+                                }`}
+                              >
+                                <div
+                                  className={`w-5 h-5 rounded-full flex items-center justify-center border-2 ${
+                                    isFailed
+                                      ? 'border-red-400 bg-red-50'
+                                      : isDone || isPast
+                                      ? 'border-emerald-500 bg-emerald-50'
+                                      : isActive
+                                      ? 'border-blue-500 bg-blue-50'
+                                      : 'border-slate-200 bg-slate-50'
+                                  }`}
+                                >
+                                  {isFailed ? (
+                                    <AlertCircle size={12} />
+                                  ) : isDone || isPast ? (
+                                    <CheckCircle size={12} />
+                                  ) : isActive ? (
+                                    <Loader2 size={12} className="animate-spin" />
+                                  ) : (
+                                    <div className="w-2 h-2 rounded-full bg-slate-300" />
+                                  )}
+                                </div>
+                                <span className="text-[8px] mt-0.5 whitespace-nowrap">
+                                  {STAGE_LABELS[stage] || stage}
+                                </span>
+                              </div>
+                              {idx < STAGE_ORDER.length - 1 && (
+                                <div
+                                  className={`h-0.5 flex-1 ${
+                                    isFailed
+                                      ? 'bg-red-200'
+                                      : isDone || STAGE_ORDER.indexOf(stage) < currentIndex
+                                      ? 'bg-emerald-300'
+                                      : 'bg-slate-200'
+                                  }`}
+                                />
+                              )}
+                            </React.Fragment>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-1.5 mb-5 text-xs text-slate-400">
                     <div className="flex justify-between">
@@ -910,6 +1025,15 @@ export default function DocsPage() {
                     >
                       {busyId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
                       Xem online
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openPreview(doc)}
+                      disabled={doc.ingest_status !== 'completed'}
+                      title={doc.ingest_status === 'completed' ? 'Xem chunks' : 'Chưa có chunks'}
+                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
+                    >
+                      <Eye size={13} />
                     </button>
                     <button
                       type="button"
@@ -1093,6 +1217,81 @@ export default function DocsPage() {
               >
                 {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
                 {uploading ? 'Đang tải lên…' : 'Tải lên'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Preview Chunks Modal */}
+      {previewDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] bg-white rounded-2xl shadow-xl border border-slate-200 p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="text-lg font-bold text-slate-800">Chunk Preview</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewDocId(null)
+                  setPreviewChunks([])
+                }}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-slate-500 mb-4 shrink-0">
+              <span>
+                Hiển thị {previewChunks.length} / {previewTotal} chunks
+              </span>
+              {previewLoading && <Loader2 size={16} className="animate-spin" />}
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-8 text-slate-400">
+                  <Loader2 className="animate-spin mr-2" size={20} />
+                  Đang tải chunks...
+                </div>
+              ) : previewChunks.length === 0 ? (
+                <div className="text-center py-8 text-slate-400 text-sm">
+                  Không có chunk nào để hiển thị.
+                </div>
+              ) : (
+                previewChunks.map((chunk) => (
+                  <div
+                    key={chunk.id}
+                    className="border border-slate-200 rounded-xl p-4 bg-slate-50/50"
+                  >
+                    <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                      <span className="font-mono">#{chunk.index}</span>
+                      {chunk.section_path && (
+                        <span className="truncate max-w-[60%]">
+                          📂 {chunk.section_path}
+                        </span>
+                      )}
+                      {chunk.page && (
+                        <span>📄 Trang {chunk.page}</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                      {chunk.text}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewDocId(null)
+                  setPreviewChunks([])
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer"
+              >
+                Đóng
               </button>
             </div>
           </div>
