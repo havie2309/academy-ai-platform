@@ -12,7 +12,10 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import type { AuthUser } from '../../../src/common/auth.types'
-import { AdminConfigService } from './admin-config.service'
+import {
+  AdminConfigService,
+  type GuardrailRulePatch,
+} from './admin-config.service'
 
 const INTERNAL_KEY_HEADER = 'x-admin-config-key'
 
@@ -48,6 +51,7 @@ export class AdminConfigController {
     @Body()
     body: {
       enabled?: boolean
+      guardrailRules?: GuardrailRulePatch[]
       blacklistKeywords?: string[]
       safeRefusalMessage?: string
       reason?: string

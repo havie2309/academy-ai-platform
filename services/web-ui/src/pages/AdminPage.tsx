@@ -20,6 +20,7 @@ import {
   fetchGatewayHealth,
   type AdminOpsOverview,
   type AuditLogEntry,
+  type GuardrailRule,
   type GatewayHealth,
   type RagPolicyConfig,
   type StoredAdminConfig,
@@ -118,6 +119,26 @@ function parseKeywords(text: string): string[] {
   return values
 }
 
+const DEFAULT_RULE_ID = 'default-keyword-blocklist'
+const DEFAULT_RULE_LABEL = 'Danh sách từ khóa bị chặn'
+
+function rulesToKeywords(rules: GuardrailRule[] | undefined): string[] {
+  return (rules ?? [])
+    .filter((rule) => rule.enabled !== false)
+    .flatMap((rule) => rule.phrases ?? [])
+}
+
+function buildGuardrailRulesFromKeywords(keywords: string[]): GuardrailRule[] {
+  return [
+    {
+      id: DEFAULT_RULE_ID,
+      label: DEFAULT_RULE_LABEL,
+      enabled: true,
+      phrases: keywords,
+    },
+  ]
+}
+
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) return 'Chưa cập nhật'
   const date = new Date(value)
@@ -214,7 +235,7 @@ function hydrateForm(
   setReason: (value: string) => void,
 ) {
   setEnabled(config.value.enabled)
-  setKeywordText(config.value.blacklistKeywords.join('\n'))
+  setKeywordText(rulesToKeywords(config.value.guardrailRules).join('\n'))
   setSafeRefusal(config.value.safeRefusalMessage)
   setReason('')
 }
@@ -459,7 +480,7 @@ export default function AdminPage() {
     (enabled !== policy.value.enabled ||
       safeRefusalMessage.trim() !== policy.value.safeRefusalMessage ||
       JSON.stringify(parsedKeywords) !==
-        JSON.stringify(policy.value.blacklistKeywords) ||
+        JSON.stringify(rulesToKeywords(policy.value.guardrailRules)) ||
       !!reason.trim())
 
   const policyPreviewBlocked =
@@ -473,7 +494,7 @@ export default function AdminPage() {
     try {
       const updated = await adminApi.updateRagPolicy({
         enabled,
-        blacklistKeywords: parsedKeywords,
+        guardrailRules: buildGuardrailRulesFromKeywords(parsedKeywords),
         safeRefusalMessage: safeRefusalMessage.trim(),
         reason: reason.trim(),
       })
@@ -783,7 +804,7 @@ export default function AdminPage() {
               <p className="mt-3 text-sm text-slate-500">
                 {policyLoading
                   ? 'Đang tải trạng thái chính sách.'
-                  : `Từ khóa đang áp dụng: ${policy?.value.blacklistKeywords.length ?? 0}.`}
+                  : `Từ khóa đang áp dụng: ${rulesToKeywords(policy?.value.guardrailRules).length}.`}
               </p>
             </div>
           </section>
