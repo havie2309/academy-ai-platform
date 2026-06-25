@@ -13,7 +13,7 @@
 | UI-01 | Login | `/login` | Mọi user | idle, submitting, error | auth login/refresh/logout | `implemented` |
 | UI-02 | Chat | `/chat`, `/chat/:sessionId` | User thường, giảng viên, admin | empty, streaming, answered, refusal, error | chat session/message, RAG, SQL | `implemented` |
 | UI-03 | Sidebar lịch sử chat | trong layout chat | User | loading, optimistic update, delete confirm | chat sessions | `implemented` |
-| UI-04 | Docs workspace | `/docs` | User có quyền tài liệu | list, upload, ingest polling, download, delete | documents, ingest-status | `partial` |
+| UI-04 | Docs workspace | `/docs` | User có quyền tài liệu | list, upload, ingest polling, download, delete, **chunk preview** | documents, ingest-status, **chunks** | `implemented` |
 | UI-05 | Upload document modal | trong `/docs` | User có quyền upload | form, validating, uploading, queued | documents upload | `implemented` |
 | UI-06 | Admin health | `/admin` | admin | loading, partial-down, refreshed | gateway health | `implemented` |
 | UI-07 | Admin policy editor | `/admin` | admin | loading, dirty, saved, conflict | admin-config | `implemented` |
@@ -86,6 +86,5 @@
 ## 6. Khoảng trống hiện tại
 
 - ETL console, self-service và quota/account ops chưa có UI hoàn chỉnh trong repo hiện tại.
-- Docs workspace chưa có timeline chi tiết/chunk preview.
 - Audit API/helper đã có một phần ở backend và `web-ui/src/api/admin.ts`, nhưng `/admin` hiện chưa render viewer/detail/export.
 - `Settings` hiện mới ở mức partial, chưa có quản trị profile/account đầy đủ.

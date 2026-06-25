@@ -62,6 +62,7 @@
 | `GET` | `/api/documents/vung-du-lieu` | JWT | Không body | Thống kê/nhóm dữ liệu theo logic documents service | Contract còn mỏng ở mức docs, nhưng route tồn tại | `implemented` |
 | `GET` | `/api/documents/security-level-stats` | JWT | Không body | Thống kê theo `securityLevel` | Contract còn mỏng ở mức docs, nhưng route tồn tại | `implemented` |
 | `GET` | `/api/documents/preview/:role` | JWT admin-like | `role` trên path | Preview quyền truy cập tài liệu cho role được chỉ định | User không phải admin-like -> `403` | `implemented` |
+| `GET` | `/api/documents/:id/chunks` | JWT | `id` trên path, query `limit` (mặc định 5, tối đa 20) | `{ chunks: [{ id, text, index, section_path, page, created_at }], total }` | Không đủ quyền -> `403`; không tìm thấy -> `404` | `implemented` |
 
 ### 4.5. Admin config
 
