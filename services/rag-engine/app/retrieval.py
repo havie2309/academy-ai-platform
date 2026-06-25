@@ -73,6 +73,7 @@ def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dic
         "text": text,
         "source": meta.get("title", "Kho tai lieu"),
         "score": vector_score,
+        "security_level": meta.get("securityLevel", "internal"),
     }
     section_path = meta.get("sectionPath") or meta.get("section_path")
     if section_path:
@@ -181,6 +182,28 @@ def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
         or float(citation.get("rerank_score")) >= floor
     ]
     return after_rerank or after_vector
+
+
+_SECURITY_PRIORITY = {"confidential": 4, "restricted": 3, "internal": 2, "public": 1}
+_SECURITY_THRESHOLD = 1.5
+
+
+def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
+    if not citations:
+        return citations
+    best_score = max(
+        float(c.get("rerank_score", c.get("score", 0)) or 0)
+        for c in citations
+    )
+
+    def _key(c: dict):
+        score = float(c.get("rerank_score", c.get("score", 0)) or 0)
+        sec = _SECURITY_PRIORITY.get(c.get("security_level", "internal"), 2)
+        if score >= best_score - _SECURITY_THRESHOLD:
+            return (0, -sec, -score)
+        return (1, 0, -score)
+
+    return sorted(citations, key=_key)
 
 
 async def retrieve_citations(query: str, user: dict) -> list[dict]:
@@ -318,12 +341,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     selected = _apply_score_thresholds(reranked)
     selected = _filter_old_conflict_docs(query_text, selected)
     selected = _apply_year_policy(query_text, selected)
-    selected.sort(
-        key=lambda citation: float(
-            citation.get("rerank_score", citation.get("score", -9999))
-        ),
-        reverse=True,
-    )
+    selected = _sort_with_soft_security_priority(selected)
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
     selected = limit_context_budget(selected)
 
