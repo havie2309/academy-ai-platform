@@ -1,9 +1,8 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   Ban,
   KeyRound,
-  LockKeyhole,
   RefreshCw,
   Search,
   Shield,
@@ -71,7 +70,15 @@ function buildAccountLabel(account: ManagedAccount): string {
   return account.full_name || account.username
 }
 
-export default function AdminOpsSection() {
+interface AdminOpsSectionProps {
+  showSummaryCards?: boolean
+  showTechnical?: boolean
+}
+
+export default function AdminOpsSection({
+  showSummaryCards = true,
+  showTechnical = true,
+}: AdminOpsSectionProps) {
   const currentUser = authApi.getUser()
 
   const [overview, setOverview] = useState<AdminOpsOverview | null>(null)
@@ -201,6 +208,19 @@ export default function AdminOpsSection() {
 
   const openSessions = overview?.token_summary.active_refresh_sessions ?? 0
   const riskyLogins = overview?.usage_summary.failed_logins_24h ?? 0
+  const sortedAccounts = useMemo(() => {
+    return [...accounts].sort((left, right) => {
+      const leftIsSelf = left.user_id === currentUser?.id
+      const rightIsSelf = right.user_id === currentUser?.id
+      if (leftIsSelf !== rightIsSelf) return leftIsSelf ? -1 : 1
+
+      const leftIsAdmin = left.roles.includes('ADMIN')
+      const rightIsAdmin = right.roles.includes('ADMIN')
+      if (leftIsAdmin !== rightIsAdmin) return leftIsAdmin ? -1 : 1
+
+      return 0
+    })
+  }, [accounts, currentUser?.id])
 
   return (
     <section
@@ -264,10 +284,11 @@ export default function AdminOpsSection() {
         </div>
       )}
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Tài khoản cần xử lý
+      {showSummaryCards && (
+        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+              Tài khoản cần xử lý
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
             {overviewLoading ? '...' : accountsNeedingAttention}
@@ -314,103 +335,110 @@ export default function AdminOpsSection() {
             Đăng nhập thành công 24 giờ: {overview?.usage_summary.successful_logins_24h ?? 0}
           </p>
         </div>
-      </div>
+        </div>
+      )}
 
-      <div className="mt-6">
-        <AdminTechnicalDetails
-          testId="admin-ops-technical"
-          description="Giữ lại các chỉ số quota, thời hạn phiên và dữ liệu nguồn để hỗ trợ kiểm tra sâu khi cần."
-        >
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-            <div className="space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                  <Shield className="text-blue-600" size={16} />
-                  Giới hạn yêu cầu và chống quá tải
-                </h3>
-                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                  <div>
-                    <dt className="text-slate-500">Giới hạn yêu cầu cho đăng nhập</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.quota_policy.rate_limit_auth_per_minute ?? 0}/phút
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Giới hạn yêu cầu ẩn danh</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.quota_policy.rate_limit_anon_per_minute ?? 0}/phút
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Ngưỡng chống quá tải</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.quota_policy.load_shedding_max_concurrent ?? 0} yêu cầu đồng thời
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Giới hạn đăng nhập sai</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.quota_policy.login_max_attempts ?? 0} lần
-                    </dd>
-                  </div>
-                </dl>
+      {showTechnical && (
+        <div className="mt-6">
+          <AdminTechnicalDetails
+            testId="admin-ops-technical"
+            description="Giữ lại các chỉ số quota, thời hạn phiên và dữ liệu nguồn để hỗ trợ kiểm tra sâu khi cần."
+          >
+            <div className="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                    <Shield className="text-blue-600" size={16} />
+                    Giới hạn yêu cầu và chống quá tải
+                  </h3>
+                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                    <div>
+                      <dt className="text-slate-500">Giới hạn yêu cầu cho đăng nhập</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.quota_policy.rate_limit_auth_per_minute ?? 0}/phút
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Giới hạn yêu cầu ẩn danh</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.quota_policy.rate_limit_anon_per_minute ?? 0}/phút
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Ngưỡng chống quá tải</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.quota_policy.load_shedding_max_concurrent ?? 0} yêu cầu đồng thời
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Giới hạn đăng nhập sai</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.quota_policy.login_max_attempts ?? 0} lần
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-sm font-bold text-slate-800">Thời hạn phiên đăng nhập</h3>
+                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                    <div>
+                      <dt className="text-slate-500">Access / refresh token</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview
+                          ? formatAccessWindow(
+                              overview.quota_policy.access_token_ttl,
+                              overview.quota_policy.refresh_token_ttl_days,
+                            )
+                          : '...'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Khóa tạm sau khi đăng nhập sai</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.quota_policy.login_lock_duration_seconds ?? 0} giây
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="text-sm font-bold text-slate-800">Nguồn dữ liệu</h3>
+                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                    <div>
+                      <dt className="text-slate-500">MongoDB</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.sources.mongo_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Redis</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {overview?.sources.redis_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
               </div>
 
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-bold text-slate-800">Thời hạn phiên đăng nhập</h3>
-                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                  <div>
-                    <dt className="text-slate-500">Access / refresh token</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview
-                        ? formatAccessWindow(
-                            overview.quota_policy.access_token_ttl,
-                            overview.quota_policy.refresh_token_ttl_days,
-                          )
-                        : '...'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Khóa tạm sau khi đăng nhập sai</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.quota_policy.login_lock_duration_seconds ?? 0} giây
-                    </dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <h3 className="text-sm font-bold text-slate-800">Nguồn dữ liệu</h3>
-                <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                  <div>
-                    <dt className="text-slate-500">MongoDB</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.sources.mongo_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-slate-500">Redis</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {overview?.sources.redis_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
-                    </dd>
-                  </div>
-                </dl>
+              <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Raw overview payload
+                </p>
+                <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                  {overview ? JSON.stringify(overview, null, 2) : 'Chưa có dữ liệu'}
+                </pre>
               </div>
             </div>
+          </AdminTechnicalDetails>
+        </div>
+      )}
 
-            <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Raw overview payload
-              </p>
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
-                {overview ? JSON.stringify(overview, null, 2) : 'Chưa có dữ liệu'}
-              </pre>
-            </div>
-          </div>
-        </AdminTechnicalDetails>
-      </div>
-
-      <div className="mt-6 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+      <div
+        className={`rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 ${
+          showTechnical || showSummaryCards ? 'mt-6' : 'mt-5'
+        }`}
+      >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
@@ -432,7 +460,7 @@ export default function AdminOpsSection() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Tìm theo tên, username, email hoặc đơn vị"
+                placeholder="Tìm theo họ tên, email hoặc đơn vị"
                 className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
               />
             </div>
@@ -481,10 +509,10 @@ export default function AdminOpsSection() {
           <table className="min-w-full border-separate border-spacing-y-3">
             <thead>
               <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
-                <th className="px-3">Họ tên / username / email</th>
+                <th className="px-3">Họ tên</th>
+                <th className="px-3">Email</th>
                 <th className="px-3">Vai trò</th>
                 <th className="px-3">Trạng thái</th>
-                <th className="px-3">Phiên đăng nhập đang mở</th>
                 <th className="px-3">Đăng nhập gần nhất</th>
                 <th className="px-3">Thao tác</th>
               </tr>
@@ -507,10 +535,12 @@ export default function AdminOpsSection() {
               )}
 
               {!accountsLoading &&
-                accounts.map((account) => {
+                sortedAccounts.map((account) => {
                   const isExpanded = expandedUserId === account.user_id
                   const isSelf = currentUser?.id === account.user_id
                   const displayName = buildAccountLabel(account)
+                  const canReactivate = account.status !== 'active'
+                  const canInactivate = account.status === 'active'
                   return (
                     <Fragment key={account.user_id}>
                       <tr
@@ -521,9 +551,10 @@ export default function AdminOpsSection() {
                         <td className="rounded-l-2xl px-3 py-4 align-top">
                           <div className="space-y-1">
                             <p className="font-semibold text-slate-800">{displayName}</p>
-                            <p className="text-sm text-slate-500">{account.username}</p>
-                            <p className="text-xs text-slate-400">{account.email}</p>
                           </div>
+                        </td>
+                        <td className="px-3 py-4 align-top">
+                          <p className="text-sm text-slate-500">{account.email}</p>
                         </td>
                         <td className="px-3 py-4 align-top">
                           <div className="flex flex-wrap gap-2">
@@ -561,92 +592,72 @@ export default function AdminOpsSection() {
                           </div>
                         </td>
                         <td className="px-3 py-4 align-top text-sm text-slate-600">
-                          <p className="font-semibold text-slate-800">
-                            {account.active_refresh_sessions} phiên
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Làm mới gần nhất: {formatTimestamp(account.last_refreshed_at)}
-                          </p>
-                        </td>
-                        <td className="px-3 py-4 align-top text-sm text-slate-600">
                           {formatTimestamp(account.last_login_at)}
                         </td>
                         <td className="rounded-r-2xl px-3 py-4 align-top">
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={busyKey !== null}
-                              onClick={() =>
-                                void runAction(`active:${account.user_id}`, () =>
-                                  adminApi.updateManagedAccountStatus(account.user_id, 'active'),
-                                )
-                              }
-                              data-testid={`account-activate-${account.user_id}`}
-                              className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <UserCheck size={14} />
-                              Kích hoạt
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyKey !== null || isSelf}
-                              onClick={() => {
-                                const confirmed = confirmSensitiveAction(
-                                  'Tạm ngưng tài khoản',
-                                  `Bạn có chắc muốn tạm ngưng tài khoản “${displayName}” không?`,
-                                  'Người dùng sẽ không thể tiếp tục sử dụng hệ thống cho đến khi được kích hoạt lại.',
-                                )
-                                if (!confirmed) return
-                                void runAction(`inactive:${account.user_id}`, () =>
-                                  adminApi.updateManagedAccountStatus(account.user_id, 'inactive'),
-                                )
-                              }}
-                              data-testid={`account-inactivate-${account.user_id}`}
-                              className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Ban size={14} />
-                              Tạm ngưng
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyKey !== null || isSelf}
-                              onClick={() => {
-                                const confirmed = confirmSensitiveAction(
-                                  'Khóa tài khoản',
-                                  `Bạn có chắc muốn khóa tài khoản “${displayName}” không?`,
-                                  'Tài khoản sẽ bị chặn truy cập cho đến khi quản trị viên mở lại.',
-                                )
-                                if (!confirmed) return
-                                void runAction(`locked:${account.user_id}`, () =>
-                                  adminApi.updateManagedAccountStatus(account.user_id, 'locked'),
-                                )
-                              }}
-                              data-testid={`account-lock-${account.user_id}`}
-                              className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <LockKeyhole size={14} />
-                              Khóa
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busyKey !== null}
-                              onClick={() => {
-                                const confirmed = confirmSensitiveAction(
-                                  'Thu hồi đăng nhập',
-                                  `Bạn có chắc muốn thu hồi các phiên đăng nhập đang mở của “${displayName}” không?`,
-                                  'Người dùng sẽ cần đăng nhập lại trên các thiết bị đang sử dụng.',
-                                )
-                                if (!confirmed) return
-                                void runAction(`revoke:${account.user_id}`, () =>
-                                  adminApi.revokeManagedAccountSessions(account.user_id),
-                                )
-                              }}
-                              data-testid={`account-revoke-${account.user_id}`}
-                              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <KeyRound size={14} />
-                              Thu hồi đăng nhập
-                            </button>
+                          <div className="flex min-w-max items-center gap-2">
+                            {!isSelf && (
+                              <>
+                                {canReactivate && (
+                                  <button
+                                    type="button"
+                                    disabled={busyKey !== null}
+                                    onClick={() =>
+                                      void runAction(`active:${account.user_id}`, () =>
+                                        adminApi.updateManagedAccountStatus(account.user_id, 'active'),
+                                      )
+                                    }
+                                    data-testid={`account-activate-${account.user_id}`}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    <UserCheck size={14} />
+                                    Kích hoạt lại
+                                  </button>
+                                )}
+                                {canInactivate && (
+                                  <button
+                                    type="button"
+                                    disabled={busyKey !== null}
+                                    onClick={() => {
+                                      const confirmed = confirmSensitiveAction(
+                                        'Khóa tài khoản',
+                                        `Bạn có chắc muốn khóa tài khoản “${displayName}” không?`,
+                                        'Người dùng sẽ không thể tiếp tục sử dụng hệ thống cho đến khi được kích hoạt lại.',
+                                      )
+                                      if (!confirmed) return
+                                      void runAction(`inactive:${account.user_id}`, () =>
+                                        adminApi.updateManagedAccountStatus(account.user_id, 'inactive'),
+                                      )
+                                    }}
+                                    data-testid={`account-inactivate-${account.user_id}`}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <Ban size={14} />
+                                  Khóa
+                                </button>
+                              )}
+                                <button
+                                  type="button"
+                                  disabled={busyKey !== null}
+                                  onClick={() => {
+                                    const confirmed = confirmSensitiveAction(
+                                      'Thu hồi đăng nhập',
+                                      `Bạn có chắc muốn thu hồi các phiên đăng nhập đang mở của “${displayName}” không?`,
+                                      'Người dùng sẽ cần đăng nhập lại trên các thiết bị đang sử dụng.',
+                                    )
+                                    if (!confirmed) return
+                                    void runAction(`revoke:${account.user_id}`, () =>
+                                      adminApi.revokeManagedAccountSessions(account.user_id),
+                                    )
+                                  }}
+                                  data-testid={`account-revoke-${account.user_id}`}
+                                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  <KeyRound size={14} />
+                                  Thu hồi đăng nhập
+                                </button>
+                              </>
+                            )}
                             <button
                               type="button"
                               onClick={() =>

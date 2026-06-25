@@ -121,10 +121,57 @@ function prettifyValue(value: unknown): string {
   }
 }
 
+function extractHttpMeta(log: AuditLogEntry): {
+  method: string | null
+  route: string | null
+  statusCode: number | null
+} {
+  let method: string | null = null
+  let route: string | null = null
+  let statusCode: number | null = null
+
+  if (log.new_value && typeof log.new_value === 'object' && !Array.isArray(log.new_value)) {
+    const payload = log.new_value as Record<string, unknown>
+    if (typeof payload.method === 'string' && payload.method.trim()) {
+      method = payload.method.trim().toUpperCase()
+    }
+    if (typeof payload.path === 'string' && payload.path.trim()) {
+      route = payload.path.trim()
+    }
+    if (typeof payload.statusCode === 'number' && Number.isFinite(payload.statusCode)) {
+      statusCode = payload.statusCode
+    } else if (typeof payload.statusCode === 'string' && payload.statusCode.trim()) {
+      const parsed = Number(payload.statusCode)
+      if (Number.isFinite(parsed)) statusCode = parsed
+    }
+  }
+
+  const actionMethod = log.action.trim().toUpperCase()
+  if (
+    !method &&
+    ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].includes(actionMethod)
+  ) {
+    method = actionMethod
+  }
+
+  if (statusCode == null && typeof log.reason === 'string') {
+    const matched = log.reason.match(/HTTP\s+(\d{3})/i)
+    if (matched) {
+      const parsed = Number(matched[1])
+      if (Number.isFinite(parsed)) statusCode = parsed
+    }
+  }
+
+  return { method, route, statusCode }
+}
+
 function toCsv(logs: AuditLogEntry[]): string {
   const headers = [
     'id',
     'created_at',
+    'method',
+    'route_raw',
+    'http_status_code',
     'status',
     'action',
     'user_id',
@@ -139,10 +186,14 @@ function toCsv(logs: AuditLogEntry[]): string {
 
   const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`
 
-  const rows = logs.map((log) =>
-    [
+  const rows = logs.map((log) => {
+    const httpMeta = extractHttpMeta(log)
+    return [
       String(log.id),
       log.created_at,
+      httpMeta.method ?? '',
+      httpMeta.route ?? '',
+      httpMeta.statusCode != null ? String(httpMeta.statusCode) : '',
       log.status,
       log.action,
       log.user_id ?? '',
@@ -155,8 +206,8 @@ function toCsv(logs: AuditLogEntry[]): string {
       stringifyValue(log.new_value),
     ]
       .map((value) => escapeCell(value))
-      .join(','),
-  )
+      .join(',')
+  })
 
   return [headers.join(','), ...rows].join('\n')
 }
@@ -613,7 +664,8 @@ export default function AdminAuditSection() {
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
                   <th className="px-3">Hành động</th>
-                  <th className="px-3">Khu vực bị tác động</th>
+                  <th className="px-3">Route raw / đối tượng</th>
+                  <th className="px-3">HTTP code</th>
                   <th className="px-3">Người thực hiện</th>
                   <th className="px-3">Kết quả</th>
                   <th className="px-3">Thời gian</th>
@@ -623,7 +675,7 @@ export default function AdminAuditSection() {
                 {loading && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500"
                     >
                       Đang tải nhật ký kiểm toán...
@@ -634,7 +686,7 @@ export default function AdminAuditSection() {
                 {!loading && logs.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500"
                     >
                       Không có bản ghi nào khớp bộ lọc hiện tại.
@@ -645,6 +697,7 @@ export default function AdminAuditSection() {
                 {!loading &&
                   logs.map((log) => {
                     const isSelected = selectedId === log.id
+                    const httpMeta = extractHttpMeta(log)
                     return (
                       <tr
                         key={log.id}
@@ -669,12 +722,32 @@ export default function AdminAuditSection() {
                             <p className="font-semibold text-slate-800">
                               {humanizeAction(log.action)}
                             </p>
-                            <p className="text-xs text-slate-500">{log.reason ?? 'Không có ghi chú bổ sung.'}</p>
+                            <p className="text-xs text-slate-500">
+                              {log.reason ?? log.action}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {httpMeta.method && (
+                                <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-blue-700">
+                                  {httpMeta.method}
+                                </span>
+                              )}
+                              <p className="font-mono text-xs text-slate-700">
+                                {httpMeta.route ?? 'Không có route raw'}
+                              </p>
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {humanizeResourceType(log.resource_type)}
+                              {log.resource_id ? ` · ${log.resource_id}` : ''}
+                            </p>
                           </div>
                         </td>
                         <td className="px-3 py-4 align-top text-sm text-slate-600">
                           <p className="font-semibold text-slate-800">
-                            {humanizeResourceType(log.resource_type)}
+                            {httpMeta.statusCode != null ? httpMeta.statusCode : '—'}
                           </p>
                         </td>
                         <td className="px-3 py-4 align-top text-sm text-slate-600">
@@ -773,6 +846,18 @@ export default function AdminAuditSection() {
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">HTTP method</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {extractHttpMeta(selectedLog).method ?? 'Không có'}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">Route raw</dt>
+                      <dd className="mt-1 font-mono text-xs font-semibold text-slate-800">
+                        {extractHttpMeta(selectedLog).route ?? 'Không có'}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                       <dt className="text-slate-500">IP address</dt>
                       <dd className="mt-1 font-semibold text-slate-800">
                         {selectedLog.ip_address ?? 'Không có'}
@@ -787,7 +872,7 @@ export default function AdminAuditSection() {
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                       <dt className="text-slate-500">HTTP status code</dt>
                       <dd className="mt-1 font-semibold text-slate-800">
-                        Chưa được ghi trong log hiện tại
+                        {extractHttpMeta(selectedLog).statusCode ?? 'Không có'}
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
