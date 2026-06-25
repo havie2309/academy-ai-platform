@@ -13,9 +13,8 @@ import {
 } from '@nestjs/common'
 import { AuthGuard } from '@nestjs/passport'
 import { normalizeRoles } from '../../../../src/common/access-scope'
+import { ADMIN_MANAGEMENT_ROLE_SET } from './admin-management-roles'
 import { UsersService } from './users.service'
-
-const ADMIN_MANAGEMENT_ROLES = new Set(['ADMIN', 'BGD', 'P2', 'P7'])
 const ACCOUNT_STATUSES = new Set(['active', 'inactive', 'locked'])
 
 @Controller('users')
@@ -112,7 +111,7 @@ export class UsersController {
 
   private assertAdmin(roles: string[] | undefined) {
     const normalized = normalizeRoles(roles)
-    if (!normalized.some((role) => ADMIN_MANAGEMENT_ROLES.has(role))) {
+    if (!normalized.some((role) => ADMIN_MANAGEMENT_ROLE_SET.has(role))) {
       throw new ForbiddenException('Bạn không có quyền quản trị tài khoản.')
     }
   }

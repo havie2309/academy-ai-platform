@@ -33,6 +33,7 @@ class RetrieveUser(BaseModel):
     userId: str
     username: str = ""
     roles: list[str] = []
+    normalizedRoles: list[str] = []
     department: str | None = None
     maxSecurityLevel: int = 1
     scopeMaHv: str | None = None
@@ -79,6 +80,15 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
 
     username = request.headers.get("x-gateway-username", "")
     roles = _gateway_roles(request.headers.get("x-gateway-roles"))
+    normalized_roles = _gateway_roles(
+        request.headers.get("x-gateway-normalized-roles")
+    )
+    if not normalized_roles and isinstance(scope_payload.get("normalizedRoles"), list):
+        normalized_roles = [
+            str(role).strip()
+            for role in scope_payload.get("normalizedRoles", [])
+            if str(role).strip()
+        ]
     department = request.headers.get("x-gateway-department") or None
     try:
         max_security_level = int(
@@ -91,6 +101,7 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
         userId=user_id,
         username=username,
         roles=roles,
+        normalizedRoles=normalized_roles,
         department=department,
         maxSecurityLevel=max_security_level,
         scopeMaHv=request.headers.get("x-gateway-scope-ma-hv")

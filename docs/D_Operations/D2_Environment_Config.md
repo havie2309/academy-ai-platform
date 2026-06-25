@@ -1,34 +1,34 @@
-# D2 — Environment Config
+# D2 - Environment Config
 
-## 1. Mục tiêu
+## 1. Muc tieu
 
-- Tách cấu hình khỏi code.
-- Biết biến nào thuộc root stack, biến nào thuộc platform, biến nào thuộc AI.
-- Giảm lỗi "chạy local được nhưng không tái lập được".
+- Tach cau hinh khoi code.
+- Biet bien nao thuoc root stack, bien nao thuoc platform, bien nao thuoc AI.
+- Giam loi "chay local duoc nhung khong tai lap duoc".
 
-## 2. File cấu hình chuẩn
+## 2. File cau hinh chuan
 
-| File | Vai trò |
+| File | Vai tro |
 |------|---------|
-| `.env.example` | Cấu hình root cho docker/data stack |
-| `.env` | Bản local thực thi, không commit |
-| `services/platform/.env.example` | Cấu hình platform/chat/rag bridge/auth |
-| `services/platform/.env` | Bản local của NestJS monorepo |
+| `.env.example` | Cau hinh root cho docker/data stack |
+| `.env` | Ban local thuc thi, khong commit |
+| `services/platform/.env.example` | Cau hinh platform/chat/rag bridge/auth |
+| `services/platform/.env` | Ban local cua NestJS monorepo |
 
-## 3. Nhóm biến chính
+## 3. Nhom bien chinh
 
-### Hạ tầng
+### Ha tang
 
 - `POSTGRES_*`
-- `MONGODB_*`
+- `MONGO_*`
 - `REDIS_*`
 - `RABBITMQ_*`
 - `MILVUS_*`
 
-### Auth và session
+### Auth va session
 
 - `JWT_*`
-- `REFRESH_*` hoặc session TTL tương đương
+- `REFRESH_*` hoac session TTL tuong duong
 - cookie config
 
 ### AI routing
@@ -39,11 +39,13 @@
 - `EMBEDDING_BASE_URL`
 - `RERANK_BASE_URL`
 
-### Chat và RAG
+### Chat va RAG
 
 - cache TTL
 - session context TTL
-- top-k, rerank top-k
+- `RETRIEVAL_TOP_K`, `RERANK_TOP_K`, `MAX_CHUNKS_PER_DOC`
+- `RERANK_DOC_MAX_CHARS`: gioi han do dai moi candidate truoc khi goi rerank
+- `RAG_CONTEXT_MAX_CHARS`: budget tong context dua vao grounding/LLM sau khi rerank
 - refusal policy fetch key
 
 ### SQL route
@@ -51,42 +53,50 @@
 - `SQL_READONLY_*`
 - catalog/config cho curated schema
 
-### API Gateway – Khả năng phục hồi (Resilience)
+### API Gateway - Resilience
 
-| Biến | Mặc định | Mô tả |
+| Bien | Mac dinh | Mo ta |
 |------|----------|-------|
-| `RATE_LIMIT_AUTH` | `60` | Số request tối đa mỗi phút cho người dùng đã đăng nhập |
-| `RATE_LIMIT_ANON` | `10` | Số request tối đa mỗi phút cho người dùng chưa đăng nhập |
-| `LOAD_SHEDDING_MAX_CONCURRENT` | `100` | Số lượng request đồng thời tối đa trước khi từ chối với mã 503 |
-| `CIRCUIT_FAILURE_THRESHOLD_<service>` | `5` | Số lần thất bại để mở circuit cho mỗi upstream (ví dụ: `CIRCUIT_FAILURE_THRESHOLD_CHAT`) |
-| `CIRCUIT_TIMEOUT_<service>` | `30` | Số giây circuit giữ trạng thái `OPEN` trước khi chuyển sang `HALF_OPEN` |
-| `CIRCUIT_HALFOPEN_MAX_<service>` | `1` | Số request tối đa được phép ở trạng thái `HALF_OPEN` cho mỗi upstream |
+| `RATE_LIMIT_AUTH` | `60` | So request toi da moi phut cho nguoi dung da dang nhap khi khong co policy role rieng |
+| `RATE_LIMIT_ANON` | `10` | So request toi da moi phut cho nguoi dung chua dang nhap |
+| `RATE_LIMIT_WINDOW` | `60` | Time window (giay) cua Redis bucket rate-limit |
+| `RATE_LIMIT_ROLE_ADMIN` | `180` | Gioi han/phut cho `ADMIN`; gateway uu tien policy role theo thu tu role |
+| `RATE_LIMIT_ROLE_BGD` | `180` | Gioi han/phut cho `BGD` |
+| `RATE_LIMIT_ROLE_P2` | `120` | Gioi han/phut cho `P2` |
+| `RATE_LIMIT_ROLE_P7` | `90` | Gioi han/phut cho `P7` |
+| `RATE_LIMIT_ROLE_GIANG_VIEN` | `90` | Gioi han/phut cho `GIANG_VIEN` |
+| `RATE_LIMIT_ROLE_HOC_VIEN` | `60` | Gioi han/phut cho `HOC_VIEN` |
+| `LOAD_SHEDDING_MAX_CONCURRENT` | `100` | So request dong thoi toi da truoc khi gateway tu choi voi ma `503` |
+| `LOAD_SHEDDING_RETRY_AFTER` | `1` | Gia tri `Retry-After` (giay) tra ve khi load shedding `503` |
+| `CIRCUIT_FAILURE_THRESHOLD_<service>` | `5` | So lan that bai de mo circuit cho moi upstream, vi du `CIRCUIT_FAILURE_THRESHOLD_CHAT` |
+| `CIRCUIT_TIMEOUT_<service>` | `30` | So giay circuit giu trang thai `OPEN` truoc khi chuyen sang `HALF_OPEN` |
+| `CIRCUIT_HALFOPEN_MAX_<service>` | `1` | So request toi da duoc phep o trang thai `HALF_OPEN` cho moi upstream |
 
-Các biến này được `api-gateway` sử dụng để bảo vệ các dịch vụ upstream khỏi quá tải và lỗi lan truyền.
+Cac bien nay duoc `api-gateway` su dung de bao ve upstream khoi qua tai va loi lan truyen.
 
-## 4. Quy tắc quản lý secret
+## 4. Quy tac quan ly secret
 
-- Không commit `.env` thật.
-- API key nội bộ và mật khẩu DB phải thay được theo môi trường.
-- Internal key cho `admin-config` không được lộ ra client.
-- Nếu cần chia sẻ local env giữa team, dùng template đã làm sạch secret.
+- Khong commit `.env` that.
+- API key noi bo va mat khau DB phai thay duoc theo moi truong.
+- Internal key cho `admin-config` khong duoc lo ra client.
+- Neu can chia se local env giua team, dung template da lam sach secret.
 
-## 5. Quy tắc thay đổi config
+## 5. Quy tac thay doi config
 
-- Thêm biến mới phải cập nhật `.env.example` tương ứng.
-- Nếu biến ảnh hưởng flow nghiệp vụ hoặc topology, cập nhật thêm `D1` hoặc `D4`.
-- Nếu biến dùng chung giữa platform và Python service, cần ghi rõ owner và default.
+- Them bien moi phai cap nhat `.env.example` tuong ung.
+- Neu bien anh huong flow nghiep vu hoac topology, cap nhat them `D1` hoac `D4`.
+- Neu bien dung chung giua platform va Python service, can ghi ro owner va default.
 
-## 6. Cấu hình tối thiểu để chạy local
+## 6. Cau hinh toi thieu de chay local
 
-| Nhóm | Tối thiểu |
+| Nhom | Toi thieu |
 |------|-----------|
 | Auth | JWT secret, cookie settings |
 | Data | Postgres, MongoDB |
 | Chat dev | `LLM_PROVIDER=ollama`, `LLM_BASE_URL=http://localhost:11434`, `LLM_MODEL=qwen2.5:3b` |
-| RAG dev | embedding/rerank base URL nếu bật `start-rag.ps1` |
+| RAG dev | embedding/rerank base URL neu bat `start-rag.ps1` |
 
-## 7. Gaps hiện tại
+## 7. Gaps hien tai
 
-- Tài liệu 2 máy còn cần chi tiết hóa thêm khi profile `ai` hoàn tất.
-- Một số tuning connection pool/cache vẫn nằm trong code nhiều hơn tài liệu env.
+- Tai lieu 2 may con can chi tiet hoa them khi profile `ai` hoan tat.
+- Mot so tuning connection pool/cache van nam trong code nhieu hon tai lieu env.

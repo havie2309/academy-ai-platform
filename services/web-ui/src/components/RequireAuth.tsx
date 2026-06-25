@@ -12,6 +12,13 @@ const requireAuth = import.meta.env.VITE_REQUIRE_AUTH !== 'false'
 // Routes that don't require login
 const DEFAULT_PUBLIC_ROUTES = ['/chat', '/docs', '/']
 
+function matchesPublicRoute(pathname: string, route: string): boolean {
+  if (route === '/') {
+    return pathname === '/'
+  }
+  return pathname === route || pathname.startsWith(`${route}/`)
+}
+
 export default function RequireAuth({ allowedRoles, publicRoutes = DEFAULT_PUBLIC_ROUTES }: RequireAuthProps) {
   const location = useLocation()
 
@@ -21,7 +28,7 @@ export default function RequireAuth({ allowedRoles, publicRoutes = DEFAULT_PUBLI
   }
 
   // If route is public, allow access without login
-  if (publicRoutes.some((route) => location.pathname.startsWith(route))) {
+  if (publicRoutes.some((route) => matchesPublicRoute(location.pathname, route))) {
     return <Outlet />
   }
 

@@ -299,7 +299,7 @@ if (-not (Test-HttpReady -Url 'http://localhost:11434/api/tags')) {
     Write-Warning 'Ollama is not reachable at http://localhost:11434. The app can still open, but chat requests may fail until Ollama is running.'
 }
 
-Start-BackendService -Name 'user-management' -Entry 'dist/apps/user-management/main.js' -Port 3001 -HealthUrl 'http://localhost:3001/api/users/me'
+Start-BackendService -Name 'user-management' -Entry 'dist/apps/user-management/main.js' -Port 3001 -HealthUrl 'http://localhost:3001/api/auth/health'
 Start-BackendService -Name 'chat' -Entry 'dist/apps/chat/main.js' -Port 3002 -HealthUrl 'http://localhost:3002/api/chat/sessions'
 Start-BackendService -Name 'rbac' -Entry 'dist/apps/rbac/main.js' -Port 3003 -HealthUrl 'http://localhost:3003/api/rbac/health'
 Start-BackendService -Name 'admin-config' -Entry 'dist/apps/admin-config/main.js' -Port 3004 -HealthUrl 'http://localhost:3004/api/admin-config/health'

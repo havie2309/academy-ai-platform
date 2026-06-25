@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { Pool } from 'pg'
 import { RedisService } from '../../../../src/common/redis/redis.service'
+import { ADMIN_MANAGEMENT_ROLES } from './admin-management-roles'
 
-const ADMIN_MANAGEMENT_ROLES = ['ADMIN', 'BGD', 'P2', 'P7']
 const REFRESH_TTL_DAYS = 7
 const LOGIN_LOCK_DURATION_SECONDS = 900
 
@@ -32,6 +32,12 @@ interface ChatUsage {
   lastChatAt: Date | null
 }
 
+interface UserAuthColumnState {
+  passwordSalt: boolean
+  hashIterations: boolean
+  hashAlgorithm: boolean
+}
+
 @Injectable()
 export class UsersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(UsersService.name)
@@ -41,6 +47,11 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
   private chatSessions: Collection | null = null
   private chatMessages: Collection | null = null
   private warnedMongoUnavailable = false
+  private userAuthColumns: UserAuthColumnState = {
+    passwordSalt: false,
+    hashIterations: false,
+    hashAlgorithm: false,
+  }
 
   constructor(
     private readonly config: ConfigService,
@@ -61,14 +72,26 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
       password: process.env.POSTGRES_PASSWORD ?? 'pm2pass',
     })
 
+    await this.loadUserAuthColumns()
     await this.ensureMongoReady()
   }
 
   async findByUsername(username: string) {
+    const passwordSaltSelect = this.userAuthColumns.passwordSalt
+      ? 'u.password_salt AS password_salt'
+      : 'NULL::varchar AS password_salt'
+    const hashIterationsSelect = this.userAuthColumns.hashIterations
+      ? 'u.hash_iterations AS hash_iterations'
+      : 'NULL::integer AS hash_iterations'
+    const hashAlgorithmSelect = this.userAuthColumns.hashAlgorithm
+      ? 'u.hash_algorithm AS hash_algorithm'
+      : 'NULL::varchar AS hash_algorithm'
+
     const { rows: [user] } = await this.pool.query(
       `SELECT u.user_id, u.username, u.email, u.fullname,
-              u.department, u.password_hash, u.password_salt,
-              u.hash_iterations, u.hash_algorithm, u.status, u.max_security_level,
+              u.department, u.password_hash, ${passwordSaltSelect},
+              ${hashIterationsSelect}, ${hashAlgorithmSelect},
+              u.status, u.max_security_level,
               ARRAY_AGG(r.code) FILTER (WHERE r.code IS NOT NULL) AS roles
        FROM users u
        LEFT JOIN user_roles ur ON ur.user_id = u.user_id AND ur.is_active = true
@@ -78,6 +101,34 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
       [username]
     )
     return user ?? null
+  }
+
+  private async loadUserAuthColumns() {
+    try {
+      const { rows } = await this.pool.query<{ column_name: string }>(
+        `SELECT column_name
+         FROM information_schema.columns
+         WHERE table_schema = 'public'
+           AND table_name = 'users'
+           AND column_name = ANY($1::text[])`,
+        [['password_salt', 'hash_iterations', 'hash_algorithm']],
+      )
+      const available = new Set(rows.map((row) => row.column_name))
+      this.userAuthColumns = {
+        passwordSalt: available.has('password_salt'),
+        hashIterations: available.has('hash_iterations'),
+        hashAlgorithm: available.has('hash_algorithm'),
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Unable to inspect users auth columns: ${error instanceof Error ? error.message : error}`,
+      )
+      this.userAuthColumns = {
+        passwordSalt: false,
+        hashIterations: false,
+        hashAlgorithm: false,
+      }
+    }
   }
 
   async findById(userId: string) {
@@ -733,12 +784,35 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
   private async getTemporaryLockState() {
     try {
       const keys = await this.redis.keys('login:locked:*')
-      const usernames = new Set(
-        keys
-          .map((key) => key.replace('login:locked:', '').trim())
-          .filter(Boolean),
+      const usernames = keys
+        .map((key) => key.replace('login:locked:', '').trim())
+        .filter(Boolean)
+
+      if (usernames.length === 0) {
+        return { usernames: new Set<string>(), available: true }
+      }
+
+      const { rows } = await this.pool.query<{ username: string }>(
+        `SELECT DISTINCT u.username
+         FROM users u
+         WHERE u.username = ANY($1::text[])
+           AND EXISTS (
+             SELECT 1
+             FROM user_roles ur
+             JOIN roles r ON r.id = ur.role_id
+             WHERE ur.user_id = u.user_id
+               AND ur.is_active = TRUE
+               AND r.code = ANY($2::text[])
+           )`,
+        [usernames, ADMIN_MANAGEMENT_ROLES],
       )
-      return { usernames, available: true }
+
+      const bypassUsernames = new Set(rows.map((row) => row.username))
+      const filteredUsernames = new Set(
+        usernames.filter((username) => !bypassUsernames.has(username)),
+      )
+
+      return { usernames: filteredUsernames, available: true }
     } catch {
       return { usernames: new Set<string>(), available: false }
     }

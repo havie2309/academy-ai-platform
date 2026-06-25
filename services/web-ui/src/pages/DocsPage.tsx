@@ -27,6 +27,7 @@ import {
   type AccessScopeType,
 } from '../api/docs'
 import { authApi } from '../api/auth'
+import { API_BASE } from '../api/base'
 import { isAdminLikeRole } from '../lib/authz'
 import React from 'react'
 
@@ -490,6 +491,59 @@ function fileTypeLabel(name: string): string {
 const SUPPORTED_UPLOAD_MESSAGE =
   'Chỉ hỗ trợ tải lên file PDF (.pdf), Word (.docx), PowerPoint (.pptx), Excel (.xlsx) và text (.txt).'
 
+const INGEST_POLL_BASE_MS = 3000
+const INGEST_POLL_MAX_MS = 15000
+const INGEST_POLL_WARN_AFTER = 2
+
+function getIngestPollWarning(error: unknown): string {
+  if (error instanceof Error) {
+    const message = error.message.trim()
+    if (message.includes('Phiên đăng nhập')) {
+      return 'Phiên đăng nhập đã hết hạn nên chưa thể cập nhật trạng thái ingest. Vui lòng đăng nhập lại.'
+    }
+    if (message.includes('API gateway') || message.includes('3000')) {
+      const target = API_BASE || 'proxy /api cá»§a web-ui'
+      return `ChÆ°a cáº­p nháº­t Ä‘Æ°á»£c tráº¡ng thÃ¡i ingest qua ${target}. Kiá»ƒm tra API gateway hoáº·c proxy rá»“i thá»­ láº¡i.`
+    }
+    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+      const target = API_BASE || 'proxy /api của web-ui'
+      return `Không kết nối được ${target} nên chưa thể cập nhật trạng thái ingest. Kiểm tra API gateway hoặc proxy rồi thử lại.`
+    }
+    if (message) {
+      return `Chưa cập nhật được trạng thái ingest: ${message}`
+    }
+  }
+
+  return 'Chưa cập nhật được trạng thái ingest. Kiểm tra API gateway hoặc đăng nhập lại rồi thử tiếp.'
+}
+
+function formatIngestPollWarning(error: unknown): string {
+  void getIngestPollWarning
+  if (error instanceof Error) {
+    const message = error.message.trim()
+    if (
+      message.includes('\u0111\u0103ng nh\u1eadp') ||
+      message.includes('Phi') ||
+      message.includes('401')
+    ) {
+      return 'Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n n\u00ean ch\u01b0a th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i ingest. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.'
+    }
+    if (message.includes('API gateway') || message.includes('3000')) {
+      const target = API_BASE || 'proxy /api c\u1ee7a web-ui'
+      return `Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest qua ${target}. Ki\u1ec3m tra API gateway ho\u1eb7c proxy r\u1ed3i th\u1eed l\u1ea1i.`
+    }
+    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+      const target = API_BASE || 'proxy /api c\u1ee7a web-ui'
+      return `Kh\u00f4ng k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c ${target} n\u00ean ch\u01b0a th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i ingest. Ki\u1ec3m tra API gateway ho\u1eb7c proxy r\u1ed3i th\u1eed l\u1ea1i.`
+    }
+    if (message) {
+      return `Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest: ${message}`
+    }
+  }
+
+  return 'Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest. Ki\u1ec3m tra API gateway ho\u1eb7c \u0111\u0103ng nh\u1eadp l\u1ea1i r\u1ed3i th\u1eed ti\u1ebfp.'
+}
+
 function isSupportedUploadFile(file: File): boolean {
   const name = file.name.toLowerCase()
   return (
@@ -511,6 +565,7 @@ export default function DocsPage() {
   const [docs, setDocs] = useState<DocItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pollWarning, setPollWarning] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCat, setSelectedCat] = useState('Tất cả')
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -537,6 +592,9 @@ export default function DocsPage() {
   const [previewTotal, setPreviewTotal] = useState(0)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const visiblePollWarning = pollWarning
+    ? formatIngestPollWarning(new Error(pollWarning))
+    : null
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const loadDocs = async () => {
@@ -567,9 +625,22 @@ export default function DocsPage() {
   )
 
   useEffect(() => {
-    if (pendingIngestIds.length === 0) return
+    if (pendingIngestIds.length === 0) {
+      setPollWarning(null)
+      return
+    }
 
-    const timer = window.setInterval(async () => {
+    let cancelled = false
+    let timer: number | null = null
+    let consecutiveFailures = 0
+
+    const scheduleNext = (delay: number) => {
+      timer = window.setTimeout(() => {
+        void poll()
+      }, delay)
+    }
+
+    const poll = async () => {
       try {
         const updates = await Promise.all(
           pendingIngestIds.map(async (id) => {
@@ -589,12 +660,36 @@ export default function DocsPage() {
             return u ? { ...doc, ...u } : doc
           }),
         )
-      } catch {
-        // ignore polling errors
+        if (cancelled) return
+        consecutiveFailures = 0
+        setPollWarning(null)
+      } catch (error) {
+        if (cancelled) return
+        consecutiveFailures += 1
+        if (consecutiveFailures >= INGEST_POLL_WARN_AFTER) {
+          setPollWarning(
+            'Không kết nối được API gateway ở cổng 3000 nên tạm chậm cập nhật trạng thái ingest. Kiểm tra `api-gateway` rồi thử lại.',
+          )
+        }
+      } finally {
+        if (cancelled) return
+        const delay =
+          consecutiveFailures === 0
+            ? INGEST_POLL_BASE_MS
+            : Math.min(
+                INGEST_POLL_MAX_MS,
+                INGEST_POLL_BASE_MS * 2 ** consecutiveFailures,
+              )
+        scheduleNext(delay)
       }
-    }, 3000)
+    }
 
-    return () => window.clearInterval(timer)
+    void poll()
+
+    return () => {
+      cancelled = true
+      if (timer != null) window.clearTimeout(timer)
+    }
   }, [pendingIngestIds])
 
   const categories = useMemo(() => {
@@ -850,6 +945,12 @@ export default function DocsPage() {
               <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600 cursor-pointer">
                 <X size={16} />
               </button>
+            </div>
+          )}
+
+          {visiblePollWarning && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {visiblePollWarning}
             </div>
           )}
 

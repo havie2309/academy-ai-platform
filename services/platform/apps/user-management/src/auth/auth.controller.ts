@@ -1,4 +1,5 @@
 import {
+  Get,
   Controller,
   Post,
   Body,
@@ -20,6 +21,11 @@ import type { Request, Response } from 'express'
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
+
+  @Get('health')
+  health() {
+    return { status: 'ok', service: 'user-management' }
+  }
 
   @Post('login')
   async login(

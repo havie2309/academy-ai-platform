@@ -23,7 +23,7 @@ from app.config import (
     VECTOR_SCORE_MIN,
 )
 from app.milvus_search import search_vectors
-from app.rerank import rerank_citations
+from app.rerank import limit_context_budget, rerank_citations
 
 logger = logging.getLogger(__name__)
 cache = RedisCache()
@@ -325,6 +325,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
         reverse=True,
     )
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
+    selected = limit_context_budget(selected)
 
     cache.set_retrieval(query_text, selected, user_id)
     logger.debug("Cache miss for retrieval query: %s", query_text[:50])

@@ -10,6 +10,7 @@ import {
 describe('gateway-auth', () => {
   it('classifies public and protected paths correctly', () => {
     expect(isProtectedPath('/api/health')).toBe(false)
+    expect(isProtectedPath('/api/auth/health')).toBe(false)
     expect(isProtectedPath('/api/auth/login')).toBe(false)
     expect(isProtectedPath('/api/auth/refresh')).toBe(false)
     expect(isProtectedPath('/api/auth/logout')).toBe(true)

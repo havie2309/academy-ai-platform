@@ -14,13 +14,14 @@ import {
   type AuditLogEntry,
   type AuditLogFilters,
 } from '../../api/admin'
+import AdminTechnicalDetails from './AdminTechnicalDetails'
 
 type AuditStatusFilter = 'all' | AuditLogEntry['status']
 
 const LIMIT_OPTIONS = [25, 50, 100, 200]
 
 function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return 'Chua co'
+  if (!value) return 'Chưa có'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('vi-VN')
@@ -29,11 +30,11 @@ function formatTimestamp(value: string | null | undefined): string {
 function statusLabel(status: AuditLogEntry['status']): string {
   switch (status) {
     case 'success':
-      return 'Thanh cong'
+      return 'Thành công'
     case 'failure':
-      return 'That bai'
+      return 'Thất bại'
     case 'denied':
-      return 'Bi chan'
+      return 'Bị chặn'
     default:
       return status
   }
@@ -50,6 +51,46 @@ function statusTone(status: AuditLogEntry['status']): string {
     default:
       return 'border-slate-200 bg-slate-50 text-slate-600'
   }
+}
+
+function humanizeAction(action: string): string {
+  const knownLabels: Record<string, string> = {
+    'policy.update': 'Cập nhật chính sách AI',
+    'account.lock': 'Khóa tài khoản',
+    'account.unlock': 'Mở khóa tài khoản',
+    'account.activate': 'Kích hoạt tài khoản',
+    'account.inactivate': 'Tạm ngưng tài khoản',
+    'session.revoke': 'Thu hồi đăng nhập',
+    'auth.login': 'Đăng nhập',
+    'auth.logout': 'Đăng xuất',
+  }
+
+  if (knownLabels[action]) return knownLabels[action]
+
+  if (action.includes('policy')) return 'Cập nhật chính sách'
+  if (action.includes('account')) return 'Cập nhật tài khoản'
+  if (action.includes('auth')) return 'Hoạt động đăng nhập'
+
+  return action
+    .split('.')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' / ')
+}
+
+function humanizeResourceType(resourceType: string | null): string {
+  if (!resourceType) return 'Chưa xác định'
+
+  const knownLabels: Record<string, string> = {
+    admin_config: 'Chính sách AI',
+    auth: 'Đăng nhập và phiên',
+    user: 'Tài khoản người dùng',
+    audit: 'Nhật ký kiểm toán',
+    document: 'Tài liệu',
+    rag: 'Trợ lý AI tra cứu',
+    gateway: 'Kết nối dịch vụ',
+  }
+
+  return knownLabels[resourceType] ?? resourceType
 }
 
 function toIsoOrUndefined(value: string): string | undefined {
@@ -71,7 +112,7 @@ function stringifyValue(value: unknown): string {
 }
 
 function prettifyValue(value: unknown): string {
-  if (value == null) return 'Khong co'
+  if (value == null) return 'Không có'
   if (typeof value === 'string') return value
   try {
     return JSON.stringify(value, null, 2)
@@ -215,7 +256,7 @@ export default function AdminAuditSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong tai duoc audit log.',
+          : 'Không tải được nhật ký kiểm toán.',
       )
     })
   }, [])
@@ -229,7 +270,7 @@ export default function AdminAuditSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong loc duoc audit log.',
+          : 'Không lọc được nhật ký kiểm toán.',
       )
     }
   }
@@ -251,7 +292,7 @@ export default function AdminAuditSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong tai lai duoc audit log.',
+          : 'Không tải lại được nhật ký kiểm toán.',
       )
     }
   }
@@ -277,18 +318,22 @@ export default function AdminAuditSection() {
         )
       }
       setMessage(
-        `Da xuat ${exportRows.length} dong audit theo bo loc hien tai (${format.toUpperCase()}).`,
+        `Đã xuất ${exportRows.length} bản ghi nhật ký theo bộ lọc hiện tại (${format.toUpperCase()}).`,
       )
     } catch (nextError) {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong xuat duoc audit log.',
+          : 'Không xuất được nhật ký kiểm toán.',
       )
     } finally {
       setExporting(null)
     }
   }
+
+  const successCount = logs.filter((log) => log.status === 'success').length
+  const reviewCount = logs.filter((log) => log.status !== 'success').length
+  const latestLog = logs[0] ?? null
 
   return (
     <section
@@ -299,11 +344,11 @@ export default function AdminAuditSection() {
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
             <History className="text-blue-600" size={18} />
-            Audit viewer va export
+            Hoạt động kiểm toán gần đây
           </h2>
           <p className="mt-1 text-sm text-slate-500">
-            Loc su kien audit, mo chi tiet thay doi va xuat du lieu theo bo loc
-            hien tai. Export gioi han toi da 500 dong moi lan.
+            Theo dõi các thay đổi quản trị, xem nhanh ai đã thao tác và chỉ mở chi tiết kỹ
+            thuật khi cần kiểm tra sâu hơn.
           </p>
         </div>
 
@@ -315,14 +360,14 @@ export default function AdminAuditSection() {
                 setError(
                   nextError instanceof Error
                     ? nextError.message
-                    : 'Khong tai lai duoc audit log.',
+                    : 'Không tải lại được nhật ký kiểm toán.',
                 )
               })
             }}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white"
           >
             <RefreshCw size={15} />
-            Lam moi audit
+            Tải lại nhật ký
           </button>
           <button
             type="button"
@@ -332,7 +377,7 @@ export default function AdminAuditSection() {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <FileJson size={15} />
-            {exporting === 'json' ? 'Dang xuat JSON...' : 'Xuat JSON'}
+            {exporting === 'json' ? 'Đang xuất JSON...' : 'Xuất nhật ký JSON'}
           </button>
           <button
             type="button"
@@ -342,7 +387,7 @@ export default function AdminAuditSection() {
             className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <Download size={15} />
-            {exporting === 'csv' ? 'Dang xuat CSV...' : 'Xuat CSV'}
+            {exporting === 'csv' ? 'Đang xuất CSV...' : 'Xuất nhật ký CSV'}
           </button>
         </div>
       </div>
@@ -364,113 +409,112 @@ export default function AdminAuditSection() {
         </div>
       )}
 
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            Bản ghi đang hiển thị
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">{loading ? '...' : logs.length}</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Bộ lọc hiện tại đang áp dụng cho danh sách bên dưới.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            Kết quả thành công
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">
+            {loading ? '...' : successCount}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Những thay đổi đã hoàn tất đúng như mong đợi.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            Cần xem lại
+          </p>
+          <p className="mt-2 text-2xl font-bold text-slate-800">
+            {loading ? '...' : reviewCount}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            Bao gồm bản ghi bị chặn hoặc thất bại cần kiểm tra thêm.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+            Hoạt động mới nhất
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-800">
+            {loading ? 'Đang tải...' : formatTimestamp(latestLog?.created_at)}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            {latestLog ? humanizeAction(latestLog.action) : 'Chưa có bản ghi nào.'}
+          </p>
+        </div>
+      </div>
+
       <div className="mt-6 rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-end">
           <div className="min-w-[180px] flex-1">
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Trang thai
+              Kết quả
             </label>
             <select
               value={statusFilter}
               onChange={(event) =>
                 setStatusFilter(event.target.value as AuditStatusFilter)
               }
+              data-testid="audit-status-filter"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             >
-              <option value="all">Moi trang thai</option>
-              <option value="success">Thanh cong</option>
-              <option value="failure">That bai</option>
-              <option value="denied">Bi chan</option>
+              <option value="all">Mọi kết quả</option>
+              <option value="success">Thành công</option>
+              <option value="failure">Thất bại</option>
+              <option value="denied">Bị chặn</option>
             </select>
           </div>
 
-          <div className="min-w-[180px] flex-1">
+          <div className="min-w-[200px] flex-1">
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Action
+              Hành động
             </label>
             <input
               value={actionFilter}
               onChange={(event) => setActionFilter(event.target.value)}
-              placeholder="login, update, delete..."
+              data-testid="audit-action-filter"
+              placeholder="Ví dụ: policy.update"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             />
           </div>
 
-          <div className="min-w-[180px] flex-1">
+          <div className="min-w-[200px] flex-1">
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Resource type
+              Khu vực bị tác động
             </label>
             <input
               value={resourceTypeFilter}
               onChange={(event) => setResourceTypeFilter(event.target.value)}
-              placeholder="auth, admin_config, document..."
+              data-testid="audit-resource-type-filter"
+              placeholder="Ví dụ: admin_config, user..."
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             />
           </div>
 
           <div className="min-w-[180px] flex-1">
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              User ID
+              Người thực hiện
             </label>
             <input
               value={userIdFilter}
               onChange={(event) => setUserIdFilter(event.target.value)}
-              placeholder="admin"
+              data-testid="audit-user-filter"
+              placeholder="Ví dụ: admin"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             />
-          </div>
-
-          <div className="min-w-[180px] flex-1">
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Resource ID
-            </label>
-            <input
-              value={resourceIdFilter}
-              onChange={(event) => setResourceIdFilter(event.target.value)}
-              placeholder="rag-policy, DOC-001..."
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-            />
-          </div>
-
-          <div className="min-w-[190px]">
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Tu thoi diem
-            </label>
-            <input
-              type="datetime-local"
-              value={fromFilter}
-              onChange={(event) => setFromFilter(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-            />
-          </div>
-
-          <div className="min-w-[190px]">
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Den thoi diem
-            </label>
-            <input
-              type="datetime-local"
-              value={toFilter}
-              onChange={(event) => setToFilter(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-            />
-          </div>
-
-          <div className="min-w-[120px]">
-            <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              So dong
-            </label>
-            <select
-              value={String(limitFilter)}
-              onChange={(event) => setLimitFilter(Number(event.target.value))}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-            >
-              {LIMIT_OPTIONS.map((limit) => (
-                <option key={limit} value={String(limit)}>
-                  {limit}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -481,7 +525,7 @@ export default function AdminAuditSection() {
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
               <Filter size={15} />
-              Ap dung
+              Áp dụng
             </button>
             <button
               type="button"
@@ -490,9 +534,75 @@ export default function AdminAuditSection() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
             >
               <Search size={15} />
-              Dat lai
+              Đặt lại
             </button>
           </div>
+        </div>
+
+        <div className="mt-4">
+          <AdminTechnicalDetails
+            testId="audit-filter-technical"
+            description="Bộ lọc thời gian, mã đối tượng và giới hạn số dòng dành cho lúc cần truy vết sâu hơn."
+          >
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Mã đối tượng
+                </label>
+                <input
+                  value={resourceIdFilter}
+                  onChange={(event) => setResourceIdFilter(event.target.value)}
+                  data-testid="audit-resource-id-filter"
+                  placeholder="Ví dụ: rag_policy, USR005..."
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Từ thời điểm
+                </label>
+                <input
+                  type="datetime-local"
+                  value={fromFilter}
+                  onChange={(event) => setFromFilter(event.target.value)}
+                  data-testid="audit-from-filter"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Đến thời điểm
+                </label>
+                <input
+                  type="datetime-local"
+                  value={toFilter}
+                  onChange={(event) => setToFilter(event.target.value)}
+                  data-testid="audit-to-filter"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Số dòng
+                </label>
+                <select
+                  value={String(limitFilter)}
+                  onChange={(event) => setLimitFilter(Number(event.target.value))}
+                  data-testid="audit-limit-filter"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                >
+                  {LIMIT_OPTIONS.map((limit) => (
+                    <option key={limit} value={String(limit)}>
+                      {limit}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </AdminTechnicalDetails>
         </div>
       </div>
 
@@ -502,20 +612,21 @@ export default function AdminAuditSection() {
             <table className="min-w-full border-separate border-spacing-y-2 p-3">
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
-                  <th className="px-3">Su kien</th>
-                  <th className="px-3">Tac nhan</th>
-                  <th className="px-3">Trang thai</th>
-                  <th className="px-3">Thoi gian</th>
+                  <th className="px-3">Hành động</th>
+                  <th className="px-3">Khu vực bị tác động</th>
+                  <th className="px-3">Người thực hiện</th>
+                  <th className="px-3">Kết quả</th>
+                  <th className="px-3">Thời gian</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500"
                     >
-                      Dang tai audit log...
+                      Đang tải nhật ký kiểm toán...
                     </td>
                   </tr>
                 )}
@@ -523,10 +634,10 @@ export default function AdminAuditSection() {
                 {!loading && logs.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500"
                     >
-                      Khong co ban ghi audit nao khop bo loc hien tai.
+                      Không có bản ghi nào khớp bộ lọc hiện tại.
                     </td>
                   </tr>
                 )}
@@ -548,30 +659,26 @@ export default function AdminAuditSection() {
                             setError(
                               nextError instanceof Error
                                 ? nextError.message
-                                : 'Khong tai duoc chi tiet audit log.',
+                                : 'Không tải được chi tiết nhật ký kiểm toán.',
                             )
                           })
                         }}
                       >
                         <td className="rounded-l-2xl px-3 py-4 align-top">
                           <div className="space-y-1">
-                            <p className="font-semibold text-slate-800">{log.action}</p>
-                            <p className="text-xs text-slate-500">
-                              {log.resource_type ?? 'Khong co resource type'}
-                              {log.resource_id ? ` | ${log.resource_id}` : ''}
+                            <p className="font-semibold text-slate-800">
+                              {humanizeAction(log.action)}
                             </p>
-                            {log.reason && (
-                              <p className="text-xs text-slate-400">{log.reason}</p>
-                            )}
+                            <p className="text-xs text-slate-500">{log.reason ?? 'Không có ghi chú bổ sung.'}</p>
                           </div>
                         </td>
                         <td className="px-3 py-4 align-top text-sm text-slate-600">
                           <p className="font-semibold text-slate-800">
-                            {log.user_id ?? 'System'}
+                            {humanizeResourceType(log.resource_type)}
                           </p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {log.ip_address ?? 'Khong co IP'}
-                          </p>
+                        </td>
+                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                          {log.user_id ?? 'Hệ thống'}
                         </td>
                         <td className="px-3 py-4 align-top">
                           <span
@@ -599,17 +706,16 @@ export default function AdminAuditSection() {
         >
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
             <Eye className="text-blue-600" size={16} />
-            Chi tiet ban ghi audit
+            Chi tiết hoạt động
           </h3>
 
           {detailLoading && (
-            <p className="mt-4 text-sm text-slate-500">Dang tai chi tiet...</p>
+            <p className="mt-4 text-sm text-slate-500">Đang tải chi tiết...</p>
           )}
 
           {!detailLoading && !selectedLog && (
             <p className="mt-4 text-sm text-slate-500">
-              Chon mot dong audit ben trai de xem payload cu/moi va metadata day
-              du.
+              Chọn một bản ghi ở bên trái để xem nội dung thay đổi và các thông tin liên quan.
             </p>
           )}
 
@@ -617,61 +723,101 @@ export default function AdminAuditSection() {
             <div className="mt-4 space-y-4">
               <dl className="grid gap-3 text-sm">
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">ID / action</dt>
+                  <dt className="text-slate-500">Hành động</dt>
                   <dd className="mt-1 font-semibold text-slate-800">
-                    #{selectedLog.id} | {selectedLog.action}
+                    {humanizeAction(selectedLog.action)}
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Tac nhan / trang thai</dt>
+                  <dt className="text-slate-500">Khu vực bị tác động</dt>
                   <dd className="mt-1 font-semibold text-slate-800">
-                    {selectedLog.user_id ?? 'System'} |{' '}
-                    {statusLabel(selectedLog.status)}
+                    {humanizeResourceType(selectedLog.resource_type)}
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Resource</dt>
+                  <dt className="text-slate-500">Người thực hiện / kết quả</dt>
                   <dd className="mt-1 font-semibold text-slate-800">
-                    {selectedLog.resource_type ?? 'Khong co'}
-                    {selectedLog.resource_id ? ` | ${selectedLog.resource_id}` : ''}
+                    {selectedLog.user_id ?? 'Hệ thống'} · {statusLabel(selectedLog.status)}
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Thoi gian / IP</dt>
+                  <dt className="text-slate-500">Thời gian</dt>
                   <dd className="mt-1 font-semibold text-slate-800">
                     {formatTimestamp(selectedLog.created_at)}
                   </dd>
-                  <dd className="mt-1 text-xs text-slate-500">
-                    {selectedLog.ip_address ?? 'Khong co IP'} |{' '}
-                    {selectedLog.user_agent ?? 'Khong co user agent'}
-                  </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Ly do</dt>
+                  <dt className="text-slate-500">Ghi chú</dt>
                   <dd className="mt-1 text-slate-700">
-                    {selectedLog.reason ?? 'Khong co'}
+                    {selectedLog.reason ?? 'Không có ghi chú bổ sung.'}
                   </dd>
                 </div>
               </dl>
 
-              <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    old_value
-                  </p>
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
-                    {prettifyValue(selectedLog.old_value)}
-                  </pre>
+              <AdminTechnicalDetails
+                testId="audit-technical-details"
+                description="Bao gồm tên hành động gốc, mã đối tượng, IP, user agent và dữ liệu JSON trước/sau thay đổi."
+              >
+                <div className="space-y-4">
+                  <dl className="grid gap-3 text-sm md:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">Raw action</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {selectedLog.action}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">Raw resource ID</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {selectedLog.resource_id ?? 'Không có'}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">IP address</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {selectedLog.ip_address ?? 'Không có'}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">User agent</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        {selectedLog.user_agent ?? 'Không có'}
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">HTTP status code</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        Chưa được ghi trong log hiện tại
+                      </dd>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <dt className="text-slate-500">Bản ghi</dt>
+                      <dd className="mt-1 font-semibold text-slate-800">
+                        #{selectedLog.id}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        old_value
+                      </p>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                        {prettifyValue(selectedLog.old_value)}
+                      </pre>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        new_value
+                      </p>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                        {prettifyValue(selectedLog.new_value)}
+                      </pre>
+                    </div>
+                  </div>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    new_value
-                  </p>
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
-                    {prettifyValue(selectedLog.new_value)}
-                  </pre>
-                </div>
-              </div>
+              </AdminTechnicalDetails>
             </div>
           )}
         </aside>

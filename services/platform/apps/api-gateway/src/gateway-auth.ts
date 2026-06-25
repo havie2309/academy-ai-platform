@@ -25,6 +25,7 @@ export interface GatewayRequest extends Request {
 
 const PUBLIC_ROUTES = new Set([
   '/api/health',
+  '/api/auth/health',
   '/api/auth/login',
   '/api/auth/refresh',
   '/api/admin-config/health',
