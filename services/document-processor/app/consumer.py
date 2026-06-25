@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+import time
 from datetime import datetime, timezone
 
 import pika
@@ -19,6 +20,7 @@ from app.config import (
 from app.pipeline import process_document
 
 logger = logging.getLogger(__name__)
+CONSUMER_RETRY_DELAY_SEC = 5
 
 
 def _utcnow_iso() -> str:
@@ -35,17 +37,25 @@ def _connection_params() -> pika.ConnectionParameters:
     )
 
 
-def _declare_topology(channel) -> None:
+def _declare_topology(channel):
     channel.queue_declare(queue=INGEST_DLQ, durable=True)
-    channel.queue_declare(
-        queue=INGEST_QUEUE,
-        durable=True,
-        arguments={
-            "x-dead-letter-exchange": "",
-            "x-dead-letter-routing-key": INGEST_DLQ,
-        },
-    )
+    try:
+        channel.queue_declare(queue=INGEST_QUEUE, durable=True, passive=True)
+    except pika.exceptions.ChannelClosedByBroker as exc:
+        if exc.reply_code != 404:
+            raise
+        channel = channel.connection.channel()
+        channel.queue_declare(queue=INGEST_DLQ, durable=True)
+        channel.queue_declare(
+            queue=INGEST_QUEUE,
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": "",
+                "x-dead-letter-routing-key": INGEST_DLQ,
+            },
+        )
     channel.basic_qos(prefetch_count=1)
+    return channel
 
 
 def _publish_json(channel, queue_name: str, job: dict) -> None:
@@ -64,7 +74,7 @@ def enqueue_job(job: dict) -> None:
     connection = pika.BlockingConnection(_connection_params())
     try:
         channel = connection.channel()
-        _declare_topology(channel)
+        channel = _declare_topology(channel)
         _publish_json(channel, INGEST_QUEUE, {**job, "queuedAt": _utcnow_iso()})
     finally:
         connection.close()
@@ -133,16 +143,35 @@ def _on_message(ch, method, _properties, body):
 
 
 def start_consumer() -> None:
-    connection = pika.BlockingConnection(_connection_params())
-    channel = connection.channel()
-    _declare_topology(channel)
-    channel.basic_consume(queue=INGEST_QUEUE, on_message_callback=_on_message)
-    logger.info(
-        "RabbitMQ consumer listening on queue=%s dlq=%s",
-        INGEST_QUEUE,
-        INGEST_DLQ,
-    )
-    channel.start_consuming()
+    while True:
+        connection = None
+        try:
+            connection = pika.BlockingConnection(_connection_params())
+            channel = connection.channel()
+            channel = _declare_topology(channel)
+            channel.basic_consume(queue=INGEST_QUEUE, on_message_callback=_on_message)
+            logger.info(
+                "RabbitMQ consumer listening on queue=%s dlq=%s",
+                INGEST_QUEUE,
+                INGEST_DLQ,
+            )
+            channel.start_consuming()
+            logger.warning(
+                "RabbitMQ consumer stopped unexpectedly; reconnecting in %ss",
+                CONSUMER_RETRY_DELAY_SEC,
+            )
+        except Exception:
+            logger.exception(
+                "RabbitMQ consumer crashed; retrying in %ss",
+                CONSUMER_RETRY_DELAY_SEC,
+            )
+        finally:
+            if connection and connection.is_open:
+                try:
+                    connection.close()
+                except Exception:
+                    logger.exception("Failed to close RabbitMQ connection cleanly")
+        time.sleep(CONSUMER_RETRY_DELAY_SEC)
 
 
 def run_consumer_in_background() -> threading.Thread:
