@@ -25,6 +25,12 @@
 | DEC-PM2-15 | Mọi đợt chỉnh docs lớn do review redirect phải tạo file `Check-tren` riêng | Giữ trace cho các lần AI cần học lại cách bám implementation thật | Active |
 | DEC-PM2-16 | API Gateway triển khai rate limiting, circuit breaker và load shedding sử dụng Redis | Bảo vệ hệ thống khỏi quá tải và lỗi lan truyền; sử dụng Redis để lưu trạng thái phân tán cho circuit breaker, rate limit và concurrent counter | Active |
 | DEC-PM2-17 | MongoDB dùng lazy-init module-level `MongoClient`; Postgres dùng `asyncpg.create_pool()` wired vào FastAPI lifespan | Tránh tạo mới connection mỗi request; PyMongo pool tự quản lý bên trong `MongoClient` nên chỉ cần một instance duy nhất per process; lazy init tránh fork-safety bug khi dùng gunicorn `--preload` | Active |
+| DEC-PM2-18 | Nâng cấp password hashing từ PBKDF2-SHA256 lên Argon2id | Phương pháp hiện tại (SHA-256 + salt) không còn được khuyến nghị; Argon2id là chuẩn hiện đại | Planned |
+| DEC-PM2-19 | Nâng cấp AI Policy từ keyword-based lên semantic/context-based | Blacklist keyword không đủ mạnh; cần hiểu ngữ cảnh câu hỏi để chặn chính xác hơn | Planned |
+| DEC-PM2-20 | Admin có thể xem chat history/session của các user khác | Phục vụ giám sát, kiểm tra, phát hiện bất thường; chỉ dành cho Admin và được audit đầy đủ | Planned |
+| DEC-PM2-21 | RAG priority scoring: Database → Document security level → public | Dữ liệu có cấu trúc từ database tin cậy nhất, tài liệu public có độ tin cậy thấp nhất | Planned |
+| DEC-PM2-22 | Thêm format validation cho access token trước khi truy vấn DB | Tối ưu performance, từ chối token sai format ngay tại gateway | Planned |
+| DEC-PM2-23 | Admin Dashboard chuyển sang tab view | Cải thiện UX, giảm scrolling, dễ điều hướng | Planned |
 
 ## 3. Hệ quả thực tế
 

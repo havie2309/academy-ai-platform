@@ -48,33 +48,47 @@ sequenceDiagram
     actor User
     participant UI as web-ui
     participant GW as api-gateway
-    participant CHAT as chat
-    participant REDIS as Redis
+    participant Chat as chat (NestJS)
     participant RAG as rag-engine
-    participant EMB as embedding-server
-    participant MV as Milvus
-    participant MG as MongoDB
-    participant RNK as rerank-server
-    participant OLLAMA as Ollama
+    participant Access as Access Filter
+    participant Embed as embedding-server
+    participant Milvus as Milvus
+    participant Mongo as MongoDB
+    participant Rerank as rerank-server
+    participant Ollama as Ollama
 
-    User->>UI: Gửi câu hỏi
-    UI->>GW: POST /api/chat/sessions/:id/messages
-    GW->>CHAT: Verify JWT + forward user scope
-    CHAT->>REDIS: Đọc session context cache
-    CHAT->>RAG: POST /v1/chat qua RAG_ENGINE_URL
-    RAG->>EMB: Embed query
-    EMB-->>RAG: Query vector
-    RAG->>MV: Search top-k child chunks
-    MV-->>RAG: Candidate chunk ids
-    RAG->>MG: Lấy chunk/doc metadata + lọc quyền
-    RAG->>RNK: Rerank candidates
-    RNK-->>RAG: Ranked chunks
-    RAG->>OLLAMA: Generate grounded answer
-    OLLAMA-->>RAG: Answer + used/reference chunk ids
-    RAG-->>CHAT: Answer + citations
-    CHAT->>REDIS: Ghi session context cache
-    CHAT-->>GW: Chat response
-    GW-->>UI: Answer + citations
+    User->>UI: Nhập câu hỏi
+    UI->>GW: POST /chat/:sessionId/messages
+    GW->>Chat: Forward + JWT + scope (ma_hv, ma_gv, roles)
+    
+    Chat->>RAG: POST /v1/chat (query, sessionId, user)
+    
+    RAG->>RAG: Safe refusal check
+    
+    alt Safe refusal
+        RAG-->>Chat: route: refusal
+    else RAG flow
+        RAG->>Access: Resolve permitted docIds from Mongo
+        Note over Access: Filter by securityLevel, scopeType,<br/>role/department/owner/custom
+        
+        RAG->>Embed: Embed query
+        Embed-->>RAG: Query vector
+        
+        RAG->>Milvus: Search with expr: "document_id in [...]"
+        Milvus-->>RAG: Candidate chunks (pre-filtered)
+        
+        RAG->>Mongo: Fetch chunk metadata
+        RAG->>RAG: can_view_chunk() defense-in-depth
+        RAG->>Rerank: Rerank candidates
+        Rerank-->>RAG: Ranked chunks
+        
+        RAG->>RAG: Build Markdown context
+        RAG->>Ollama: Generate grounded answer
+        Ollama-->>RAG: Answer + used_chunk_ids
+        
+        RAG->>RAG: Map chunks → document citations
+        RAG-->>Chat: Answer + citations
+    end
 ```
 
 - Happy path: query đi qua embed -> vector search -> Mongo filter -> rerank -> generate -> citation.

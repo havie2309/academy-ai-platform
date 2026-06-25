@@ -22,6 +22,7 @@
 | UI-10 | ETL console | dự kiến `/admin/etl` hoặc tab ETL trong `/admin` | admin/operator | empty, loading, configured, running, success, failed | `etl-sync` `/v1/etl/*` | `planned` |
 | UI-11 | Self-service học viên/sinh viên | dự kiến `/portal`, `/self-service` hoặc cụm route tương đương | hoc_vien / user cuối | loading, empty, partial-data, permission-denied, success | domain APIs đào tạo/khảo thí/thông báo | `planned` |
 | UI-12 | Quota / token / account ops | dự kiến `/admin/accounts`, `/admin/ops` hoặc tab quản trị tương đương | admin | loading, filter, save, disabled, error | quota/token/account APIs | `planned` |
+| UI-13 | Admin Chat Monitoring | `/admin/monitoring` hoặc tab trong `/admin` | admin | loading, filter by user/date, view session detail, view messages | chat sessions API | `planned` |
 
 ## 3. Quy tắc trải nghiệm chính
 
