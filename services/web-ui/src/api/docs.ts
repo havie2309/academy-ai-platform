@@ -190,6 +190,27 @@ export const docsApi = {
     return res.json()
   },
 
+    /**
+   * Get preview chunks for a document (first N child chunks).
+   */
+  async getChunks(id: string, limit = 5): Promise<{
+    chunks: Array<{
+      id: string
+      text: string
+      index: number
+      section_path: string | null
+      page: number | null
+      created_at: string | null
+    }>
+    total: number
+  }> {
+    const res = await fetchWithAuth(`/api/documents/${id}/chunks?limit=${limit}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
   // ============================================================
   // VÙNG DỮ LIỆU - NEW API Method
   // ============================================================

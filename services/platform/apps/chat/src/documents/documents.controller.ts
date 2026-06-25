@@ -185,6 +185,14 @@ export class DocumentsController {
     return this.docs.getIngestStatus(id, toRequestUser(user))
   }
 
+  @Get(':id/chunks')
+  @UseGuards(AuthGuard('jwt'))
+  async getChunks(@Req() req: Request, @Param('id') id: string) {
+    const user = extractUserFromRequest(req)
+    const limit = parseInt(req.query.limit as string, 10) || 5
+    return this.docs.getChunks(id, toRequestUser(user), Math.min(limit, 20))
+  }
+
   @Get(':id/file')
   @UseGuards(AuthGuard('jwt'))
   async download(
