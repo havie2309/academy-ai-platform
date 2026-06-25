@@ -56,6 +56,10 @@ export interface IngestStatusResponse {
   updated_at: string | null
 }
 
+export interface IngestStatusesResponse {
+  documents: IngestStatusResponse[]
+}
+
 // ============================================================
 // VÙNG DỮ LIỆU - Types
 // ============================================================
@@ -186,6 +190,24 @@ export const docsApi = {
     const res = await fetchWithAuth(`/api/documents/${id}/ingest-status`, {
       headers: { Accept: 'application/json' },
     })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async ingestStatuses(ids: string[]): Promise<IngestStatusesResponse> {
+    const query = new URLSearchParams()
+    for (const id of ids) {
+      const normalized = id.trim()
+      if (!normalized) continue
+      query.append('ids', normalized)
+    }
+    const suffix = query.toString()
+    const res = await fetchWithAuth(
+      `/api/documents/ingest-statuses${suffix ? `?${suffix}` : ''}`,
+      {
+        headers: { Accept: 'application/json' },
+      },
+    )
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },

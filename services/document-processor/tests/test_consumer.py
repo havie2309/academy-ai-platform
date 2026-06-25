@@ -25,6 +25,27 @@ class _FakeMethod:
     delivery_tag = "tag-1"
 
 
+class _FakeTopologyChannel:
+    def __init__(self, *, raise_not_found: bool = False):
+        self.raise_not_found = raise_not_found
+        self.calls: list[tuple[str, dict]] = []
+        self.qos: list[int] = []
+        self.reopened: "_FakeTopologyChannel | None" = None
+        self.connection = self
+
+    def queue_declare(self, **kwargs):
+        self.calls.append(("queue_declare", kwargs))
+        if kwargs.get("passive") and self.raise_not_found:
+            raise consumer.pika.exceptions.ChannelClosedByBroker(404, "NOT_FOUND")
+
+    def basic_qos(self, prefetch_count: int):
+        self.qos.append(prefetch_count)
+
+    def channel(self):
+        self.reopened = _FakeTopologyChannel()
+        return self.reopened
+
+
 class ConsumerTests(unittest.TestCase):
     def test_on_message_acks_success(self):
         channel = _FakeChannel()
@@ -121,6 +142,41 @@ class ConsumerTests(unittest.TestCase):
 
         self.assertEqual(channel.acks, [])
         self.assertEqual(channel.nacks, [("tag-1", False)])
+
+    def test_start_consumer_retries_after_connection_error(self):
+        attempts = {"count": 0}
+
+        def _fail_connect(*_args, **_kwargs):
+            attempts["count"] += 1
+            raise RuntimeError("rabbit unavailable")
+
+        def _stop_sleep(_seconds):
+            raise StopIteration
+
+        with (
+            patch.object(consumer.pika, "BlockingConnection", side_effect=_fail_connect),
+            patch.object(consumer.time, "sleep", side_effect=_stop_sleep),
+        ):
+            with self.assertRaises(StopIteration):
+                consumer.start_consumer()
+
+        self.assertEqual(attempts["count"], 1)
+
+    def test_declare_topology_reopens_channel_when_queue_missing(self):
+        channel = _FakeTopologyChannel(raise_not_found=True)
+
+        returned = consumer._declare_topology(channel)
+
+        self.assertIsNot(returned, channel)
+        self.assertIs(returned, channel.reopened)
+        self.assertEqual(returned.qos, [1])
+        self.assertTrue(
+            any(
+                call[1].get("arguments", {}).get("x-dead-letter-routing-key")
+                == consumer.INGEST_DLQ
+                for call in returned.calls
+            )
+        )
 
 
 if __name__ == "__main__":

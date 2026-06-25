@@ -399,6 +399,39 @@ export class DocumentsService implements OnModuleInit {
     }
   }
 
+  async getIngestStatuses(docIds: string[], user: RequestUser) {
+    this.ensureReady()
+    const normalizedIds = Array.from(
+      new Set(docIds.map((value) => value.trim()).filter(Boolean)),
+    ).slice(0, 100)
+
+    if (normalizedIds.length === 0) {
+      return { documents: [] }
+    }
+
+    const docs = await this.documents
+      .find({ docId: { $in: normalizedIds } })
+      .toArray()
+    const byId = new Map(docs.map((doc) => [doc.docId, doc]))
+
+    return {
+      documents: normalizedIds.flatMap((docId) => {
+        const doc = byId.get(docId)
+        if (!doc || !this.canView(doc, user)) return []
+        return [
+          {
+            document_id: doc.docId,
+            status: doc.ingestStatus ?? 'pending',
+            stage: doc.ingestStage ?? null,
+            chunk_count: doc.chunkCount ?? 0,
+            error: doc.ingestError ?? null,
+            updated_at: doc.ingestUpdatedAt?.toISOString() ?? null,
+          },
+        ]
+      }),
+    }
+  }
+
     /**
    * Get first N child chunks of a document for preview.
    */

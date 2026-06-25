@@ -7,6 +7,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -177,6 +178,18 @@ export class DocumentsController {
       },
       { userId: user.userId, name: user.username },
     )
+  }
+
+  @Get('ingest-statuses')
+  ingestStatuses(
+    @Req() req: Request,
+    @Query('ids') ids: string | string[] | undefined,
+  ) {
+    const user = extractUserFromRequest(req)
+    const normalizedIds = Array.isArray(ids)
+      ? ids.flatMap((value) => value.split(','))
+      : (ids?.split(',') ?? [])
+    return this.docs.getIngestStatuses(normalizedIds, toRequestUser(user))
   }
 
   @Get(':id/ingest-status')

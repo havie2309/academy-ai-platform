@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Eye, ChevronRight, CheckCircle, Clock, AlertCircle, Scissors, Cpu, Database} from 'lucide-react'
+import { Eye, CheckCircle, AlertCircle } from 'lucide-react'
 import {
   Search,
   FileText,
@@ -68,16 +68,6 @@ const STAGE_LABELS: Record<string, string> = {
   index: 'Chỉ mục',
   done: 'Hoàn tất',
 }
-const STAGE_ICONS: Record<string, React.ReactNode> = {
-  queued: <Clock size={14} />,
-  extract: <FileText size={14} />,
-  chunk: <Scissors size={14} />,
-  embed: <Cpu size={14} />,
-  index: <Database size={14} />,
-  done: <CheckCircle size={14} />,
-}
-// You may need to import Scissors, Cpu, Database from lucide-react
-
 interface VungDuLieuData {
   user: {
     userId: string
@@ -491,36 +481,20 @@ function fileTypeLabel(name: string): string {
 const SUPPORTED_UPLOAD_MESSAGE =
   'Chỉ hỗ trợ tải lên file PDF (.pdf), Word (.docx), PowerPoint (.pptx), Excel (.xlsx) và text (.txt).'
 
-const INGEST_POLL_BASE_MS = 3000
-const INGEST_POLL_MAX_MS = 15000
-const INGEST_POLL_WARN_AFTER = 2
-
-function getIngestPollWarning(error: unknown): string {
-  if (error instanceof Error) {
-    const message = error.message.trim()
-    if (message.includes('Phiên đăng nhập')) {
-      return 'Phiên đăng nhập đã hết hạn nên chưa thể cập nhật trạng thái ingest. Vui lòng đăng nhập lại.'
-    }
-    if (message.includes('API gateway') || message.includes('3000')) {
-      const target = API_BASE || 'proxy /api cá»§a web-ui'
-      return `ChÆ°a cáº­p nháº­t Ä‘Æ°á»£c tráº¡ng thÃ¡i ingest qua ${target}. Kiá»ƒm tra API gateway hoáº·c proxy rá»“i thá»­ láº¡i.`
-    }
-    if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
-      const target = API_BASE || 'proxy /api của web-ui'
-      return `Không kết nối được ${target} nên chưa thể cập nhật trạng thái ingest. Kiểm tra API gateway hoặc proxy rồi thử lại.`
-    }
-    if (message) {
-      return `Chưa cập nhật được trạng thái ingest: ${message}`
-    }
-  }
-
-  return 'Chưa cập nhật được trạng thái ingest. Kiểm tra API gateway hoặc đăng nhập lại rồi thử tiếp.'
-}
+const INGEST_POLL_BASE_MS = 5000
+const INGEST_POLL_MAX_MS = 30000
+const INGEST_POLL_WARN_AFTER = 3
 
 function formatIngestPollWarning(error: unknown): string {
-  void getIngestPollWarning
   if (error instanceof Error) {
     const message = error.message.trim()
+    if (
+      message.includes('Qua nhieu yeu cau') ||
+      message.includes('Quá nhiều yêu cầu') ||
+      message.includes('429')
+    ) {
+      return 'Trang tài liệu đang tự làm mới trạng thái ingest và đã chạm rate limit tạm thời. Vui lòng đợi khoảng 1 phút rồi thử lại.'
+    }
     if (
       message.includes('\u0111\u0103ng nh\u1eadp') ||
       message.includes('Phi') ||
@@ -623,12 +597,14 @@ export default function DocsPage() {
         .map((d) => d.id),
     [docs],
   )
+  const pendingIngestKey = useMemo(() => pendingIngestIds.join('|'), [pendingIngestIds])
 
   useEffect(() => {
-    if (pendingIngestIds.length === 0) {
+    if (!pendingIngestKey) {
       setPollWarning(null)
       return
     }
+    const ids = pendingIngestKey.split('|')
 
     let cancelled = false
     let timer: number | null = null
@@ -642,24 +618,36 @@ export default function DocsPage() {
 
     const poll = async () => {
       try {
-        const updates = await Promise.all(
-          pendingIngestIds.map(async (id) => {
-            const s = await docsApi.ingestStatus(id)
-            return {
-              id,
-              ingest_status: s.status,
-              ingest_stage: s.stage,
-              chunk_count: s.chunk_count,
-              ingest_error: s.error,
+        const { documents } = await docsApi.ingestStatuses(ids)
+        const updatesById = new Map(
+          documents.map((status) => [
+            status.document_id,
+            {
+              ingest_status: status.status,
+              ingest_stage: status.stage,
+              chunk_count: status.chunk_count,
+              ingest_error: status.error,
+            },
+          ]),
+        )
+        setDocs((prev) => {
+          let changed = false
+          const next = prev.map((doc) => {
+            const update = updatesById.get(doc.id)
+            if (!update) return doc
+            if (
+              doc.ingest_status === update.ingest_status &&
+              doc.ingest_stage === update.ingest_stage &&
+              doc.chunk_count === update.chunk_count &&
+              doc.ingest_error === update.ingest_error
+            ) {
+              return doc
             }
-          }),
-        )
-        setDocs((prev) =>
-          prev.map((doc) => {
-            const u = updates.find((x) => x.id === doc.id)
-            return u ? { ...doc, ...u } : doc
-          }),
-        )
+            changed = true
+            return { ...doc, ...update }
+          })
+          return changed ? next : prev
+        })
         if (cancelled) return
         consecutiveFailures = 0
         setPollWarning(null)
@@ -667,9 +655,7 @@ export default function DocsPage() {
         if (cancelled) return
         consecutiveFailures += 1
         if (consecutiveFailures >= INGEST_POLL_WARN_AFTER) {
-          setPollWarning(
-            'Không kết nối được API gateway ở cổng 3000 nên tạm chậm cập nhật trạng thái ingest. Kiểm tra `api-gateway` rồi thử lại.',
-          )
+          setPollWarning(error instanceof Error ? error.message : String(error))
         }
       } finally {
         if (cancelled) return
@@ -690,7 +676,7 @@ export default function DocsPage() {
       cancelled = true
       if (timer != null) window.clearTimeout(timer)
     }
-  }, [pendingIngestIds])
+  }, [pendingIngestKey])
 
   const categories = useMemo(() => {
     const set = new Set<string>()
