@@ -20,13 +20,23 @@ export interface GuardrailRule {
   label: string
   enabled: boolean
   phrases: string[]
+  matchMode?: GuardrailMatchMode
+  fuzzyThreshold?: number
+  semanticThreshold?: number
+  synonyms?: string[]
 }
+
+export type GuardrailMatchMode = 'substring' | 'exact' | 'fuzzy' | 'semantic'
 
 export interface GuardrailRulePatch {
   id?: string
   label?: string
   enabled?: boolean
   phrases?: string[]
+  matchMode?: GuardrailMatchMode
+  fuzzyThreshold?: number
+  semanticThreshold?: number
+  synonyms?: string[]
 }
 
 export interface StoredAdminConfig<T> {
@@ -38,16 +48,16 @@ export interface StoredAdminConfig<T> {
 
 const RAG_POLICY_KEY = 'rag_policy'
 const DEFAULT_SAFE_REFUSAL =
-  'Xin loi, toi khong the tra loi cau hoi nay theo chinh sach an toan hien tai.'
+  'Xin lỗi, tôi không thể trả lời câu hỏi này theo chính sách an toàn hiện tại.'
 const DEFAULT_BLACKLIST = [
-  'de thi mat',
-  'dap an de thi',
-  'mat khau he thong',
-  'bypass quyen',
-  'vuot quyen truy cap',
+  'đề thi mất',
+  'đáp án đề thi',
+  'mật khẩu hệ thống',
+  'bypass quyền',
+  'vượt quyền truy cập',
 ]
 const DEFAULT_GUARDRAIL_RULE_ID = 'default-keyword-blocklist'
-const DEFAULT_GUARDRAIL_RULE_LABEL = 'Danh sach tu khoa bi chan'
+const DEFAULT_GUARDRAIL_RULE_LABEL = 'Danh sách từ khóa bị chặn'
 
 function normalizeUnique(values: string[] | undefined): string[] {
   const seen = new Set<string>()
@@ -74,6 +84,26 @@ function defaultGuardrailRules(): GuardrailRule[] {
   ]
 }
 
+const VALID_MATCH_MODES = new Set<GuardrailMatchMode>([
+  'substring',
+  'exact',
+  'fuzzy',
+  'semantic',
+])
+
+function readMatchMode(raw: unknown): GuardrailMatchMode {
+  const mode = String(raw ?? 'substring').trim().toLowerCase()
+  return VALID_MATCH_MODES.has(mode as GuardrailMatchMode)
+    ? (mode as GuardrailMatchMode)
+    : 'substring'
+}
+
+function readThreshold(raw: unknown, fallback: number): number {
+  const value = Number(raw)
+  if (!Number.isFinite(value)) return fallback
+  return Math.min(Math.max(value, 0), 1)
+}
+
 function normalizeRules(
   rules: GuardrailRulePatch[] | undefined,
 ): GuardrailRule[] {
@@ -91,6 +121,10 @@ function normalizeRules(
         `Rule ${normalized.length + 1}`,
       enabled: rule.enabled !== false,
       phrases,
+      matchMode: readMatchMode(rule.matchMode),
+      fuzzyThreshold: readThreshold(rule.fuzzyThreshold, 0.85),
+      semanticThreshold: readThreshold(rule.semanticThreshold, 0.78),
+      synonyms: normalizeUnique(rule.synonyms),
     })
   }
   return normalized.length ? normalized : defaultGuardrailRules()

@@ -75,6 +75,27 @@ ADMIN_CONFIG_INTERNAL_KEY = (os.getenv("ADMIN_CONFIG_INTERNAL_KEY") or "").strip
 ADMIN_CONFIG_CACHE_TTL_SECONDS = int(
     os.getenv("ADMIN_CONFIG_CACHE_TTL_SECONDS", "30")
 )
+GUARDRAIL_FUZZY_ENABLED = os.getenv("GUARDRAIL_FUZZY_ENABLED", "true").lower() != "false"
+GUARDRAIL_FUZZY_THRESHOLD = float(os.getenv("GUARDRAIL_FUZZY_THRESHOLD", "0.85"))
+GUARDRAIL_SEMANTIC_ENABLED = (
+    os.getenv("GUARDRAIL_SEMANTIC_ENABLED", "false").lower() == "true"
+)
+GUARDRAIL_SEMANTIC_THRESHOLD = float(
+    os.getenv("GUARDRAIL_SEMANTIC_THRESHOLD", "0.78")
+)
+GUARDRAIL_SEMANTIC_TIMEOUT_SECONDS = float(
+    os.getenv("GUARDRAIL_SEMANTIC_TIMEOUT_SECONDS", "5")
+)
+GUARDRAIL_LLM_ENABLED = os.getenv("GUARDRAIL_LLM_ENABLED", "false").lower() == "true"
+GUARDRAIL_HEURISTIC_POLICY_ENABLED = (
+    os.getenv("GUARDRAIL_HEURISTIC_POLICY_ENABLED", "true").lower() != "false"
+)
+GUARDRAIL_LLM_TIMEOUT_SECONDS = float(
+    os.getenv("GUARDRAIL_LLM_TIMEOUT_SECONDS", "8")
+)
+GUARDRAIL_LLM_MIN_CONFIDENCE = float(
+    os.getenv("GUARDRAIL_LLM_MIN_CONFIDENCE", "0.7")
+)
 
 # --- Redis cache / conversation state ----------------------------------------
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")

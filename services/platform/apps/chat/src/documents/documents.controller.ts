@@ -21,6 +21,8 @@ import { createReadStream } from 'node:fs'
 import {
   DocumentsService,
   type AccessScopeType,
+  type AiAccessPolicy,
+  type PublicationStatus,
   type RequestUser,
   type SecurityLevel,
   type UploadedFileLike,
@@ -60,7 +62,19 @@ function parseList(raw?: string): string[] {
     .filter(Boolean)
 }
 
-function toRequestUser(u: AuthUser): RequestUser {
+function parseJsonObject(raw?: string): Record<string, unknown> {
+  if (!raw?.trim()) return {}
+  try {
+    const parsed = JSON.parse(raw.trim())
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    // ignore invalid JSON
+  }
+  return {}
+}
+
   return {
     userId: u.userId,
     roles: u.roles ?? [],
@@ -149,6 +163,13 @@ export class DocumentsController {
       access_role_codes?: string
       access_department_codes?: string
       access_user_ids?: string
+      document_type?: string
+      domain?: string
+      publication_status?: string
+      ai_access_policy?: string
+      owner_unit?: string
+      tags?: string
+      domain_metadata?: string
     },
   ) {
     const user = extractUserFromRequest(req)
@@ -174,6 +195,15 @@ export class DocumentsController {
           roleCodes: parseList(body.access_role_codes),
           departmentCodes: parseList(body.access_department_codes),
           userIds: parseList(body.access_user_ids),
+        },
+        security: {
+          documentType: body.document_type,
+          domain: body.domain,
+          publicationStatus: body.publication_status as PublicationStatus | undefined,
+          aiAccessPolicy: body.ai_access_policy as AiAccessPolicy | undefined,
+          ownerUnit: body.owner_unit,
+          tags: parseList(body.tags),
+          domainMetadata: parseJsonObject(body.domain_metadata),
         },
       },
       { userId: user.userId, name: user.username },
