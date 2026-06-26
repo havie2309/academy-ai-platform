@@ -28,6 +28,7 @@ const PUBLIC_ROUTES = new Set([
   '/api/auth/health',
   '/api/auth/login',
   '/api/auth/refresh',
+  '/api/etl/health',
   '/api/admin-config/health',
   '/api/rbac/health',
   '/api/audit/health',
@@ -42,6 +43,7 @@ const PROTECTED_PREFIXES = [
   '/api/users',
   '/api/chat',
   '/api/documents',          // Protected by default, except /public
+  '/api/etl',
   '/api/rag',
   '/api/admin-config',
   '/api/rbac',

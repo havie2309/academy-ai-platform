@@ -14,7 +14,7 @@ describe('ApiGatewayController', () => {
           useValue: {
             getHealth: jest.fn().mockResolvedValue({
               service: 'api-gateway',
-              upstream: { userManagement: 'up', chat: 'up', rag: 'up' },
+              upstream: { userManagement: 'up', chat: 'up', rag: 'up', etl: 'up' },
             }),
           },
         },

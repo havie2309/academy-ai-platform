@@ -133,6 +133,14 @@ class EtlSyncApiTests(unittest.TestCase):
         self.client = self.client_ctx.__enter__()
         self.sql_adapter = FakeSqlServerAdapter()
         main.app.state.sqlserver_connector = SqlServerConnector(adapter=self.sql_adapter)
+        self.admin_headers = {
+            "x-gateway-user-id": "admin-1",
+            "x-gateway-username": "admin",
+            "x-gateway-roles": "ADMIN",
+            "x-gateway-normalized-roles": "ADMIN",
+            "x-gateway-max-security-level": "4",
+        }
+        self.client.headers.update(self.admin_headers)
 
     def tearDown(self):
         self.client_ctx.__exit__(None, None, None)
@@ -232,11 +240,13 @@ class EtlSyncApiTests(unittest.TestCase):
         jobs = self.client.get("/v1/etl/jobs")
         self.assertEqual(jobs.status_code, 200)
         self.assertEqual(jobs.json()[0]["jobId"], job_id)
+        self.assertEqual(jobs.json()[0]["createdBy"], "admin-1")
 
         runs = self.client.get("/v1/etl/runs")
         self.assertEqual(runs.status_code, 200)
         self.assertEqual(runs.json()[0]["runId"], run_id)
         self.assertEqual(runs.json()[0]["status"], "queued")
+        self.assertEqual(runs.json()[0]["triggeredBy"], "admin-1")
 
         detail = self.client.get(f"/v1/etl/runs/{run_id}")
         self.assertEqual(detail.status_code, 200)
@@ -376,6 +386,27 @@ class EtlSyncApiTests(unittest.TestCase):
         )
         self.assertEqual(read.status_code, 403)
         self.assertIn("table not allowed", read.json()["detail"])
+
+    def test_requires_gateway_headers_for_etl_routes(self):
+        with TestClient(main.app) as raw_client:
+            health = raw_client.get("/health")
+            self.assertEqual(health.status_code, 200)
+
+            overview = raw_client.get("/v1/etl/overview")
+            self.assertEqual(overview.status_code, 401)
+            self.assertEqual(overview.json()["detail"], "gateway-authenticated user required")
+
+    def test_rejects_non_admin_gateway_user(self):
+        student_headers = {
+            "x-gateway-user-id": "hv001",
+            "x-gateway-username": "hv001",
+            "x-gateway-roles": "HOC_VIEN",
+            "x-gateway-normalized-roles": "HOC_VIEN",
+            "x-gateway-max-security-level": "1",
+        }
+        overview = self.client.get("/v1/etl/overview", headers=student_headers)
+        self.assertEqual(overview.status_code, 403)
+        self.assertEqual(overview.json()["detail"], "etl access requires admin role")
 
     def test_cron_match_supports_step_and_exact_fields(self):
         at = datetime(2026, 6, 20, 10, 15, tzinfo=timezone.utc)
