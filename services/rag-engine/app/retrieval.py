@@ -1,7 +1,7 @@
 import logging
 import re
+from dataclasses import dataclass
 
-import httpx
 from pymongo import MongoClient
 
 from app.access import (
@@ -13,7 +13,6 @@ from app.cache import RedisCache
 from app.citation_select import limit_chunks_per_doc
 from app.config import (
     ALLOW_ADVERSARIAL_DOCS,
-    EMBEDDING_BASE_URL,
     MAX_CHUNKS_PER_DOC,
     MONGO_DB,
     MONGO_URI,
@@ -22,11 +21,25 @@ from app.config import (
     RETRIEVAL_TOP_K,
     VECTOR_SCORE_MIN,
 )
+from app.embeddings import embed_query
+from app.guardrails.document_security import (
+    DocumentSecurityDecision,
+    filter_rows_by_document_security,
+    persist_document_security_audit,
+)
 from app.milvus_search import search_vectors
 from app.rerank import limit_context_budget, rerank_citations
 
 logger = logging.getLogger(__name__)
 cache = RedisCache()
+
+
+@dataclass
+class RetrievalResult:
+    citations: list[dict]
+    security_denied_all: bool = False
+    primary_denial: DocumentSecurityDecision | None = None
+
 
 
 def _get_mongo() -> MongoClient:
@@ -49,16 +62,6 @@ COMPARE_KEYWORDS = (
 )
 OLD_DOC_KEYWORDS = ("conflict", "cũ", "cu", "old")
 YEAR_RE = re.compile(r"(20\d{2})(?:\D+(20\d{2}))?")
-
-
-async def embed_query(text: str) -> list[float]:
-    async with httpx.AsyncClient(timeout=60) as client:
-        res = await client.post(
-            f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
-            json={"input": text},
-        )
-        res.raise_for_status()
-        return res.json()["data"][0]["embedding"]
 
 
 def _build_citation(row: dict, chunk_id: str, vector_score: float | None) -> dict:
@@ -206,7 +209,7 @@ def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
     return sorted(citations, key=_key)
 
 
-async def retrieve_citations(query: str, user: dict) -> list[dict]:
+async def retrieve_citations(query: str, user: dict) -> RetrievalResult:
     """
     Retrieve parent citations from child-vector hits.
 
@@ -216,21 +219,29 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     """
     query_text = query.strip()
     if not query_text:
-        return []
+        return RetrievalResult(citations=[])
 
     user_id = user.get("userId")
     cached = cache.get_retrieval(query_text, user_id)
     if cached:
         logger.debug("Cache hit for retrieval query: %s", query_text[:50])
-        return cached
+        if isinstance(cached, dict) and "citations" in cached:
+            return RetrievalResult(
+                citations=cached.get("citations") or [],
+                security_denied_all=bool(cached.get("security_denied_all")),
+            )
+        if isinstance(cached, list):
+            return RetrievalResult(citations=cached)
+
 
     try:
         vector = await embed_query(query_text)
     except Exception:
-        return []
+        return RetrievalResult(citations=[])
 
     client = _get_mongo()
     db = client[MONGO_DB]
+    documents_by_id: dict[str, dict] = {}
     try:
         accessible_doc_ids: list[str] | None = None
         milvus_expr: str | None = None
@@ -242,7 +253,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
                 allow_adversarial=ALLOW_ADVERSARIAL_DOCS,
             )
             if not accessible_doc_ids:
-                return []
+                return RetrievalResult(citations=[])
             milvus_expr = build_milvus_document_expr(accessible_doc_ids)
         except Exception:
             logger.warning(
@@ -254,14 +265,14 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
         try:
             hits = search_vectors(vector, RETRIEVAL_TOP_K, expr=milvus_expr)
         except Exception:
-            return []
+            return RetrievalResult(citations=[])
 
         if not hits:
-            return []
+            return RetrievalResult(citations=[])
 
         child_chunk_ids = [hit["chunk_id"] for hit in hits if hit.get("chunk_id")]
         if not child_chunk_ids:
-            return []
+            return RetrievalResult(citations=[])
 
         child_query = {
             "chunkId": {"$in": child_chunk_ids},
@@ -274,7 +285,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
 
         child_rows = list(db.document_chunks.find(child_query))
         if not child_rows:
-            return []
+            return RetrievalResult(citations=[])
 
         child_rows_by_id = {
             row.get("chunkId"): row for row in child_rows if row.get("chunkId")
@@ -298,7 +309,7 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
 
         parent_ids = list(parent_best_scores.keys())
         if not parent_ids:
-            return []
+            return RetrievalResult(citations=[])
 
         parent_query = {
             "chunkId": {"$in": parent_ids},
@@ -307,6 +318,17 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
         if accessible_doc_ids:
             parent_query["documentId"] = {"$in": accessible_doc_ids}
         parent_rows = list(db.document_chunks.find(parent_query))
+
+        doc_ids_for_meta = {
+            str(row.get("documentId", "")).strip()
+            for row in parent_rows
+            if str(row.get("documentId", "")).strip()
+        }
+        if doc_ids_for_meta:
+            for doc in db.documents.find({"docId": {"$in": list(doc_ids_for_meta)}}):
+                doc_id = str(doc.get("docId", "")).strip()
+                if doc_id:
+                    documents_by_id[doc_id] = doc
     finally:
         client.close()
 
@@ -323,14 +345,48 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
         if parent_id in parents_by_id
     ]
 
-    filtered_parents = []
+    acl_parents = []
     for row in ordered_parent_rows:
         meta = row.get("metadata", {})
         if can_view_chunk(meta, user):
-            filtered_parents.append(row)
+            acl_parents.append(row)
+
+    filtered_parents, blocked = filter_rows_by_document_security(
+        acl_parents,
+        user,
+        query=query_text,
+        documents_by_id=documents_by_id,
+    )
+
+    for row, decision in blocked:
+        await persist_document_security_audit(
+            query=query_text,
+            user=user,
+            doc_id=str(row.get("documentId", "")).strip(),
+            chunk_id=str(row.get("chunkId", "")).strip(),
+            decision=decision,
+        )
+
+    security_denied_all = bool(acl_parents) and not filtered_parents and bool(blocked)
+    primary_denial = blocked[0][1] if blocked else None
+
+    if security_denied_all:
+        if primary_denial:
+            await persist_document_security_audit(
+                query=query_text,
+                user=user,
+                doc_id="all-denied",
+                chunk_id="all-denied",
+                decision=primary_denial,
+            )
+        return RetrievalResult(
+            citations=[],
+            security_denied_all=True,
+            primary_denial=primary_denial,
+        )
 
     if not filtered_parents:
-        return []
+        return RetrievalResult(citations=[])
 
     citations = []
     for row in filtered_parents:
@@ -345,6 +401,10 @@ async def retrieve_citations(query: str, user: dict) -> list[dict]:
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
     selected = limit_context_budget(selected)
 
-    cache.set_retrieval(query_text, selected, user_id)
+    cache.set_retrieval(
+        query_text,
+        {"citations": selected, "security_denied_all": False},
+        user_id,
+    )
     logger.debug("Cache miss for retrieval query: %s", query_text[:50])
-    return selected
+    return RetrievalResult(citations=selected)

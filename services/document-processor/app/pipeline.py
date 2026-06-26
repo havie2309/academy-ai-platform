@@ -1,4 +1,5 @@
 import asyncio
+import json
 import uuid
 from datetime import datetime, timezone
 
@@ -147,6 +148,82 @@ def _clean_list(values: object) -> list[str]:
     return cleaned
 
 
+def _default_publication_status(security_level: str) -> str:
+    if security_level == "public":
+        return "public"
+    if security_level == "confidential":
+        return "confidential"
+    return "internal"
+
+
+def _default_ai_access_policy(security_level: str) -> str:
+    if security_level == "confidential":
+        return "deny"
+    if security_level == "restricted":
+        return "restricted"
+    return "allow"
+
+
+def _parse_domain_metadata(raw: object) -> dict:
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _build_document_security_metadata(job: dict) -> dict:
+    security_level = str(job.get("securityLevel") or "internal").strip().lower()
+    scope_type = str(job.get("scopeType") or "all").strip().lower()
+    access_role_codes = _clean_list(job.get("accessRoleCodes"))
+    access_department_codes = _clean_list(job.get("accessDepartmentCodes"))
+    access_user_ids = _clean_list(job.get("accessUserIds"))
+    tags = _clean_list(job.get("tags"))
+    domain_metadata = _parse_domain_metadata(
+        job.get("domainMetadata") or job.get("domain_metadata")
+    )
+
+    document_type = str(job.get("documentType") or job.get("document_type") or "document").strip()
+    domain = str(job.get("domain") or "general").strip().lower() or "general"
+    publication_status = str(
+        job.get("publicationStatus") or job.get("publication_status") or ""
+    ).strip().lower()
+    if publication_status not in {"public", "internal", "confidential", "embargoed"}:
+        publication_status = _default_publication_status(security_level)
+
+    ai_access_policy = str(
+        job.get("aiAccessPolicy") or job.get("ai_access_policy") or ""
+    ).strip().lower()
+    if ai_access_policy not in {"allow", "deny", "restricted", "review_required"}:
+        ai_access_policy = _default_ai_access_policy(security_level)
+
+    owner_unit = str(job.get("ownerUnit") or job.get("owner_unit") or "").strip()
+
+    return {
+        "documentType": document_type or "document",
+        "domain": domain,
+        "securityLevel": security_level,
+        "publicationStatus": publication_status,
+        "aiAccessPolicy": ai_access_policy,
+        "ownerUnit": owner_unit,
+        "allowedRoles": access_role_codes,
+        "allowedDepartments": access_department_codes,
+        "allowedUserIds": access_user_ids,
+        "tags": tags,
+        "domainMetadata": domain_metadata,
+        "scopeType": scope_type,
+        "accessRoleCodes": access_role_codes,
+        "accessDepartmentCodes": access_department_codes,
+        "accessUserIds": access_user_ids,
+        "uploadedById": str(job.get("uploadedById") or "").strip(),
+    }
+
+
 def _validate_job(job: dict) -> dict:
     normalized = dict(job)
     document_id = str(normalized.get("documentId") or "").strip()
@@ -187,6 +264,23 @@ def _validate_job(job: dict) -> dict:
     normalized["uploadedById"] = str(normalized.get("uploadedById") or "").strip()
     normalized["title"] = str(normalized.get("title") or document_id).strip()
     normalized["mimeType"] = str(normalized.get("mimeType") or "").strip()
+    normalized["documentType"] = str(
+        normalized.get("documentType") or normalized.get("document_type") or "document"
+    ).strip()
+    normalized["domain"] = str(normalized.get("domain") or "general").strip().lower()
+    normalized["publicationStatus"] = str(
+        normalized.get("publicationStatus") or normalized.get("publication_status") or ""
+    ).strip().lower()
+    normalized["aiAccessPolicy"] = str(
+        normalized.get("aiAccessPolicy") or normalized.get("ai_access_policy") or ""
+    ).strip().lower()
+    normalized["ownerUnit"] = str(
+        normalized.get("ownerUnit") or normalized.get("owner_unit") or ""
+    ).strip()
+    normalized["tags"] = _clean_list(normalized.get("tags"))
+    normalized["domainMetadata"] = _parse_domain_metadata(
+        normalized.get("domainMetadata") or normalized.get("domain_metadata")
+    )
     return normalized
 
 
@@ -275,6 +369,7 @@ async def process_document(job: dict) -> dict:
 
         security_level = job.get("securityLevel", "internal")
         security_rank = SECURITY_RANK.get(security_level, 2)
+        security_metadata = _build_document_security_metadata(job)
 
         _update_job(db, document_id, status="processing", stage="index")
 
@@ -292,13 +387,8 @@ async def process_document(job: dict) -> dict:
                     "chunkIndex": -p_idx - 1,
                     "metadata": {
                         **parent["metadata"],
+                        **security_metadata,
                         "title": title,
-                        "securityLevel": security_level,
-                        "scopeType": job.get("scopeType", "all"),
-                        "accessRoleCodes": job.get("accessRoleCodes", []),
-                        "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
-                        "accessUserIds": job.get("accessUserIds", []),
-                        "uploadedById": job.get("uploadedById", ""),
                         "childIds": parent.get("child_ids", []),
                     },
                     "createdAt": _utcnow(),
@@ -327,13 +417,8 @@ async def process_document(job: dict) -> dict:
                     "milvusVectorId": str(mid),
                     "metadata": {
                         **child["metadata"],
+                        **security_metadata,
                         "title": title,
-                        "securityLevel": security_level,
-                        "scopeType": job.get("scopeType", "all"),
-                        "accessRoleCodes": job.get("accessRoleCodes", []),
-                        "accessDepartmentCodes": job.get("accessDepartmentCodes", []),
-                        "accessUserIds": job.get("accessUserIds", []),
-                        "uploadedById": job.get("uploadedById", ""),
                     },
                     "createdAt": _utcnow(),
                 }

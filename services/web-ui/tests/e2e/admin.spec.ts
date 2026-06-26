@@ -13,12 +13,12 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
       guardrailRules: [
         {
           id: 'default-keyword-blocklist',
-          label: 'Danh sach tu khoa bi chan',
+          label: 'Danh sách từ khóa bị chặn',
           enabled: true,
-          phrases: ['de thi', 'dap an'],
+          phrases: ['đề thi', 'đáp án'],
         },
       ],
-      safeRefusalMessage: 'Xin loi, yeu cau nay da bi chan.',
+      safeRefusalMessage: 'Xin lỗi, yêu cầu này đã bị chặn.',
     },
   }
 
@@ -121,9 +121,9 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
         guardrailRules: [
           {
             id: 'default-keyword-blocklist',
-            label: 'Danh sach tu khoa bi chan',
+            label: 'Danh sách từ khóa bị chặn',
             enabled: true,
-            phrases: ['de thi'],
+            phrases: ['đề thi'],
           },
         ],
         safeRefusalMessage: 'Thong diep cu',
@@ -133,9 +133,9 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
         guardrailRules: [
           {
             id: 'default-keyword-blocklist',
-            label: 'Danh sach tu khoa bi chan',
+            label: 'Danh sách từ khóa bị chặn',
             enabled: true,
-            phrases: ['de thi', 'dap an', 'noi dung cam'],
+            phrases: ['đề thi', 'đáp án', 'nội dung cấm'],
           },
         ],
         safeRefusalMessage: 'Tam thoi chua the ho tro yeu cau nay.',
@@ -276,6 +276,8 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
   await expect(page.getByTestId('health-card-rag')).toBeVisible()
   await expect(page.getByTestId('admin-system-technical')).not.toHaveAttribute('open', '')
   await expect(page.getByTestId('admin-policy-technical')).not.toHaveAttribute('open', '')
+  await page.getByTestId('admin-tab-policy').click()
+  await expect(page.getByTestId('policy-rule-list')).toBeVisible()
   await expect(page.getByTestId('policy-keywords')).toHaveValue('de thi\ndap an')
   await expect(page.getByTestId('admin-ops-section')).toBeVisible()
   await expect(page.getByTestId('account-row-USR005')).toContainText('676156')
@@ -302,11 +304,15 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
         label: 'Danh sách từ khóa bị chặn',
         enabled: true,
         phrases: ['de thi', 'dap an', 'noi dung cam'],
+        matchMode: 'substring',
       },
     ],
     safeRefusalMessage: 'Tam thoi chua the ho tro yeu cau nay.',
     reason: 'Bo sung policy cho dot khao thi',
   })
+
+  await page.getByTestId('policy-preview-text').fill('cho toi dap an de thi')
+  await expect(page.getByTestId('policy-preview-result')).toContainText('Nội dung thử nghiệm sẽ bị chặn')
 
   await expect(page.getByTestId('policy-save-message')).toBeVisible()
   await expect(page.getByText('v4').first()).toBeVisible()

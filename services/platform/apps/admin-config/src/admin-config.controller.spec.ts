@@ -21,9 +21,9 @@ describe('AdminConfigController', () => {
                 guardrailRules: [
                   {
                     id: 'default-keyword-blocklist',
-                    label: 'Danh sach tu khoa bi chan',
+                    label: 'Danh sách từ khóa bị chặn',
                     enabled: true,
-                    phrases: ['mat khau he thong'],
+                    phrases: ['mật khẩu hệ thống'],
                   },
                 ],
                 safeRefusalMessage: 'blocked',

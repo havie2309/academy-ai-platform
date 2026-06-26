@@ -12,3 +12,4 @@ marshmallow<4
 python-dotenv==1.0.1
 asyncpg==0.29.0
 sqlparse==0.5.0
+rapidfuzz==3.9.7
