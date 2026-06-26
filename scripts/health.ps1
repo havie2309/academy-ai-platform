@@ -101,7 +101,6 @@ function Test-AppEndpoint {
 $checks = @(
     (Test-AppEndpoint -Name 'web-ui' -Url "$($WebUiUrl.TrimEnd('/'))/" -AcceptStatuses @(200)),
     (Test-AppEndpoint -Name 'api-gateway' -Url "$($GatewayUrl.TrimEnd('/'))/api/health" -AcceptStatuses @(200)),
-    (Test-AppEndpoint -Name 'etl-gateway' -Url "$($GatewayUrl.TrimEnd('/'))/api/etl/health" -AcceptStatuses @(200)),
     (Test-AppEndpoint -Name 'user-management' -Url "$($UserManagementUrl.TrimEnd('/'))/api/users/me" -AcceptStatuses @(401)),
     (Test-AppEndpoint -Name 'chat' -Url "$($ChatUrl.TrimEnd('/'))/api/chat/sessions" -AcceptStatuses @(401)),
     (Test-AppEndpoint -Name 'ollama' -Url $OllamaUrl -AcceptStatuses @(200) -Required $false)

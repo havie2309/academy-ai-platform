@@ -15,12 +15,10 @@ describe('gateway-auth', () => {
     expect(isProtectedPath('/api/auth/refresh')).toBe(false)
     expect(isProtectedPath('/api/auth/logout')).toBe(true)
     expect(isProtectedPath('/api/chat/sessions')).toBe(true)
-    expect(isProtectedPath('/api/etl/overview')).toBe(true)
     expect(isProtectedPath('/api/rag/v1/retrieve')).toBe(true)
     expect(isProtectedPath('/api/admin-config/rag-policy')).toBe(true)
     expect(isProtectedPath('/api/rbac/me')).toBe(true)
     expect(isProtectedPath('/api/audit/logs')).toBe(true)
-    expect(isProtectedPath('/api/etl/health')).toBe(false)
     expect(isProtectedPath('/api/admin-config/health')).toBe(false)
   })
 

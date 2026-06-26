@@ -136,7 +136,6 @@ try {
     Test-Assertion -Condition ($health.Json.upstream.rbac -eq 'up') -Message 'Gateway upstream rbac is not up.'
     Test-Assertion -Condition ($health.Json.upstream.adminConfig -eq 'up') -Message 'Gateway upstream admin-config is not up.'
     Test-Assertion -Condition ($health.Json.upstream.audit -eq 'up') -Message 'Gateway upstream audit is not up.'
-    Test-Assertion -Condition ($health.Json.upstream.etl -eq 'up') -Message 'Gateway upstream etl is not up.'
 
     Write-Step 'Checking internal admin-config route is hidden at gateway'
     $hiddenInternal = Invoke-AppRequest -Method 'GET' -Url "$base/api/admin-config/internal/rag-policy" -AllowedStatusCodes @(404)
@@ -170,10 +169,6 @@ try {
     Write-Step 'Checking audit log read'
     $audit = Invoke-AppRequest -Method 'GET' -Url "$base/api/audit/logs?limit=1" -Headers $authHeaders
     Test-Assertion -Condition ($audit.StatusCode -eq 200) -Message '/api/audit/logs did not return HTTP 200.'
-
-    Write-Step 'Checking ETL overview read for admin'
-    $etlOverview = Invoke-AppRequest -Method 'GET' -Url "$base/api/etl/overview" -Headers $authHeaders
-    Test-Assertion -Condition ($etlOverview.StatusCode -eq 200) -Message '/api/etl/overview did not return HTTP 200 for admin.'
 
     Write-Step 'Listing chat sessions'
     $null = Invoke-AppRequest -Method 'GET' -Url "$base/api/chat/sessions" -Headers $authHeaders
@@ -242,8 +237,6 @@ try {
     Test-Assertion -Condition ($limitedPolicy.StatusCode -eq 403) -Message 'Limited user should be denied on /api/admin-config/rag-policy.'
     $limitedAudit = Invoke-AppRequest -Method 'GET' -Url "$base/api/audit/logs?limit=1" -Headers $limitedHeaders -AllowedStatusCodes @(403)
     Test-Assertion -Condition ($limitedAudit.StatusCode -eq 403) -Message 'Limited user should be denied on /api/audit/logs.'
-    $limitedEtl = Invoke-AppRequest -Method 'GET' -Url "$base/api/etl/overview" -Headers $limitedHeaders -AllowedStatusCodes @(403)
-    Test-Assertion -Condition ($limitedEtl.StatusCode -eq 403) -Message 'Limited user should be denied on /api/etl/overview.'
 
     Write-Step 'Logging out admin'
     $logout = Invoke-AppRequest -Method 'POST' -Url "$base/api/auth/logout" -Headers $authHeaders
@@ -263,7 +256,7 @@ try {
     }
     Write-Host "  Admin:    $Username"
     Write-Host "  Limited:  $activeLimitedUsername"
-    Write-Host '  Checks:   health, hidden internal route, login, users/me, rbac scope, admin-config, audit, etl overview, chat create+delete, safe refusal, admin-only denies, logout'
+    Write-Host '  Checks:   health, hidden internal route, login, users/me, rbac scope, admin-config, audit, chat create+delete, safe refusal, admin-only denies, logout'
 } catch {
     Write-Host ''
     Write-Host 'Smoke test FAIL' -ForegroundColor Red

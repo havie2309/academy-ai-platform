@@ -30,7 +30,6 @@ async function bootstrap() {
   const adminConfigUrl = process.env.ADMIN_CONFIG_URL ?? 'http://127.0.0.1:3004';
   const auditUrl = process.env.AUDIT_URL ?? 'http://127.0.0.1:3005';
   const ragUrl = process.env.RAG_ENGINE_URL ?? 'http://127.0.0.1:8000';
-  const etlUrl = process.env.ETL_URL ?? 'http://127.0.0.1:8004';
   const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret';
 
   const server = express();
@@ -92,7 +91,6 @@ async function bootstrap() {
   const rbacCircuit = createCircuitBreakerMiddleware(circuitBreaker, 'rbac');
   const adminConfigCircuit = createCircuitBreakerMiddleware(circuitBreaker, 'adminConfig');
   const auditCircuit = createCircuitBreakerMiddleware(circuitBreaker, 'audit');
-  const etlCircuit = createCircuitBreakerMiddleware(circuitBreaker, 'etl');
 
   // ──────────────────────────────────────────────────────────────
   // 4. Register Proxies with Circuit Breakers
@@ -206,30 +204,6 @@ async function bootstrap() {
       changeOrigin: true,
       agent: noKeepAliveAgent,
       pathFilter: (pathname) => pathname.startsWith('/api/audit'),
-      on: {
-        proxyReq(proxyReq, req) {
-          attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
-            proxyReq.setHeader(name, value);
-          });
-        },
-      },
-    }),
-  );
-
-  // ETL
-  server.use('/api/etl', etlCircuit);
-  server.use(
-    createProxyMiddleware({
-      target: etlUrl,
-      changeOrigin: true,
-      agent: noKeepAliveAgent,
-      pathFilter: (pathname) => pathname.startsWith('/api/etl'),
-      pathRewrite: (path) => {
-        if (path === '/api/etl/health') {
-          return '/health';
-        }
-        return path.replace(/^\/api\/etl/, '/v1/etl');
-      },
       on: {
         proxyReq(proxyReq, req) {
           attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {

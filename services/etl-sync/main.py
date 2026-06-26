@@ -6,7 +6,6 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 
-from app.auth import GatewayUser, require_admin_gateway_user
 from app.batch_sync import BatchScheduler
 from app.connectors.sqlserver import (
     SqlServerConnector,
@@ -169,19 +168,12 @@ async def health(request: Request):
 
 
 @app.get("/v1/etl/overview")
-async def etl_overview(
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def etl_overview(store=Depends(get_store)):
     return await store.get_overview()
 
 
 @app.post("/v1/etl/sources")
-async def create_source(
-    body: EtlSourceCreate,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def create_source(body: EtlSourceCreate, store=Depends(get_store)):
     payload = body.model_dump()
     payload["sourceId"] = payload.get("sourceId") or _make_id("src")
     try:
@@ -192,20 +184,13 @@ async def create_source(
 
 
 @app.get("/v1/etl/sources")
-async def list_sources(
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def list_sources(store=Depends(get_store)):
     sources = await store.list_sources()
     return [_sanitize_source(source) for source in sources]
 
 
 @app.get("/v1/etl/sources/{source_id}")
-async def get_source(
-    source_id: str,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def get_source(source_id: str, store=Depends(get_store)):
     try:
         source = await store.get_source(source_id)
         return _sanitize_source(source)
@@ -214,14 +199,9 @@ async def get_source(
 
 
 @app.post("/v1/etl/jobs")
-async def create_job(
-    body: EtlJobCreate,
-    user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def create_job(body: EtlJobCreate, store=Depends(get_store)):
     payload = body.model_dump()
     payload["jobId"] = payload.get("jobId") or _make_id("job")
-    payload["createdBy"] = user.user_id
     try:
         return await store.create_job(payload)
     except Exception as exc:
@@ -229,19 +209,12 @@ async def create_job(
 
 
 @app.get("/v1/etl/jobs")
-async def list_jobs(
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def list_jobs(store=Depends(get_store)):
     return await store.list_jobs()
 
 
 @app.get("/v1/etl/jobs/{job_id}")
-async def get_job(
-    job_id: str,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def get_job(job_id: str, store=Depends(get_store)):
     try:
         return await store.get_job(job_id)
     except Exception as exc:
@@ -249,15 +222,9 @@ async def get_job(
 
 
 @app.post("/v1/etl/jobs/{job_id}/runs")
-async def create_run(
-    job_id: str,
-    body: EtlRunCreate,
-    user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def create_run(job_id: str, body: EtlRunCreate, store=Depends(get_store)):
     payload = body.model_dump()
     payload["runId"] = payload.get("runId") or _make_id("run")
-    payload["triggeredBy"] = user.user_id
     try:
         return await store.create_run(job_id, payload)
     except Exception as exc:
@@ -265,20 +232,12 @@ async def create_run(
 
 
 @app.get("/v1/etl/runs")
-async def list_runs(
-    jobId: str | None = None,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def list_runs(jobId: str | None = None, store=Depends(get_store)):
     return await store.list_runs(jobId)
 
 
 @app.get("/v1/etl/runs/{run_id}")
-async def get_run(
-    run_id: str,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def get_run(run_id: str, store=Depends(get_store)):
     try:
         return await store.get_run(run_id)
     except Exception as exc:
@@ -286,12 +245,7 @@ async def get_run(
 
 
 @app.post("/v1/etl/runs/{run_id}/status")
-async def update_run(
-    run_id: str,
-    body: EtlRunUpdate,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def update_run(run_id: str, body: EtlRunUpdate, store=Depends(get_store)):
     try:
         return await store.update_run(run_id, body.model_dump(exclude_none=True))
     except Exception as exc:
@@ -299,12 +253,7 @@ async def update_run(
 
 
 @app.post("/v1/etl/runs/{run_id}/lineage")
-async def add_lineage(
-    run_id: str,
-    body: EtlLineageCreate,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def add_lineage(run_id: str, body: EtlLineageCreate, store=Depends(get_store)):
     try:
         return await store.add_lineage(run_id, body.model_dump(exclude_none=True))
     except Exception as exc:
@@ -312,12 +261,7 @@ async def add_lineage(
 
 
 @app.post("/v1/etl/runs/{run_id}/errors")
-async def add_error(
-    run_id: str,
-    body: EtlErrorCreate,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
-    store=Depends(get_store),
-):
+async def add_error(run_id: str, body: EtlErrorCreate, store=Depends(get_store)):
     try:
         return await store.add_error(run_id, body.model_dump(exclude_none=True))
     except Exception as exc:
@@ -327,7 +271,6 @@ async def add_error(
 @app.post("/v1/etl/sources/{source_id}/sqlserver/ping")
 async def sqlserver_ping(
     source_id: str,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
     store=Depends(get_store),
     connector: SqlServerConnector = Depends(get_sqlserver_connector),
 ):
@@ -342,7 +285,6 @@ async def sqlserver_ping(
 async def sqlserver_tables(
     source_id: str,
     schemaName: str | None = None,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
     store=Depends(get_store),
     connector: SqlServerConnector = Depends(get_sqlserver_connector),
 ):
@@ -358,7 +300,6 @@ async def sqlserver_columns(
     source_id: str,
     table_name: str,
     schemaName: str = "dbo",
-    _user: GatewayUser = Depends(require_admin_gateway_user),
     store=Depends(get_store),
     connector: SqlServerConnector = Depends(get_sqlserver_connector),
 ):
@@ -373,7 +314,6 @@ async def sqlserver_columns(
 async def sqlserver_read_rows(
     source_id: str,
     body: SqlServerReadRequest,
-    _user: GatewayUser = Depends(require_admin_gateway_user),
     store=Depends(get_store),
     connector: SqlServerConnector = Depends(get_sqlserver_connector),
 ):
