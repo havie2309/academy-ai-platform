@@ -496,26 +496,26 @@ function formatIngestPollWarning(error: unknown): string {
       return 'Trang tài liệu đang tự làm mới trạng thái ingest và đã chạm rate limit tạm thời. Vui lòng đợi khoảng 1 phút rồi thử lại.'
     }
     if (
-      message.includes('\u0111\u0103ng nh\u1eadp') ||
+      message.includes('đăng nhập') ||
       message.includes('Phi') ||
       message.includes('401')
     ) {
-      return 'Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n n\u00ean ch\u01b0a th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i ingest. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.'
+      return 'Phiên đăng nhập đã hết hạn nên chưa thể cập nhật trạng thái ingest. Vui lòng đăng nhập lại.'
     }
     if (message.includes('API gateway') || message.includes('3000')) {
-      const target = API_BASE || 'proxy /api c\u1ee7a web-ui'
-      return `Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest qua ${target}. Ki\u1ec3m tra API gateway ho\u1eb7c proxy r\u1ed3i th\u1eed l\u1ea1i.`
+      const target = API_BASE || 'proxy /api của web-ui'
+      return `Chưa cập nhật được trạng thái ingest qua ${target}. Kiểm tra API gateway hoặc proxy rồi thử lại.`
     }
     if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
-      const target = API_BASE || 'proxy /api c\u1ee7a web-ui'
-      return `Kh\u00f4ng k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c ${target} n\u00ean ch\u01b0a th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i ingest. Ki\u1ec3m tra API gateway ho\u1eb7c proxy r\u1ed3i th\u1eed l\u1ea1i.`
+      const target = API_BASE || 'proxy /api của web-ui'
+      return `Không kết nối được ${target} nên chưa thể cập nhật trạng thái ingest. Kiểm tra API gateway hoặc proxy rồi thử lại.`
     }
     if (message) {
-      return `Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest: ${message}`
+      return `Chưa cập nhật được trạng thái ingest: ${message}`
     }
   }
 
-  return 'Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest. Ki\u1ec3m tra API gateway ho\u1eb7c \u0111\u0103ng nh\u1eadp l\u1ea1i r\u1ed3i th\u1eed ti\u1ebfp.'
+  return 'Chưa cập nhật được trạng thái ingest. Kiểm tra API gateway hoặc đăng nhập lại rồi thử tiếp.'
 }
 
 function isSupportedUploadFile(file: File): boolean {

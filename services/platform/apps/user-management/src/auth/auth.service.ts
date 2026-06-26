@@ -1,29 +1,11 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
-import { compare } from 'bcrypt'
-import { pbkdf2Sync } from 'node:crypto'
+import * as argon2 from 'argon2'
 import { RedisService } from '../../../../src/common/redis/redis.service'
 import { ADMIN_MANAGEMENT_ROLES } from '../user/admin-management-roles'
 import { UsersService } from '../user/users.service'
 import { generateRefreshToken, hashRefreshToken } from './auth.tokens'
-
-function verifyPbkdf2Password(
-  password: string,
-  hash: string,
-  salt: string,
-  iterations: number,
-  digest: string,
-): boolean {
-  const computed = pbkdf2Sync(
-    password,
-    salt,
-    iterations,
-    hash.length / 2,
-    digest,
-  ).toString('hex')
-  return computed === hash
-}
 
 const REFRESH_TTL_DAYS = 7
 
@@ -108,48 +90,28 @@ export class AuthService {
     }
   }
 
-  private normalizePbkdf2Digest(hashAlgorithm?: string | null): string | null {
-    if (!hashAlgorithm) return null
-    const normalized = hashAlgorithm.trim().toLowerCase()
-    if (!normalized) return null
-    if (normalized.startsWith('pbkdf2_')) {
-      return normalized.slice('pbkdf2_'.length) || null
-    }
-    return normalized
-  }
-
   private async isPasswordValid(
     user: {
       password_hash?: string | null
-      password_salt?: string | null
-      hash_iterations?: number | null
       hash_algorithm?: string | null
     },
     password: string,
   ): Promise<boolean> {
     if (!user.password_hash) return false
 
-    const digest = this.normalizePbkdf2Digest(user.hash_algorithm)
-    if (
-      user.password_salt &&
-      typeof user.hash_iterations === 'number' &&
-      user.hash_iterations > 0 &&
-      digest
-    ) {
-      return verifyPbkdf2Password(
-        password,
-        user.password_hash,
-        user.password_salt,
-        user.hash_iterations,
-        digest,
-      )
+    if (user.hash_algorithm?.toLowerCase() === 'argon2id') {
+      try {
+        return await argon2.verify(user.password_hash, password)
+      } catch {
+        return false
+      }
     }
 
-    if (/^\$2[aby]\$\d{2}\$/.test(user.password_hash)) {
-      return compare(password, user.password_hash)
+    try {
+      return await argon2.verify(user.password_hash, password)
+    } catch {
+      return false
     }
-
-    return false
   }
 
   async login(username: string, password: string, ip: string, userAgent: string) {
@@ -162,7 +124,7 @@ export class AuthService {
         const ttl = await this.redis.ttl(`login:locked:${username}`)
         const remainingMinutes = Math.ceil(ttl / 60)
         throw new UnauthorizedException(
-          `TÃ i khoáº£n bá»‹ khÃ³a. Vui lÃ²ng thá»­ láº¡i sau ${remainingMinutes} phÃºt.`,
+          `Tài khoản bị khóa. Vui lòng thử lại sau ${remainingMinutes} phút.`,
         )
       }
     }
@@ -172,10 +134,10 @@ export class AuthService {
       if (attempts >= this.maxFailedAttempts) {
         await this.redis.lockAccount(username, this.lockDuration)
         throw new UnauthorizedException(
-          `TÃ i khoáº£n bá»‹ khÃ³a do nháº­p sai quÃ¡ ${this.maxFailedAttempts} láº§n. Vui lÃ²ng thá»­ láº¡i sau 15 phÃºt.`,
+          `Tài khoản bị khóa do nhập sai quá ${this.maxFailedAttempts} lần. Vui lòng thử lại sau 15 phút.`,
         )
       }
-      throw new UnauthorizedException('TÃªn Ä‘Äƒng nháº­p hoáº·c máº­t kháº©u khÃ´ng Ä‘Ãºng.')
+      throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng.')
     }
 
     const valid = await this.isPasswordValid(user, password)
@@ -194,7 +156,7 @@ export class AuthService {
             `account_locked_after_${attempts}_attempts`,
           )
           throw new UnauthorizedException(
-            `TÃ i khoáº£n bá»‹ khÃ³a do nháº­p sai quÃ¡ ${this.maxFailedAttempts} láº§n. Vui lÃ²ng thá»­ láº¡i sau 15 phÃºt.`,
+            `Tài khoản bị khóa do nhập sai quá ${this.maxFailedAttempts} lần. Vui lòng thử lại sau 15 phút.`,
           )
         }
       }
@@ -206,7 +168,7 @@ export class AuthService {
         false,
         'wrong_password',
       )
-      throw new UnauthorizedException('TÃªn Ä‘Äƒng nháº­p hoáº·c máº­t kháº©u khÃ´ng Ä‘Ãºng.')
+      throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng.')
     }
 
     const access_token = this.signAccessToken(user)
@@ -236,12 +198,12 @@ export class AuthService {
       hashRefreshToken(refreshToken),
     )
     if (!session) {
-      throw new UnauthorizedException('Refresh token khÃ´ng há»£p lá»‡ hoáº·c Ä‘Ã£ háº¿t háº¡n.')
+      throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn.')
     }
 
     const user = await this.users.findById(session.user_id)
     if (!user) {
-      throw new UnauthorizedException('TÃ i khoáº£n khÃ´ng cÃ²n hoáº¡t Ä‘á»™ng.')
+      throw new UnauthorizedException('Tài khoản không còn hoạt động.')
     }
 
     const newRefreshToken = generateRefreshToken()
@@ -276,7 +238,7 @@ export class AuthService {
       await this.users.revokeSessionByRefreshHash(hashRefreshToken(refreshToken))
     }
     await this.users.logLogin(userId, 'logout', ip, userAgent, true)
-    return { message: 'ÄÄƒng xuáº¥t thÃ nh cÃ´ng.' }
+    return { message: 'Đăng xuất thành công.' }
   }
 
   // ============================================================

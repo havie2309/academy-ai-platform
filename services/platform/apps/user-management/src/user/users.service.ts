@@ -32,12 +32,6 @@ interface ChatUsage {
   lastChatAt: Date | null
 }
 
-interface UserAuthColumnState {
-  passwordSalt: boolean
-  hashIterations: boolean
-  hashAlgorithm: boolean
-}
-
 @Injectable()
 export class UsersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(UsersService.name)
@@ -47,11 +41,6 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
   private chatSessions: Collection | null = null
   private chatMessages: Collection | null = null
   private warnedMongoUnavailable = false
-  private userAuthColumns: UserAuthColumnState = {
-    passwordSalt: false,
-    hashIterations: false,
-    hashAlgorithm: false,
-  }
 
   constructor(
     private readonly config: ConfigService,
@@ -72,25 +61,13 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
       password: process.env.POSTGRES_PASSWORD ?? 'pm2pass',
     })
 
-    await this.loadUserAuthColumns()
     await this.ensureMongoReady()
   }
 
   async findByUsername(username: string) {
-    const passwordSaltSelect = this.userAuthColumns.passwordSalt
-      ? 'u.password_salt AS password_salt'
-      : 'NULL::varchar AS password_salt'
-    const hashIterationsSelect = this.userAuthColumns.hashIterations
-      ? 'u.hash_iterations AS hash_iterations'
-      : 'NULL::integer AS hash_iterations'
-    const hashAlgorithmSelect = this.userAuthColumns.hashAlgorithm
-      ? 'u.hash_algorithm AS hash_algorithm'
-      : 'NULL::varchar AS hash_algorithm'
-
     const { rows: [user] } = await this.pool.query(
       `SELECT u.user_id, u.username, u.email, u.fullname,
-              u.department, u.password_hash, ${passwordSaltSelect},
-              ${hashIterationsSelect}, ${hashAlgorithmSelect},
+              u.department, u.password_hash,
               u.status, u.max_security_level,
               ARRAY_AGG(r.code) FILTER (WHERE r.code IS NOT NULL) AS roles
        FROM users u
@@ -101,34 +78,6 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
       [username]
     )
     return user ?? null
-  }
-
-  private async loadUserAuthColumns() {
-    try {
-      const { rows } = await this.pool.query<{ column_name: string }>(
-        `SELECT column_name
-         FROM information_schema.columns
-         WHERE table_schema = 'public'
-           AND table_name = 'users'
-           AND column_name = ANY($1::text[])`,
-        [['password_salt', 'hash_iterations', 'hash_algorithm']],
-      )
-      const available = new Set(rows.map((row) => row.column_name))
-      this.userAuthColumns = {
-        passwordSalt: available.has('password_salt'),
-        hashIterations: available.has('hash_iterations'),
-        hashAlgorithm: available.has('hash_algorithm'),
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Unable to inspect users auth columns: ${error instanceof Error ? error.message : error}`,
-      )
-      this.userAuthColumns = {
-        passwordSalt: false,
-        hashIterations: false,
-        hashAlgorithm: false,
-      }
-    }
   }
 
   async findById(userId: string) {
