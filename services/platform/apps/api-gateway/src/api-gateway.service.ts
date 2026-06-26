@@ -11,7 +11,6 @@ export class ApiGatewayService {
       process.env.ADMIN_CONFIG_URL ?? 'http://127.0.0.1:3004';
     const auditUrl = process.env.AUDIT_URL ?? 'http://127.0.0.1:3005';
     const ragUrl = process.env.RAG_ENGINE_URL ?? 'http://127.0.0.1:8000';
-    const etlUrl = process.env.ETL_URL ?? 'http://127.0.0.1:8004';
 
     let userManagement: 'up' | 'down' = 'down';
     let chat: 'up' | 'down' = 'down';
@@ -19,7 +18,6 @@ export class ApiGatewayService {
     let adminConfig: 'up' | 'down' = 'down';
     let audit: 'up' | 'down' = 'down';
     let rag: 'up' | 'down' = 'down';
-    let etl: 'up' | 'down' = 'down';
 
     try {
       const res = await fetch(`${userMgmtUrl}/api/auth/health`, {
@@ -82,30 +80,19 @@ export class ApiGatewayService {
       audit = 'down';
     }
 
-    try {
-      const res = await fetch(`${etlUrl}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      etl = res.status < 500 ? 'up' : 'down';
-    } catch {
-      etl = 'down';
-    }
-
     const allUp =
       userManagement === 'up' &&
       chat === 'up' &&
       rag === 'up' &&
       rbac === 'up' &&
       adminConfig === 'up' &&
-      audit === 'up' &&
-      etl === 'up';
+      audit === 'up';
 
     return {
       status: allUp ? 'ok' : 'degraded',
       service: 'api-gateway',
       timestamp: new Date().toISOString(),
-      upstream: { userManagement, chat, rbac, adminConfig, audit, rag, etl },
+      upstream: { userManagement, chat, rbac, adminConfig, audit, rag },
     };
   }
 }
