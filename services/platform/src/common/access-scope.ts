@@ -1,7 +1,7 @@
 import type { AuthUser } from './auth.types'
 import { getSharedPostgresPool } from './postgres.service'
 
-const ADMIN_LIKE_ROLES = new Set(['ADMIN', 'BGD', 'P2'])
+const ADMIN_LIKE_ROLES = new Set(['ADMIN', 'BGD', 'P2', 'P7'])
 const ROLE_ALIASES: Record<string, string> = {
   HOCVIEN: 'HOC_VIEN',
   HOC_VIEN: 'HOC_VIEN',
