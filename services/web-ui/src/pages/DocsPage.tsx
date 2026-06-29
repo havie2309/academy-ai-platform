@@ -1451,7 +1451,20 @@ export default function DocsPage() {
                   Không có chunk nào để hiển thị.
                 </div>
               ) : (
-                previewChunks.map((chunk) => (
+                previewChunks.map((chunk, idx) => {
+                  const overlapLen = (() => {
+                    if (idx === 0) return 0
+                    const prev = previewChunks[idx - 1].text
+                    const curr = chunk.text
+                    const maxCheck = Math.min(prev.length, curr.length, 200)
+                    for (let len = maxCheck; len > 10; len--) {
+                      if (curr.startsWith(prev.slice(-len))) return len
+                    }
+                    return 0
+                  })()
+                  const overlapText = overlapLen > 0 ? chunk.text.slice(0, overlapLen) : ''
+                  const newText = chunk.text.slice(overlapLen)
+                  return (
                   <div
                     key={chunk.id}
                     className="border border-slate-200 rounded-xl p-4 bg-slate-50/50"
@@ -1467,11 +1480,15 @@ export default function DocsPage() {
                         <span>📄 Trang {chunk.page}</span>
                       )}
                     </div>
-                    <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
-                      {chunk.text}
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                      {overlapText && (
+                        <span className="text-slate-300">{overlapText}</span>
+                      )}
+                      <span className="text-slate-700">{newText}</span>
                     </p>
                   </div>
-                ))
+                  )
+                })
               )}
             </div>
 

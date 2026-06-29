@@ -75,6 +75,7 @@ function parseJsonObject(raw?: string): Record<string, unknown> {
   return {}
 }
 
+function toRequestUser(u: AuthUser): RequestUser {
   return {
     userId: u.userId,
     roles: u.roles ?? [],
