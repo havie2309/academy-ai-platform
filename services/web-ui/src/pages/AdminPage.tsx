@@ -12,6 +12,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
+  Plus,
+  Trash2,
   UserCog,
   Users,
 } from 'lucide-react'
@@ -20,6 +22,7 @@ import {
   fetchGatewayHealth,
   type AdminOpsOverview,
   type AuditLogEntry,
+  type GuardrailMatchMode,
   type GuardrailRule,
   type GatewayHealth,
   type RagPolicyConfig,
@@ -31,6 +34,26 @@ import AdminOpsSection from '../components/admin/AdminOpsSection'
 import AdminSecurityAlertsSection from '../components/admin/AdminSecurityAlertsSection'
 import AdminTechnicalDetails from '../components/admin/AdminTechnicalDetails'
 import { formatRoleLabel, normalizeRoles } from '../lib/authz'
+import {
+  previewGuardrailMatch,
+  previewLayerLabel,
+} from '../lib/guardrailPreview'
+import {
+  DOCUMENT_SECURITY_PRESETS,
+  evaluateDocumentSecurity,
+  mergeChunkAndDocumentMetadata,
+} from '../lib/documentSecurity'
+import {
+  MATCH_MODE_OPTIONS,
+  countActivePhrases,
+  createGuardrailRule,
+  defaultGuardrailRule,
+  linesFromList,
+  matchModeLabel,
+  normalizeGuardrailRules,
+  parseLineList,
+  rulesAreEqual,
+} from '../lib/guardrailRules'
 
 type UpstreamKey = keyof GatewayHealth['upstream']
 type AdminTab = 'operations' | 'security' | 'users' | 'policy' | 'technical'
@@ -102,7 +125,7 @@ const ADMIN_TABS = [
     key: 'policy' as const,
     label: 'Chính sách AI',
     icon: Bot,
-    description: 'Quản lý từ khóa bị chặn, câu trả lời an toàn và kiểm tra thử keyword.',
+    description: 'Quản lý nhóm rule chặn, từ đồng nghĩa và kiểm tra thử câu hỏi.',
   },
   {
     key: 'technical' as const,
@@ -112,40 +135,28 @@ const ADMIN_TABS = [
   },
 ]
 
-function parseKeywords(text: string): string[] {
-  const seen = new Set<string>()
-  const values: string[] = []
-  for (const item of text.split(/[\r\n,]+/)) {
-    const keyword = item.trim()
-    if (!keyword) continue
-    const key = keyword.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    values.push(keyword)
-  }
-  return values
+function hydrateForm(
+  config: StoredAdminConfig<RagPolicyConfig>,
+  setEnabled: (value: boolean) => void,
+  setDraftRules: (value: GuardrailRule[]) => void,
+  setSafeRefusal: (value: string) => void,
+  setReason: (value: string) => void,
+) {
+  setEnabled(config.value.enabled)
+  setDraftRules(normalizeGuardrailRules(config.value.guardrailRules))
+  setSafeRefusal(config.value.safeRefusalMessage)
+  setReason('')
 }
 
-const DEFAULT_RULE_ID = 'default-keyword-blocklist'
-const DEFAULT_RULE_LABEL = 'Danh sách từ khóa bị chặn'
-
-function rulesToKeywords(rules: GuardrailRule[] | undefined): string[] {
-  return (rules ?? [])
-    .filter((rule) => rule.enabled !== false)
-    .flatMap((rule) => rule.phrases ?? [])
+function updateDraftRule(
+  rules: GuardrailRule[],
+  index: number,
+  patch: Partial<GuardrailRule>,
+): GuardrailRule[] {
+  return rules.map((rule, ruleIndex) =>
+    ruleIndex === index ? { ...rule, ...patch } : rule,
+  )
 }
-
-function buildGuardrailRulesFromKeywords(keywords: string[]): GuardrailRule[] {
-  return [
-    {
-      id: DEFAULT_RULE_ID,
-      label: DEFAULT_RULE_LABEL,
-      enabled: true,
-      phrases: keywords,
-    },
-  ]
-}
-
 function formatTimestamp(value: string | null | undefined): string {
   if (!value) return 'Chưa cập nhật'
   const date = new Date(value)
@@ -234,19 +245,6 @@ function humanizeError(message: string, area: string): {
   }
 }
 
-function hydrateForm(
-  config: StoredAdminConfig<RagPolicyConfig>,
-  setEnabled: (value: boolean) => void,
-  setKeywordText: (value: string) => void,
-  setSafeRefusal: (value: string) => void,
-  setReason: (value: string) => void,
-) {
-  setEnabled(config.value.enabled)
-  setKeywordText(rulesToKeywords(config.value.guardrailRules).join('\n'))
-  setSafeRefusal(config.value.safeRefusalMessage)
-  setReason('')
-}
-
 function humanizeAuditAction(action: string): string {
   const labels: Record<string, string> = {
     get: 'GET',
@@ -316,13 +314,6 @@ function extractAuditHttpMeta(log: AuditLogEntry): {
   return { method, route, statusCode }
 }
 
-function findMatchedKeywords(input: string, keywords: string[]): string[] {
-  const normalizedInput = input.trim().toLowerCase()
-  if (!normalizedInput) return []
-  return keywords.filter((keyword) =>
-    normalizedInput.includes(keyword.trim().toLowerCase()),
-  )
-}
 
 export default function AdminPage() {
   const user = authApi.getUser()
@@ -369,10 +360,15 @@ export default function AdminPage() {
   )
 
   const [enabled, setEnabled] = useState(true)
-  const [keywordText, setKeywordText] = useState('')
+  const [draftRules, setDraftRules] = useState<GuardrailRule[]>([defaultGuardrailRule()])
   const [safeRefusalMessage, setSafeRefusalMessage] = useState('')
   const [reason, setReason] = useState('')
   const [policyPreviewText, setPolicyPreviewText] = useState('')
+  const [docSecurityPreset, setDocSecurityPreset] =
+    useState<keyof typeof DOCUMENT_SECURITY_PRESETS | 'custom'>('practice-public')
+  const [docSecurityCustomJson, setDocSecurityCustomJson] = useState(
+    JSON.stringify(DOCUMENT_SECURITY_PRESETS['practice-public'], null, 2),
+  )
 
   const loadHealth = async () => {
     setHealthLoading(true)
@@ -403,7 +399,7 @@ export default function AdminPage() {
       hydrateForm(
         nextPolicy,
         setEnabled,
-        setKeywordText,
+        setDraftRules,
         setSafeRefusalMessage,
         setReason,
       )
@@ -458,10 +454,49 @@ export default function AdminPage() {
     void loadRecentIncidents()
   }, [])
 
-  const parsedKeywords = useMemo(() => parseKeywords(keywordText), [keywordText])
-  const previewMatchedKeywords = useMemo(
-    () => findMatchedKeywords(policyPreviewText, parsedKeywords),
-    [policyPreviewText, parsedKeywords],
+  const normalizedDraftRules = useMemo(
+    () => normalizeGuardrailRules(draftRules),
+    [draftRules],
+  )
+  const previewMatch = useMemo(
+    () => previewGuardrailMatch(policyPreviewText, normalizedDraftRules, { enabled }),
+    [policyPreviewText, normalizedDraftRules, enabled],
+  )
+  const docSecurityPreviewMeta = useMemo(() => {
+    if (docSecurityPreset !== 'custom') {
+      return DOCUMENT_SECURITY_PRESETS[docSecurityPreset]
+    }
+    try {
+      const parsed = JSON.parse(docSecurityCustomJson) as Record<string, unknown>
+      return mergeChunkAndDocumentMetadata(
+        (parsed.chunkMetadata as Record<string, unknown>) ?? parsed,
+        (parsed.documentMetadata as Record<string, unknown>) ??
+          (parsed.category ? { category: parsed.category } : undefined),
+      )
+    } catch {
+      return DOCUMENT_SECURITY_PRESETS['practice-public']
+    }
+  }, [docSecurityPreset, docSecurityCustomJson])
+
+  const docSecurityCustomError = useMemo(() => {
+    if (docSecurityPreset !== 'custom') return null
+    try {
+      JSON.parse(docSecurityCustomJson)
+      return null
+    } catch {
+      return 'JSON metadata không hợp lệ.'
+    }
+  }, [docSecurityPreset, docSecurityCustomJson])
+
+  const docSecurityDecision = useMemo(
+    () =>
+      evaluateDocumentSecurity(docSecurityPreviewMeta, {
+        userId: 'preview-student',
+        roles: ['HOC_VIEN'],
+        department: 'CNTT',
+        maxSecurityLevel: 2,
+      }),
+    [docSecurityPreviewMeta],
   )
 
   const healthyServices = SERVICE_META.filter(
@@ -486,12 +521,10 @@ export default function AdminPage() {
     !!policy &&
     (enabled !== policy.value.enabled ||
       safeRefusalMessage.trim() !== policy.value.safeRefusalMessage ||
-      JSON.stringify(parsedKeywords) !==
-        JSON.stringify(rulesToKeywords(policy.value.guardrailRules)) ||
+      !rulesAreEqual(normalizedDraftRules, policy.value.guardrailRules) ||
       !!reason.trim())
 
-  const policyPreviewBlocked =
-    !policyLoading && enabled && previewMatchedKeywords.length > 0
+  const policyPreviewBlocked = !policyLoading && !!previewMatch
 
   const savePolicy = async () => {
     if (!policy) return
@@ -501,7 +534,7 @@ export default function AdminPage() {
     try {
       const updated = await adminApi.updateRagPolicy({
         enabled,
-        guardrailRules: buildGuardrailRulesFromKeywords(parsedKeywords),
+        guardrailRules: normalizedDraftRules,
         safeRefusalMessage: safeRefusalMessage.trim(),
         reason: reason.trim(),
       })
@@ -509,7 +542,7 @@ export default function AdminPage() {
       hydrateForm(
         updated,
         setEnabled,
-        setKeywordText,
+        setDraftRules,
         setSafeRefusalMessage,
         setReason,
       )
@@ -530,7 +563,7 @@ export default function AdminPage() {
     hydrateForm(
       policy,
       setEnabled,
-      setKeywordText,
+      setDraftRules,
       setSafeRefusalMessage,
       setReason,
     )
@@ -671,6 +704,7 @@ export default function AdminPage() {
                 key={tab.key}
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
+                data-testid={`admin-tab-${tab.key}`}
                 className={`rounded-2xl px-4 py-4 text-left transition ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/15'
@@ -811,7 +845,7 @@ export default function AdminPage() {
               <p className="mt-3 text-sm text-slate-500">
                 {policyLoading
                   ? 'Đang tải trạng thái chính sách.'
-                  : `Từ khóa đang áp dụng: ${rulesToKeywords(policy?.value.guardrailRules).length}.`}
+                  : `Nhóm rule đang áp dụng: ${normalizedDraftRules.length}, cụm từ: ${countActivePhrases(normalizedDraftRules)}.`}
               </p>
             </div>
           </section>
@@ -1027,7 +1061,7 @@ export default function AdminPage() {
                   Chính sách AI
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Bật hoặc tắt chặn câu hỏi nhạy cảm, cập nhật từ khóa bị chặn và điều chỉnh câu trả lời hiển thị cho người dùng.
+                  Bật hoặc tắt chặn câu hỏi nhạy cảm, quản lý từng nhóm rule và điều chỉnh câu trả lời hiển thị cho người dùng.
                 </p>
               </div>
               <button
@@ -1061,25 +1095,222 @@ export default function AdminPage() {
                 />
               </label>
 
-              <div className="space-y-2">
-                <label
-                  htmlFor="blacklistKeywords"
-                  className="text-sm font-semibold text-slate-800"
-                >
-                  Từ khóa bị chặn
-                </label>
-                <textarea
-                  id="blacklistKeywords"
-                  value={keywordText}
-                  onChange={(event) => setKeywordText(event.target.value)}
-                  data-testid="policy-keywords"
-                  disabled={policyFormDisabled}
-                  rows={8}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  placeholder="Mỗi dòng một từ khóa hoặc cụm từ cần chặn."
-                />
+              <div className="space-y-4" data-testid="policy-rule-list">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      Nhóm rule chặn
+                    </h3>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Mỗi nhóm có cụm từ chính và chế độ khớp riêng; synonym được tự sinh khi lưu.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraftRules((rules) => [...rules, createGuardrailRule(rules.length)])
+                    }
+                    disabled={policyFormDisabled}
+                    data-testid="policy-add-rule"
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                  >
+                    <Plus size={15} />
+                    Thêm nhóm
+                  </button>
+                </div>
+
+                {draftRules.map((rule, index) => (
+                  <div
+                    key={`${rule.id}-${index}`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4"
+                    data-testid={`policy-rule-${index}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-[220px] flex-1 space-y-3">
+                        <label className="block space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Tên nhóm
+                          </span>
+                          <input
+                            value={rule.label}
+                            onChange={(event) =>
+                              setDraftRules((rules) =>
+                                updateDraftRule(rules, index, { label: event.target.value }),
+                              )
+                            }
+                            disabled={policyFormDisabled}
+                            data-testid={`policy-rule-${index}-label`}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                          />
+                        </label>
+                        <label className="block space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Mã rule
+                          </span>
+                          <input
+                            value={rule.id}
+                            onChange={(event) =>
+                              setDraftRules((rules) =>
+                                updateDraftRule(rules, index, { id: event.target.value }),
+                              )
+                            }
+                            disabled={policyFormDisabled}
+                            data-testid={`policy-rule-${index}-id`}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={rule.enabled !== false}
+                            onChange={(event) =>
+                              setDraftRules((rules) =>
+                                updateDraftRule(rules, index, { enabled: event.target.checked }),
+                              )
+                            }
+                            disabled={policyFormDisabled}
+                            data-testid={`policy-rule-${index}-enabled`}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          Bật nhóm
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setDraftRules((rules) =>
+                              rules.length > 1
+                                ? rules.filter((_, ruleIndex) => ruleIndex !== index)
+                                : rules,
+                            )
+                          }
+                          disabled={policyFormDisabled || draftRules.length <= 1}
+                          data-testid={`policy-rule-${index}-remove`}
+                          className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-300"
+                        >
+                          <Trash2 size={14} />
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <label className="block space-y-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Chế độ khớp
+                        </span>
+                        <select
+                          value={rule.matchMode ?? 'substring'}
+                          onChange={(event) =>
+                            setDraftRules((rules) =>
+                              updateDraftRule(rules, index, {
+                                matchMode: event.target.value as GuardrailMatchMode,
+                              }),
+                            )
+                          }
+                          disabled={policyFormDisabled}
+                          data-testid={`policy-rule-${index}-match-mode`}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                        >
+                          {MATCH_MODE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-slate-500">
+                          {
+                            MATCH_MODE_OPTIONS.find(
+                              (option) => option.value === (rule.matchMode ?? 'substring'),
+                            )?.description
+                          }
+                        </p>
+                      </label>
+
+                      {rule.matchMode === 'fuzzy' && (
+                        <label className="block space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Ngưỡng fuzzy
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={rule.fuzzyThreshold ?? 0.85}
+                            onChange={(event) =>
+                              setDraftRules((rules) =>
+                                updateDraftRule(rules, index, {
+                                  fuzzyThreshold: Number(event.target.value),
+                                }),
+                              )
+                            }
+                            disabled={policyFormDisabled}
+                            data-testid={`policy-rule-${index}-fuzzy-threshold`}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                          />
+                        </label>
+                      )}
+
+                      {rule.matchMode === 'semantic' && (
+                        <label className="block space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            Ngưỡng semantic
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={1}
+                            step={0.01}
+                            value={rule.semanticThreshold ?? 0.78}
+                            onChange={(event) =>
+                              setDraftRules((rules) =>
+                                updateDraftRule(rules, index, {
+                                  semanticThreshold: Number(event.target.value),
+                                }),
+                              )
+                            }
+                            disabled={policyFormDisabled}
+                            data-testid={`policy-rule-${index}-semantic-threshold`}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    <div className="mt-4">
+                      <label className="block space-y-1">
+                        <span className="text-sm font-semibold text-slate-800">
+                          Cụm từ bị chặn
+                        </span>
+                        <textarea
+                          value={linesFromList(rule.phrases)}
+                          onChange={(event) =>
+                            setDraftRules((rules) =>
+                              updateDraftRule(rules, index, {
+                                phrases: parseLineList(event.target.value),
+                              }),
+                            )
+                          }
+                          disabled={policyFormDisabled}
+                          data-testid={index === 0 ? 'policy-keywords' : `policy-rule-${index}-phrases`}
+                          rows={6}
+                          className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
+                          placeholder="Mỗi dòng một cụm từ cần chặn."
+                        />
+                        <p className="text-xs text-slate-500">
+                          Biến thể và từ đồng nghĩa được hệ thống tự bổ sung khi lưu — không cần nhập tay.
+                        </p>
+                      </label>
+                    </div>
+                  </div>
+                ))}
+
                 <p className="text-xs text-slate-500">
-                  Đang có {parsedKeywords.length} từ khóa sau khi loại bỏ trùng lặp.
+                  Đang có {normalizedDraftRules.length} nhóm rule và{' '}
+                  {countActivePhrases(normalizedDraftRules)} cụm từ sau khi chuẩn hóa.
                 </p>
               </div>
 
@@ -1153,7 +1384,7 @@ export default function AdminPage() {
           <aside className="rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
               <Sparkles className="text-blue-600" size={18} />
-              Preview kiểm tra thử keyword
+              Preview kiểm tra rule
             </h2>
 
             <div className="mt-5 space-y-5">
@@ -1177,20 +1408,26 @@ export default function AdminPage() {
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Từ khóa đang chặn
+                  Nhóm rule đang so khớp
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {parsedKeywords.length > 0 ? (
-                    parsedKeywords.map((keyword) => (
-                      <span
-                        key={keyword}
-                        className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                <div className="mt-3 space-y-2">
+                  {normalizedDraftRules.length > 0 ? (
+                    normalizedDraftRules.map((rule) => (
+                      <div
+                        key={rule.id}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-3"
                       >
-                        {keyword}
-                      </span>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {rule.label}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {rule.id} · {matchModeLabel(rule.matchMode)} ·{' '}
+                          {rule.enabled === false ? 'đang tắt' : 'đang bật'}
+                        </p>
+                      </div>
                     ))
                   ) : (
-                    <span className="text-sm text-slate-500">Chưa có từ khóa nào.</span>
+                    <span className="text-sm text-slate-500">Chưa có nhóm rule nào.</span>
                   )}
                 </div>
               </div>
@@ -1208,11 +1445,12 @@ export default function AdminPage() {
                   onChange={(event) => setPolicyPreviewText(event.target.value)}
                   rows={6}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
-                  placeholder="Nhập một câu hỏi hoặc đoạn văn để kiểm tra thử keyword."
+                  placeholder="Nhập một câu hỏi hoặc đoạn văn để kiểm tra rule."
                 />
               </div>
 
               <div
+                data-testid="policy-preview-result"
                 className={`rounded-2xl border px-4 py-4 ${
                   policyLoading
                     ? 'border-slate-200 bg-slate-50 text-slate-600'
@@ -1232,16 +1470,31 @@ export default function AdminPage() {
                     : !enabled
                       ? 'Chính sách hiện đang tắt nên nội dung này sẽ không bị chặn.'
                       : !policyPreviewText.trim()
-                        ? 'Nhập nội dung thử nghiệm để kiểm tra keyword.'
+                        ? 'Nhập nội dung thử nghiệm để kiểm tra rule.'
                         : policyPreviewBlocked
                           ? 'Nội dung thử nghiệm sẽ bị chặn.'
-                          : 'Nội dung thử nghiệm hiện không khớp từ khóa bị chặn.'}
+                          : 'Nội dung thử nghiệm hiện không khớp rule nào trong preview.'}
                 </p>
-                {policyPreviewBlocked && (
+                {policyPreviewBlocked && previewMatch && (
                   <>
-                    <p className="mt-3 text-sm">
-                      Từ khóa khớp: {previewMatchedKeywords.join(', ')}
-                    </p>
+                    <div className="mt-3 space-y-2 text-sm">
+                      <p>
+                        <span className="font-semibold">Nhóm khớp:</span>{' '}
+                        {previewMatch.ruleLabel} ({previewMatch.ruleId})
+                      </p>
+                      <p>
+                        <span className="font-semibold">Cụm khớp:</span>{' '}
+                        {previewMatch.matchedPhrase}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Lớp khớp:</span>{' '}
+                        {previewLayerLabel(previewMatch.matchLayer)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Điểm:</span>{' '}
+                        {(previewMatch.score * 100).toFixed(1)}%
+                      </p>
+                    </div>
                     <div className="mt-3 rounded-xl border border-red-200 bg-white/70 px-3 py-3 text-sm text-slate-700">
                       <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         Câu trả lời sẽ hiển thị
@@ -1252,6 +1505,100 @@ export default function AdminPage() {
                     </div>
                   </>
                 )}
+                {!policyPreviewBlocked && enabled && policyPreviewText.trim() && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    Rule semantic chỉ được đánh giá trên server khi bật
+                    GUARDRAIL_SEMANTIC_ENABLED.
+                  </p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Preview metadata tài liệu (sau retrieval)
+                </p>
+                <label className="mt-3 block text-sm font-semibold text-slate-800">
+                  Preset metadata
+                </label>
+                <select
+                  value={docSecurityPreset}
+                  onChange={(event) => {
+                    const value = event.target.value as
+                      | keyof typeof DOCUMENT_SECURITY_PRESETS
+                      | 'custom'
+                    setDocSecurityPreset(value)
+                    if (value !== 'custom') {
+                      setDocSecurityCustomJson(
+                        JSON.stringify(DOCUMENT_SECURITY_PRESETS[value], null, 2),
+                      )
+                    }
+                  }}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
+                  data-testid="doc-security-preset"
+                >
+                  <option value="practice-public">Đề thi thử công khai</option>
+                  <option value="official-upcoming">Đề chính thức sắp tới (embargo)</option>
+                  <option value="answer-key">Đáp án / lộ đề (examType)</option>
+                  <option value="answer-key-tag-only">Đáp án (tag answer_key)</option>
+                  <option value="legacy-exam-category">Legacy Lịch thi thiếu metadata</option>
+                  <option value="chunk-fallback-practice">Chunk thiếu metadata + fallback doc</option>
+                  <option value="legacy-internal">Tài liệu nội bộ legacy</option>
+                  <option value="custom">JSON tùy chỉnh</option>
+                </select>
+                {(docSecurityPreset === 'custom' || docSecurityCustomJson) && (
+                  <textarea
+                    value={docSecurityCustomJson}
+                    onChange={(event) => {
+                      setDocSecurityPreset('custom')
+                      setDocSecurityCustomJson(event.target.value)
+                    }}
+                    rows={8}
+                    className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-800"
+                    data-testid="doc-security-custom-json"
+                    placeholder='{"category":"Lịch thi"} hoặc {"documentMetadata":{"category":"Lịch thi"},"chunkMetadata":{...}}'
+                  />
+                )}
+                {docSecurityCustomError && (
+                  <p className="mt-2 text-xs text-red-600">{docSecurityCustomError}</p>
+                )}
+                <div
+                  data-testid="doc-security-preview-result"
+                  className={`mt-3 rounded-xl border px-3 py-3 text-sm ${
+                    docSecurityDecision.allowed
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-red-200 bg-red-50 text-red-700'
+                  }`}
+                >
+                  <p className="font-semibold">
+                    {docSecurityDecision.allowed
+                      ? 'Chunk được phép đưa vào context LLM'
+                      : 'Chunk bị chặn sau retrieval'}
+                  </p>
+                  {!docSecurityDecision.allowed && (
+                    <div className="mt-2 space-y-1 text-xs">
+                      <p>
+                        <span className="font-semibold">Rule:</span>{' '}
+                        {docSecurityDecision.matchedRuleId}
+                      </p>
+                      <p>
+                        <span className="font-semibold">domain:</span>{' '}
+                        {docSecurityDecision.details.domain}
+                      </p>
+                      <p>
+                        <span className="font-semibold">securityLevel:</span>{' '}
+                        {docSecurityDecision.details.securityLevel}
+                      </p>
+                      <p>
+                        <span className="font-semibold">publicationStatus:</span>{' '}
+                        {docSecurityDecision.details.publicationStatus}
+                      </p>
+                      <p>
+                        <span className="font-semibold">denyReason:</span>{' '}
+                        {docSecurityDecision.reason}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">

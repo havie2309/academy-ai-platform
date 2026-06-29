@@ -13,12 +13,26 @@ async function parseError(res: Response): Promise<string> {
 export type SecurityLevel = 'public' | 'internal' | 'restricted' | 'confidential'
 export type AccessScopeType = 'all' | 'role' | 'department' | 'custom'
 
+export type PublicationStatus = 'public' | 'internal' | 'confidential' | 'embargoed'
+export type AiAccessPolicy = 'allow' | 'deny' | 'restricted' | 'review_required'
+
+export interface DocumentSecurityConfig {
+  document_type?: string
+  domain?: string
+  publication_status?: PublicationStatus
+  ai_access_policy?: AiAccessPolicy
+  owner_unit?: string
+  tags?: string[]
+  domain_metadata?: Record<string, unknown>
+}
+
 export interface AccessConfig {
   security_level: SecurityLevel
   scope_type: AccessScopeType
   role_codes?: string[]
   department_codes?: string[]
   user_ids?: string[]
+  security?: DocumentSecurityConfig
 }
 
 export type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
@@ -45,6 +59,13 @@ export interface DocItem {
   ingest_stage?: string | null
   chunk_count?: number
   ingest_error?: string | null
+  document_type?: string
+  domain?: string
+  publication_status?: PublicationStatus
+  ai_access_policy?: AiAccessPolicy
+  owner_unit?: string
+  tags?: string[]
+  domain_metadata?: Record<string, unknown>
 }
 
 export interface IngestStatusResponse {
@@ -149,9 +170,15 @@ export const docsApi = {
 
   async upload(
     file: File,
-    meta: { title?: string; category?: string; access: AccessConfig },
+    meta: {
+      title?: string
+      category?: string
+      access: AccessConfig
+      security?: DocumentSecurityConfig
+    },
   ): Promise<DocItem> {
     const form = new FormData()
+    const security = meta.security ?? meta.access.security
     form.append('file', file)
     if (meta.title) form.append('title', meta.title)
     if (meta.category) form.append('category', meta.category)
@@ -163,6 +190,17 @@ export const docsApi = {
       form.append('access_department_codes', meta.access.department_codes.join(','))
     if (meta.access.user_ids?.length)
       form.append('access_user_ids', meta.access.user_ids.join(','))
+    if (security?.document_type) form.append('document_type', security.document_type)
+    if (security?.domain) form.append('domain', security.domain)
+    if (security?.publication_status)
+      form.append('publication_status', security.publication_status)
+    if (security?.ai_access_policy)
+      form.append('ai_access_policy', security.ai_access_policy)
+    if (security?.owner_unit) form.append('owner_unit', security.owner_unit)
+    if (security?.tags?.length) form.append('tags', security.tags.join(','))
+    if (security?.domain_metadata && Object.keys(security.domain_metadata).length > 0) {
+      form.append('domain_metadata', JSON.stringify(security.domain_metadata))
+    }
 
     const res = await fetchWithAuth('/api/documents', {
       method: 'POST',

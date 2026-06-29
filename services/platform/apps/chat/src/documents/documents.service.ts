@@ -36,12 +36,26 @@ export interface RequestUser {
   maxSecurityLevel: number
 }
 
+export type PublicationStatus = 'public' | 'internal' | 'confidential' | 'embargoed'
+export type AiAccessPolicy = 'allow' | 'deny' | 'restricted' | 'review_required'
+
+export interface DocumentSecurityMeta {
+  documentType?: string
+  domain?: string
+  publicationStatus?: PublicationStatus
+  aiAccessPolicy?: AiAccessPolicy
+  ownerUnit?: string
+  tags?: string[]
+  domainMetadata?: Record<string, unknown>
+}
+
 export interface AccessMeta {
   securityLevel: SecurityLevel
   scopeType: AccessScopeType
   roleCodes: string[]
   departmentCodes: string[]
   userIds: string[]
+  security?: DocumentSecurityMeta
 }
 
 type IngestStatus = 'pending' | 'processing' | 'completed' | 'failed'
@@ -74,6 +88,13 @@ interface DocumentDoc {
   chunkCount?: number
   ingestError?: string | null
   ingestUpdatedAt?: Date
+  documentType?: string
+  domain?: string
+  publicationStatus?: PublicationStatus
+  aiAccessPolicy?: AiAccessPolicy
+  ownerUnit?: string
+  tags?: string[]
+  domainMetadata?: Record<string, unknown>
 }
 
 interface DocumentVersionDoc {
@@ -105,6 +126,41 @@ const SECURITY_RANK: Record<SecurityLevel, number> = {
 
 const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2']
 const ROLE_CODE_RE = /^[A-Za-z0-9_-]+$/
+
+const CATEGORY_SECURITY_DEFAULTS: Record<
+  string,
+  { domain: string; documentType: string }
+> = {
+  'Lịch thi': { domain: 'exam', documentType: 'exam' },
+  'Tài liệu môn học': { domain: 'academic', documentType: 'course_material' },
+  'Quy chế': { domain: 'regulation', documentType: 'regulation' },
+  Khác: { domain: 'general', documentType: 'document' },
+}
+
+const PUBLICATION_STATUSES: PublicationStatus[] = [
+  'public',
+  'internal',
+  'confidential',
+  'embargoed',
+]
+const AI_ACCESS_POLICIES: AiAccessPolicy[] = [
+  'allow',
+  'deny',
+  'restricted',
+  'review_required',
+]
+
+function defaultPublicationStatus(level: SecurityLevel): PublicationStatus {
+  if (level === 'public') return 'public'
+  if (level === 'confidential') return 'confidential'
+  return 'internal'
+}
+
+function defaultAiAccessPolicy(level: SecurityLevel): AiAccessPolicy {
+  if (level === 'confidential') return 'deny'
+  if (level === 'restricted') return 'restricted'
+  return 'allow'
+}
 
 function securityRank(level: SecurityLevel): number {
   return SECURITY_RANK[level] ?? SECURITY_RANK.internal
@@ -210,6 +266,57 @@ export class DocumentsService implements OnModuleInit {
     }
   }
 
+  private sanitizeSecurityMeta(
+    security: DocumentSecurityMeta | undefined,
+    category: string,
+    securityLevel: SecurityLevel,
+  ): Required<
+    Pick<
+      DocumentDoc,
+      | 'documentType'
+      | 'domain'
+      | 'publicationStatus'
+      | 'aiAccessPolicy'
+      | 'ownerUnit'
+      | 'tags'
+      | 'domainMetadata'
+    >
+  > {
+    const categoryDefaults =
+      CATEGORY_SECURITY_DEFAULTS[category] ?? CATEGORY_SECURITY_DEFAULTS.Khác
+
+    const publicationStatus = security?.publicationStatus
+    const aiAccessPolicy = security?.aiAccessPolicy
+
+    if (publicationStatus && !PUBLICATION_STATUSES.includes(publicationStatus)) {
+      throw new BadRequestException(
+        `publication_status không hợp lệ: ${publicationStatus}`,
+      )
+    }
+    if (aiAccessPolicy && !AI_ACCESS_POLICIES.includes(aiAccessPolicy)) {
+      throw new BadRequestException(
+        `ai_access_policy không hợp lệ: ${aiAccessPolicy}`,
+      )
+    }
+
+    const domainMetadata =
+      security?.domainMetadata && typeof security.domainMetadata === 'object'
+        ? security.domainMetadata
+        : {}
+
+    return {
+      documentType:
+        security?.documentType?.trim() || categoryDefaults.documentType,
+      domain: security?.domain?.trim().toLowerCase() || categoryDefaults.domain,
+      publicationStatus:
+        publicationStatus ?? defaultPublicationStatus(securityLevel),
+      aiAccessPolicy: aiAccessPolicy ?? defaultAiAccessPolicy(securityLevel),
+      ownerUnit: security?.ownerUnit?.trim() ?? '',
+      tags: this.normalizeUnique(security?.tags ?? []),
+      domainMetadata,
+    }
+  }
+
   private async sha256File(filePath: string): Promise<string> {
     const buf = await readFile(filePath)
     return createHash('sha256').update(buf).digest('hex')
@@ -217,7 +324,12 @@ export class DocumentsService implements OnModuleInit {
 
   async create(
     file: UploadedFileLike,
-    meta: { title?: string; category?: string; access: AccessMeta },
+    meta: {
+      title?: string
+      category?: string
+      access: AccessMeta
+      security?: DocumentSecurityMeta
+    },
     user: { userId: string; name: string },
   ) {
     this.ensureReady()
@@ -225,6 +337,11 @@ export class DocumentsService implements OnModuleInit {
     const now = new Date()
     const title = meta.title?.trim() || file.originalname
     const category = meta.category?.trim() || DEFAULT_CATEGORY
+    const security = this.sanitizeSecurityMeta(
+      meta.security ?? meta.access.security,
+      category,
+      access.securityLevel,
+    )
     const documentKey = normalizeDocumentKey(title, category)
     const fileChecksum = await this.sha256File(file.path)
     const previousLatest = await this.documents.findOne(
@@ -259,6 +376,13 @@ export class DocumentsService implements OnModuleInit {
       ingestStatus: 'pending',
       ingestStage: 'queued',
       ingestUpdatedAt: now,
+      documentType: security.documentType,
+      domain: security.domain,
+      publicationStatus: security.publicationStatus,
+      aiAccessPolicy: security.aiAccessPolicy,
+      ownerUnit: security.ownerUnit,
+      tags: security.tags,
+      domainMetadata: security.domainMetadata,
     }
     await this.documents.insertOne(doc)
     await this.documentVersions.insertOne({
@@ -297,6 +421,13 @@ export class DocumentsService implements OnModuleInit {
         accessDepartmentCodes: doc.accessDepartmentCodes,
         accessUserIds: doc.accessUserIds,
         uploadedById: doc.uploadedById,
+        documentType: doc.documentType,
+        domain: doc.domain,
+        publicationStatus: doc.publicationStatus,
+        aiAccessPolicy: doc.aiAccessPolicy,
+        ownerUnit: doc.ownerUnit,
+        tags: doc.tags,
+        domainMetadata: doc.domainMetadata,
       })
     } catch (err) {
       const message =
@@ -540,6 +671,13 @@ export class DocumentsService implements OnModuleInit {
       ingest_stage: d.ingestStage ?? null,
       chunk_count: d.chunkCount ?? 0,
       ingest_error: d.ingestError ?? null,
+      document_type: d.documentType ?? 'document',
+      domain: d.domain ?? 'general',
+      publication_status: d.publicationStatus ?? defaultPublicationStatus(d.securityLevel),
+      ai_access_policy: d.aiAccessPolicy ?? defaultAiAccessPolicy(d.securityLevel),
+      owner_unit: d.ownerUnit ?? '',
+      tags: d.tags ?? [],
+      domain_metadata: d.domainMetadata ?? {},
     }
   }
 

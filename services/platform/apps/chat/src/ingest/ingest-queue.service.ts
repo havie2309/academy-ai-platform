@@ -15,6 +15,13 @@ export interface IngestJobPayload {
   accessDepartmentCodes: string[];
   accessUserIds: string[];
   uploadedById: string;
+  documentType?: string;
+  domain?: string;
+  publicationStatus?: string;
+  aiAccessPolicy?: string;
+  ownerUnit?: string;
+  tags?: string[];
+  domainMetadata?: Record<string, unknown>;
 }
 
 @Injectable()

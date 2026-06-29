@@ -11,9 +11,10 @@ from pydantic import BaseModel, Field
 from app.cache import RedisCache
 from app.config import SESSION_CONTEXT_MAX_MESSAGES
 from app.generate import LlmError, complete_chat_structured, complete_task_assist
+from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
 from app.router import classify_route
-from app.safe_refusal import maybe_refuse_query, retrieve_refusal_payload
+from app.safe_refusal import _load_example_embeddings, maybe_refuse_query, retrieve_refusal_payload
 from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
 
@@ -21,6 +22,7 @@ from app.sql_pipeline import SqlPipelineError, run_sql_query
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await init_pool()
+    await _load_example_embeddings()
     yield
     await close_pool()
 
@@ -218,6 +220,15 @@ def _reject_payload() -> dict:
     }
 
 
+async def _retrieve_for_rag(query: str, user: dict) -> tuple[list[dict], dict | None]:
+    result = await retrieve_citations(query, user)
+    if isinstance(result, list):
+        return result, None
+    if result.security_denied_all:
+        return [], build_document_security_refusal(result.primary_denial)
+    return result.citations, None
+
+
 def _keyword_tokens(text: str) -> set[str]:
     folded = _fold_text(text)
     return {token for token in _TOKEN_RE.findall(folded) if token not in _STOPWORDS}
@@ -379,7 +390,13 @@ async def retrieve(body: RetrieveRequest, request: Request):
     if refusal:
         return retrieve_refusal_payload(refusal)
     try:
-        citations = await retrieve_citations(body.query, user)
+        citations, doc_refusal = await _retrieve_for_rag(body.query, user)
+        if doc_refusal:
+            return {
+                **retrieve_refusal_payload(doc_refusal),
+                "deny_reason": doc_refusal.get("deny_reason"),
+                "refusal_type": doc_refusal.get("refusal_type"),
+            }
         return {"citations": _client_citations(citations), "route": "rag"}
     except Exception as exc:
         raise HTTPException(503, f"retrieval failed: {exc}") from exc
@@ -459,9 +476,18 @@ async def chat(body: ChatRequest, request: Request):
         }
 
     try:
-        citations = await retrieve_citations(body.query, user)
+        citations, doc_refusal = await _retrieve_for_rag(body.query, user)
     except Exception as exc:
         raise HTTPException(503, f"retrieval failed: {exc}") from exc
+    if doc_refusal:
+        _write_session_context(
+            body.sessionId,
+            user,
+            history,
+            str(doc_refusal.get("answer") or ""),
+            "refusal",
+        )
+        return doc_refusal
     try:
         answer, used_chunk_ids, reference_chunk_ids = await complete_chat_structured(
             history, citations
@@ -558,9 +584,27 @@ async def chat_stream(body: ChatRequest, request: Request):
             return
 
         try:
-            citations = await retrieve_citations(body.query, user)
+            citations, doc_refusal = await _retrieve_for_rag(body.query, user)
         except Exception as exc:
             yield _sse("error", {"message": f"retrieval failed: {exc}"})
+            return
+
+        if doc_refusal:
+            answer = str(doc_refusal.get("answer") or "")
+            _write_session_context(body.sessionId, user, history, answer, "refusal")
+            yield _sse(
+                "meta",
+                {
+                    "citations": [],
+                    "route": "refusal",
+                    "refusal_type": doc_refusal.get("refusal_type"),
+                    "deny_reason": doc_refusal.get("deny_reason"),
+                },
+            )
+            step = 24
+            for i in range(0, len(answer), step):
+                yield _sse("token", {"delta": answer[i : i + step]})
+            yield _sse("done", {"answer": answer, "route": "refusal"})
             return
 
         try:

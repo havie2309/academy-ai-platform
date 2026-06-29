@@ -26,6 +26,49 @@ def _has_meaningful_text(text: str) -> bool:
     return bool(re.search(r"[0-9A-Za-zÀ-ỹ]", compact))
 
 
+def _docx_to_markdown(path: Path) -> str:
+    """Extract DOCX using python-docx, mapping Word heading styles → Markdown #/##/###."""
+    from docx import Document
+
+    doc = Document(str(path))
+    lines: list[str] = []
+
+    def _table_text(table) -> str:
+        rows = []
+        for row in table.rows:
+            rows.append(" | ".join(cell.text.strip() for cell in row.cells))
+        return "\n".join(rows)
+
+    for block in doc.element.body:
+        tag = block.tag.split("}")[-1] if "}" in block.tag else block.tag
+        if tag == "p":
+            from docx.text.paragraph import Paragraph
+            para = Paragraph(block, doc)
+            text = para.text.strip()
+            if not text:
+                lines.append("")
+                continue
+            style = para.style.name if para.style else ""
+            if style.startswith("Heading"):
+                try:
+                    level = int(style.split()[-1])
+                    lines.append(f"{'#' * min(level, 4)} {text}")
+                except (ValueError, IndexError):
+                    lines.append(text)
+            else:
+                lines.append(text)
+        elif tag == "tbl":
+            from docx.table import Table
+            tbl = Table(block, doc)
+            lines.append(_table_text(tbl))
+
+    result = "\n\n".join(line for line in lines if line != "")
+    # Fallback to MarkItDown if python-docx extracted nothing meaningful
+    if len(result.replace("\n", "").strip()) < 20:
+        return _markitdown(path)
+    return result.strip()
+
+
 def _markitdown(path: Path) -> str:
     from markitdown import MarkItDown
 
@@ -130,7 +173,11 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
         ocr_text = _pdf_text_paddleocr(path)
         return ocr_text or native
 
-    # docx/pptx/xlsx/html: MarkItDown xử lý hết, output Markdown có cấu trúc header
+    # DOCX: python-docx đọc Word heading styles trực tiếp → reliable hơn MarkItDown
+    if ext == ".docx" or "wordprocessingml" in mime_type:
+        return _docx_to_markdown(path)
+
+    # pptx/xlsx/html: MarkItDown xử lý
     if ext in _MARKITDOWN_EXTS or any(t in mime_type for t in _MARKITDOWN_MIMES):
         return _markitdown(path)
 
