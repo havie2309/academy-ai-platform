@@ -65,14 +65,20 @@ export class AuthController {
   @Post('logout')
   @UseGuards(AuthGuard('jwt'))
   logout(
-    @Req() req: Request & { user: { userId: string } },
+    @Req() req: Request & { user: { userId: string; sessionId?: string | null } },
     @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = readCookie(req, REFRESH_COOKIE_NAME)
     const ip = req.ip ?? ''
     const ua = req.headers['user-agent'] ?? ''
     clearRefreshCookie(res)
-    return this.auth.logout(refreshToken, req.user.userId, ip, ua)
+    return this.auth.logout(
+      refreshToken,
+      req.user.userId,
+      req.user.sessionId ?? null,
+      ip,
+      ua,
+    )
   }
 
 }

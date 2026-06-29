@@ -112,6 +112,37 @@ describe('AuthController', () => {
       },
     })
   })
+
+  it('passes the current session id to logout and clears the refresh cookie', async () => {
+    auth.logout.mockResolvedValue({ message: 'ok' })
+    const req = {
+      headers: {
+        cookie: `${REFRESH_COOKIE_NAME}=current-refresh-token`,
+        'user-agent': 'spec-agent',
+      },
+      ip: '127.0.0.1',
+      user: {
+        userId: 'u1',
+        sessionId: 'session-1',
+      },
+    } as unknown as Request & { user: { userId: string; sessionId?: string | null } }
+    const res = mockResponse()
+
+    const result = await controller.logout(req, res)
+
+    expect(auth.logout).toHaveBeenCalledWith(
+      'current-refresh-token',
+      'u1',
+      'session-1',
+      '127.0.0.1',
+      'spec-agent',
+    )
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      REFRESH_COOKIE_NAME,
+      expect.objectContaining({ path: '/api/auth', httpOnly: true }),
+    )
+    expect(result).toEqual({ message: 'ok' })
+  })
 })
 
 function mockResponse(): Response {

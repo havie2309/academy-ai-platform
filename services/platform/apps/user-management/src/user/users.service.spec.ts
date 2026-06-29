@@ -4,6 +4,9 @@ describe('UsersService', () => {
   let redis: {
     keys: jest.Mock
   }
+  let tokenRevocations: {
+    revokeAllAccessForUser: jest.Mock
+  }
   let service: UsersService
   let poolQuery: jest.Mock
 
@@ -11,8 +14,15 @@ describe('UsersService', () => {
     redis = {
       keys: jest.fn(),
     }
+    tokenRevocations = {
+      revokeAllAccessForUser: jest.fn(),
+    }
 
-    service = new UsersService({} as never, redis as never)
+    service = new UsersService(
+      {} as never,
+      redis as never,
+      tokenRevocations as never,
+    )
     poolQuery = jest.fn()
     ;(service as any).pool = {
       query: poolQuery,
@@ -23,7 +33,7 @@ describe('UsersService', () => {
       .mockResolvedValue(new Map())
   })
 
-  it('falls back to nullable auth metadata columns for legacy user schemas', async () => {
+  it('queries the active user with password hash data for login', async () => {
     poolQuery.mockResolvedValue({
       rows: [{ user_id: 'u-admin', username: 'admin', password_hash: '$2b$hash' }],
     })
@@ -32,15 +42,7 @@ describe('UsersService', () => {
 
     expect(user).toMatchObject({ username: 'admin' })
     expect(poolQuery).toHaveBeenCalledWith(
-      expect.stringContaining('NULL::varchar AS password_salt'),
-      ['admin'],
-    )
-    expect(poolQuery).toHaveBeenCalledWith(
-      expect.stringContaining('NULL::integer AS hash_iterations'),
-      ['admin'],
-    )
-    expect(poolQuery).toHaveBeenCalledWith(
-      expect.stringContaining('NULL::varchar AS hash_algorithm'),
+      expect.stringContaining('u.password_hash'),
       ['admin'],
     )
   })

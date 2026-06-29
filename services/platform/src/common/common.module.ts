@@ -6,10 +6,13 @@ import {
 } from '@nestjs/common'
 import { PostgresService } from './postgres.service'
 import { LoggerMiddleware } from './logger.middleware'
+import { RedisModule } from './redis/redis.module'
+import { TokenRevocationService } from './token-revocation.service'
 
 @Module({
-  providers: [PostgresService],
-  exports: [PostgresService],
+  imports: [RedisModule],
+  providers: [PostgresService, TokenRevocationService],
+  exports: [PostgresService, TokenRevocationService, RedisModule],
 })
 export class CommonModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -6,6 +6,7 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import { ApiGatewayModule } from './api-gateway.module';
+import { attachEtlInternalAuthHeaders } from './etl-internal-auth';
 import {
   attachGatewayUserHeaders,
   createGatewayAuthMiddleware,
@@ -17,6 +18,7 @@ import { createLoadSheddingMiddleware } from './load-shedding';
 import { createCircuitBreakerMiddleware } from './circuit-breaker-middleware';
 import { CircuitBreaker } from './circuit-breaker';
 import { RedisService } from '../../../src/common/redis/redis.service';
+import { TokenRevocationService } from '../../../src/common/token-revocation.service';
 import { ConfigService } from '@nestjs/config';
 
 // Load services/platform/.env so JWT_SECRET matches user-management + chat.
@@ -58,6 +60,7 @@ async function bootstrap() {
 
   // Get services from the app context
   const redisService = app.get(RedisService);
+  const tokenRevocations = app.get(TokenRevocationService);
   const configService = app.get(ConfigService);
 
   // ──────────────────────────────────────────────────────────────
@@ -76,7 +79,7 @@ async function bootstrap() {
   server.use(createGatewayAuditMiddleware());
 
   // 2d. JWT Authentication
-  server.use(createGatewayAuthMiddleware(jwtSecret));
+  server.use(createGatewayAuthMiddleware(jwtSecret, tokenRevocations));
 
   // 2e. Rate limiting (per user/IP)
   server.use(createRateLimitMiddleware(redisService, configService));
@@ -111,6 +114,9 @@ async function bootstrap() {
       on: {
         proxyReq(proxyReq, req) {
           attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
+            proxyReq.setHeader(name, value);
+          });
+          attachEtlInternalAuthHeaders((name, value) => {
             proxyReq.setHeader(name, value);
           });
         },

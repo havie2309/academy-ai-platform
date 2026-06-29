@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { Pool } from 'pg'
 import { RedisService } from '../../../../src/common/redis/redis.service'
+import { TokenRevocationService } from '../../../../src/common/token-revocation.service'
 import { ADMIN_MANAGEMENT_ROLES } from './admin-management-roles'
 
 const REFRESH_TTL_DAYS = 7
@@ -45,6 +46,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly config: ConfigService,
     private readonly redis: RedisService,
+    private readonly tokenRevocations: TokenRevocationService,
   ) {}
 
   async onModuleInit() {
@@ -144,11 +146,33 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async revokeSessionByRefreshHash(refreshTokenHash: string) {
-    await this.pool.query(
-      `UPDATE user_sessions SET revoked_at = NOW()
-       WHERE refresh_token_hash = $1 AND revoked_at IS NULL`,
+    const { rows } = await this.pool.query<{
+      session_id: string
+      user_id: string
+    }>(
+      `UPDATE user_sessions
+       SET revoked_at = NOW()
+       WHERE refresh_token_hash = $1
+         AND revoked_at IS NULL
+       RETURNING session_id, user_id`,
       [refreshTokenHash],
     )
+    return rows[0] ?? null
+  }
+
+  async revokeSessionById(sessionId: string) {
+    const { rows } = await this.pool.query<{
+      session_id: string
+      user_id: string
+    }>(
+      `UPDATE user_sessions
+       SET revoked_at = NOW()
+       WHERE session_id = $1
+         AND revoked_at IS NULL
+       RETURNING session_id, user_id`,
+      [sessionId],
+    )
+    return rows[0] ?? null
   }
 
   async logLogin(userId: string, event: string, ip: string, userAgent: string, success: boolean, reason?: string) {
@@ -439,6 +463,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
     let revokedCount = 0
     if (nextStatus !== 'active') {
       revokedCount = await this.revokeAllSessionsForUser(targetUserId)
+      await this.tokenRevocations.revokeAllAccessForUser(targetUserId)
     } else {
       await this.redis.resetFailedAttempts(updated.username)
     }
@@ -462,6 +487,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
     }
 
     const revokedCount = await this.revokeAllSessionsForUser(targetUserId)
+    await this.tokenRevocations.revokeAllAccessForUser(targetUserId)
 
     return {
       message:

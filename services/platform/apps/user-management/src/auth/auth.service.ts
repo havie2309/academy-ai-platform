@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import * as argon2 from 'argon2'
 import { RedisService } from '../../../../src/common/redis/redis.service'
+import { TokenRevocationService } from '../../../../src/common/token-revocation.service'
 import { ADMIN_MANAGEMENT_ROLES } from '../user/admin-management-roles'
 import { UsersService } from '../user/users.service'
 import { generateRefreshToken, hashRefreshToken } from './auth.tokens'
@@ -16,6 +17,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly redis: RedisService,
+    private readonly tokenRevocations: TokenRevocationService,
   ) {}
 
   // ============================================================
@@ -61,13 +63,15 @@ export class AuthService {
     roles?: string[]
     department?: string | null
     max_security_level?: number
-  }) {
+  }, sessionId: string) {
     const payload = {
       sub: user.user_id,
       username: user.username,
       roles: user.roles ?? [],
       department: user.department ?? null,
       max_security_level: user.max_security_level ?? 1,
+      sid: sessionId,
+      iat_ms: Date.now(),
     }
     return this.jwt.sign(payload, {
       expiresIn: this.accessExpiresIn() as JwtSignOptions['expiresIn'],
@@ -171,17 +175,17 @@ export class AuthService {
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không đúng.')
     }
 
-    const access_token = this.signAccessToken(user)
     const refreshToken = generateRefreshToken()
     const refreshHash = hashRefreshToken(refreshToken)
 
-    await this.users.saveSession(
+    const sessionId = await this.users.saveSession(
       user.user_id,
       refreshHash,
       this.refreshExpiresAt(),
       ip,
       userAgent,
     )
+    const access_token = this.signAccessToken(user, sessionId)
     await this.redis.resetFailedAttempts(username)
     await this.users.updateLastLogin(user.user_id)
     await this.users.logLogin(user.user_id, 'login_success', ip, userAgent, true)
@@ -219,7 +223,7 @@ export class AuthService {
     )
     await this.users.logLogin(session.user_id, 'token_refresh', ip, userAgent, true)
 
-    const access_token = this.signAccessToken(user)
+    const access_token = this.signAccessToken(user, session.session_id)
 
     return {
       access_token,
@@ -231,11 +235,20 @@ export class AuthService {
   async logout(
     refreshToken: string | undefined,
     userId: string,
+    sessionId: string | null | undefined,
     ip: string,
     userAgent: string,
   ) {
-    if (refreshToken) {
-      await this.users.revokeSessionByRefreshHash(hashRefreshToken(refreshToken))
+    if (sessionId) {
+      await this.users.revokeSessionById(sessionId)
+      await this.tokenRevocations.revokeAccessForSession(sessionId)
+    } else if (refreshToken) {
+      const revoked = await this.users.revokeSessionByRefreshHash(
+        hashRefreshToken(refreshToken),
+      )
+      if (revoked?.session_id) {
+        await this.tokenRevocations.revokeAccessForSession(revoked.session_id)
+      }
     }
     await this.users.logLogin(userId, 'logout', ip, userAgent, true)
     return { message: 'Đăng xuất thành công.' }

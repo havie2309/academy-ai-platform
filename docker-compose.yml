@@ -21,7 +21,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["code"]
+    profiles: ["code", "secure-etl"]
+    networks:
+      - data_internal
 
   mongodb:
     image: mongo:7
@@ -45,7 +47,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["code"]
+    profiles: ["code", "secure-etl"]
+    networks:
+      - data_internal
 
   milvus:
     image: milvusdb/milvus:v2.4.0
@@ -123,7 +127,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    profiles: ["code"]
+    profiles: ["code", "secure-etl"]
+    networks:
+      - data_internal
 
   rabbitmq:
     image: rabbitmq:3.12-management-alpine
@@ -160,6 +166,8 @@ services:
       POSTGRES_DB: pm2
       POSTGRES_USER: pm2_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pm2pass}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
       USER_MANAGEMENT_PORT: 3001
@@ -169,7 +177,80 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    profiles: ["code"]
+      redis:
+        condition: service_healthy
+    profiles: ["code", "secure-etl"]
+    networks:
+      - platform_internal
+      - data_internal
+
+  api-gateway:
+    build:
+      context: ./services/platform
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: pm2_api_gateway
+    restart: unless-stopped
+    environment:
+      APP_PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-dev-secret}
+      WEB_URL: ${WEB_URL:-http://localhost:5173}
+      USER_MANAGEMENT_URL: http://user-management:3001
+      CHAT_URL: ${CHAT_URL:-http://host.docker.internal:3002}
+      RBAC_URL: ${RBAC_URL:-http://host.docker.internal:3003}
+      ADMIN_CONFIG_URL: ${ADMIN_CONFIG_URL:-http://host.docker.internal:3004}
+      AUDIT_URL: ${AUDIT_URL:-http://host.docker.internal:3005}
+      RAG_ENGINE_URL: ${RAG_ENGINE_URL:-http://host.docker.internal:8000}
+      ETL_URL: http://etl-sync:8004
+      ETL_INTERNAL_AUTH_HEADER: ${ETL_INTERNAL_AUTH_HEADER:-x-etl-internal-secret}
+      ETL_INTERNAL_SHARED_SECRET: ${ETL_INTERNAL_SHARED_SECRET:-dev-etl-internal-secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      user-management:
+        condition: service_started
+      etl-sync:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    profiles: ["secure-etl"]
+    networks:
+      - edge
+      - platform_internal
+      - etl_internal
+
+  etl-sync:
+    build:
+      context: ./services/etl-sync
+    container_name: pm2_etl_sync
+    restart: unless-stopped
+    environment:
+      ETL_STORE_BACKEND: postgres
+      ETL_SCHEDULER_ENABLED: "true"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: pm2
+      POSTGRES_USER: pm2_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pm2pass}
+      MONGO_HOST: mongodb
+      MONGO_PORT: 27017
+      MONGO_DB: pm2
+      MONGO_USER: pm2_user
+      MONGO_PASSWORD: ${MONGO_PASSWORD:-pm2pass}
+      ETL_INTERNAL_AUTH_HEADER: ${ETL_INTERNAL_AUTH_HEADER:-x-etl-internal-secret}
+      ETL_INTERNAL_SHARED_SECRET: ${ETL_INTERNAL_SHARED_SECRET:-dev-etl-internal-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    profiles: ["secure-etl"]
+    networks:
+      - etl_internal
+      - data_internal
 
 volumes:
   postgres_data:
@@ -179,3 +260,10 @@ volumes:
   minio_data:
   redis_data:
   rabbitmq_data:
+
+networks:
+  edge:
+  platform_internal:
+  etl_internal:
+    internal: true
+  data_internal:

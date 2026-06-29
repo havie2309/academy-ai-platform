@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import secrets
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from app.auth import (
     GatewayUser,
@@ -29,6 +31,8 @@ from app.config import (
     ETL_SCHEDULER_POLL_SECONDS,
     ETL_POOL_MAX_SIZE,
     ETL_POOL_MIN_SIZE,
+    ETL_INTERNAL_AUTH_HEADER,
+    ETL_INTERNAL_SHARED_SECRET,
     ETL_STORE_BACKEND,
     POSTGRES_DB,
     POSTGRES_HOST,
@@ -125,6 +129,21 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="ETL Sync", version="0.2.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def require_gateway_internal_secret(request: Request, call_next):
+    if request.url.path == "/health" or not ETL_INTERNAL_SHARED_SECRET:
+        return await call_next(request)
+
+    provided_secret = str(request.headers.get(ETL_INTERNAL_AUTH_HEADER, ""))
+    if not secrets.compare_digest(provided_secret, ETL_INTERNAL_SHARED_SECRET):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "gateway internal authentication required"},
+        )
+
+    return await call_next(request)
 
 
 def get_store(request: Request):
