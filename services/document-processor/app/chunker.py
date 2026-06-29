@@ -13,20 +13,30 @@ class Chunk:
 
 
 _HEADER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    ("phan", re.compile(r"^(?:Phần|Phan)\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
-    (
-        "chuong",
-        re.compile(r"^(?:Chương|Chuong)\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE),
-    ),
-    ("dieu", re.compile(r"^(?:Điều|Dieu)\s+\d+\b", re.IGNORECASE)),
-    ("muc", re.compile(r"^(?:Mục|Muc)\s+\d+\b", re.IGNORECASE)),
+    # Markdown headings — MarkItDown DOCX/HTML output
+    ("l1", re.compile(r"^#\s+\S")),
+    ("l2", re.compile(r"^##\s+\S")),
+    ("l3", re.compile(r"^###\s+\S")),
+    ("l4", re.compile(r"^####\s+\S")),
+    # Vietnamese legal structure
+    ("l1", re.compile(r"^(?:Phần|Phan)\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
+    ("l2", re.compile(r"^(?:Chương|Chuong)\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
+    ("l3", re.compile(r"^(?:Điều|Dieu)\s+\d+\b", re.IGNORECASE)),
+    ("l4", re.compile(r"^(?:Mục|Muc)\s+\d+\b", re.IGNORECASE)),
+    # English legal / academic structure
+    ("l1", re.compile(r"^Part\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
+    ("l2", re.compile(r"^Chapter\s+(?:[IVXLCDM]+|\d+)\b", re.IGNORECASE)),
+    ("l3", re.compile(r"^Section\s+\d+(?:\.\d+)?\b", re.IGNORECASE)),
+    # Numbered sections — "1.1." → l2, "1.1.1." → l3  (single "1." too ambiguous)
+    ("l2", re.compile(r"^\d+\.\d+\.\s+\S")),
+    ("l3", re.compile(r"^\d+\.\d+\.\d+\.\s+\S")),
 )
 
 _LEVEL_CLEARS: dict[str, tuple[str, ...]] = {
-    "phan": ("chuong", "dieu", "muc"),
-    "chuong": ("dieu", "muc"),
-    "dieu": ("muc",),
-    "muc": (),
+    "l1": ("l2", "l3", "l4"),
+    "l2": ("l3", "l4"),
+    "l3": ("l4",),
+    "l4": (),
 }
 
 
@@ -41,14 +51,14 @@ def _match_header(line: str) -> tuple[str, str] | None:
 
 
 def _format_section_path(path: dict[str, str]) -> str:
-    parts = [path[key] for key in ("phan", "chuong", "dieu", "muc") if path.get(key)]
+    parts = [path[key] for key in ("l1", "l2", "l3", "l4") if path.get(key)]
     return " > ".join(parts)
 
 
 def _split_into_sections(text: str) -> list[dict]:
     """Split a document into structural sections with stable section paths."""
     lines = text.replace("\r\n", "\n").split("\n")
-    path: dict[str, str] = {"phan": "", "chuong": "", "dieu": "", "muc": ""}
+    path: dict[str, str] = {"l1": "", "l2": "", "l3": "", "l4": ""}
     sections: list[dict] = []
     buffer: list[str] = []
     active_level = ""
@@ -66,7 +76,7 @@ def _split_into_sections(text: str) -> list[dict]:
                     "section_path": section_path,
                     "headers": [part for part in section_path.split(" > ") if part],
                     "section_type": active_level,
-                    "chapter_header": path.get("chuong") or path.get("phan") or "",
+                    "chapter_header": path.get("l2") or path.get("l1") or "",
                 },
             }
         )
