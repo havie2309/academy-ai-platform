@@ -1,21 +1,26 @@
 from __future__ import annotations
 
-import json
+import asyncio
+import re
 import time
 import unicodedata
 from datetime import datetime
 
 import asyncpg
 import httpx
+import numpy as np
 
 from app.config import (
+    ADMIN_CONFIG_CACHE_TTL_SECONDS,
+    ADMIN_CONFIG_INTERNAL_KEY,
+    ADMIN_CONFIG_URL,
+    EMBEDDING_BASE_URL,
     POSTGRES_DB,
     POSTGRES_HOST,
     POSTGRES_PASSWORD,
     POSTGRES_PORT,
     POSTGRES_USER,
 )
-from app.generate import _llm_target
 from app.guardrails.normalize import normalize_guardrail_rules, normalize_keywords
 from app.guardrails.pipeline import evaluate_guardrails
 from app.guardrails.policy_store import get_rag_policy
@@ -31,7 +36,6 @@ __all__ = [
     "DEFAULT_SAFE_REFUSAL",
     "RAG_POLICY_KEY",
     "get_rag_policy",
-    "llm_safety_classify",
     "log_policy_event",
     "match_blacklist",
     "match_guardrail_rules",
@@ -41,32 +45,140 @@ __all__ = [
     "retrieve_refusal_payload",
 ]
 
-_BORDERLINE_HINTS = (
+# Chỉ các từ liên quan đáp án/nội dung thi mới cần check year.
+# "lịch thi", "mẫu đề thi", "ôn tập" KHÔNG nằm ở đây → để guardrail thường xử lý.
+_ANSWER_HINTS = (
     "dap an",
     "đáp án",
-    "de thi",
-    "đề thi",
     "noi dung bai thi",
     "nội dung bài thi",
-    "bai kiem tra",
-    "bài kiểm tra",
+    "noi dung de thi",
+    "nội dung đề thi",
+    "bai thi",
+    "bài thi",
+    "cau hoi thi",
+    "câu hỏi thi",
+    "de kiem tra",
+    "đề kiểm tra",
 )
 
-DEFAULT_POLICY_RULES = """
-Ban la bo loc an toan cua he thong hoc vien. Phan loai cau hoi la ALLOW hoac BLOCK.
-Nam hoc hien tai: {current_year}
+# Match cặp năm học dạng "2024-2025", "2024/2025", "2024 2025"
+_YEAR_PAIR_RE = re.compile(r"(20\d{2})[^\d]+(20\d{2})")
 
-Quy tac:
-- BLOCK neu hoi de thi / dap an cua nam hoc dang dien ra ({current_year})
-- ALLOW neu hoi de thi / dap an cua nam hoc cu (truoc {current_year})
-- BLOCK neu co bypass he thong, leo thang quyen truy cap
-- ALLOW neu la cau hoi hoc thuat binh thuong (on tap, mau de thi, cau truc thi)
+# "năm ngoái", "kỳ trước" → rõ ràng là năm cũ → ALLOW
+_PAST_RELATIVE_HINTS = (
+    "nam ngoai",
+    "năm ngoái",
+    "nam truoc",
+    "năm trước",
+    "ky truoc",
+    "kỳ trước",
+    "hoc ky truoc",
+    "học kỳ trước",
+    "truoc day",
+    "trước đây",
+)
 
-Chi tra ve JSON: {{"decision": "ALLOW" hoac "BLOCK", "reason": "ly do ngan gon"}}
-""".strip()
+# "năm nay", "kỳ này" → năm hiện tại → BLOCK
+_CURRENT_RELATIVE_HINTS = (
+    "nam nay",
+    "năm nay",
+    "ky nay",
+    "kỳ này",
+    "hoc ky nay",
+    "học kỳ này",
+    "nam hoc nay",
+    "năm học này",
+    "hien tai",
+    "hiện tại",
+)
 
-_SAFETY_CACHE: dict[str, tuple[str, float]] = {}
-_SAFETY_CACHE_TTL = 3600.0
+# Labeled examples cho KNN embedding classifier
+_SAFETY_EXAMPLES: list[tuple[str, str]] = [
+    # BLOCK — hỏi đáp án kỳ thi hiện tại
+    ("đáp án đề thi năm nay", "BLOCK"),
+    ("đáp án đề thi kỳ này", "BLOCK"),
+    ("nội dung bài thi hiện tại", "BLOCK"),
+    ("cho tôi xem đáp án kỳ thi đang diễn ra", "BLOCK"),
+    ("chia sẻ đáp án kỳ thi sắp tới", "BLOCK"),
+    ("đề thi môn toán học kỳ này", "BLOCK"),
+    ("gửi cho tôi đáp án đề thi", "BLOCK"),
+    ("nội dung đề thi kỳ đang thi", "BLOCK"),
+    # ALLOW — hỏi đáp án kỳ thi cũ
+    ("đáp án đề thi năm ngoái", "ALLOW"),
+    ("đáp án đề thi kỳ trước", "ALLOW"),
+    ("nội dung bài thi năm cũ", "ALLOW"),
+    ("ôn tập với đề thi cũ", "ALLOW"),
+    ("tham khảo đề thi các năm trước", "ALLOW"),
+    ("đề thi cũ để ôn luyện", "ALLOW"),
+    ("xem lại đáp án bài thi đã qua", "ALLOW"),
+    ("đề thi năm học trước để ôn", "ALLOW"),
+    # ALLOW — lịch thi, cấu trúc, mẫu (không phải đáp án thật)
+    ("lịch thi học kỳ này", "ALLOW"),
+    ("cấu trúc đề thi môn toán", "ALLOW"),
+    ("mẫu đề thi tham khảo", "ALLOW"),
+    ("hướng dẫn ôn tập thi cuối kỳ", "ALLOW"),
+    ("thông tin lịch thi 2025-2026", "ALLOW"),
+]
+
+_EMBED_EXAMPLES: list[tuple[list[float], str]] | None = None
+_EMBED_LOCK = asyncio.Lock()
+
+
+async def _embed_text(text: str) -> list[float]:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        res = await client.post(
+            f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
+            json={"input": text},
+        )
+        res.raise_for_status()
+        return res.json()["data"][0]["embedding"]
+
+
+def _cosine_sim(a: list[float], b: list[float]) -> float:
+    va = np.array(a, dtype=float)
+    vb = np.array(b, dtype=float)
+    denom = np.linalg.norm(va) * np.linalg.norm(vb)
+    return float(np.dot(va, vb) / denom) if denom > 1e-9 else 0.0
+
+
+async def _load_example_embeddings() -> list[tuple[list[float], str]]:
+    global _EMBED_EXAMPLES
+    if _EMBED_EXAMPLES is not None:
+        return _EMBED_EXAMPLES
+    async with _EMBED_LOCK:
+        if _EMBED_EXAMPLES is not None:
+            return _EMBED_EXAMPLES
+        result = []
+        for text, label in _SAFETY_EXAMPLES:
+            try:
+                vec = await _embed_text(text)
+                result.append((vec, label))
+            except Exception:
+                pass
+        _EMBED_EXAMPLES = result
+        return result
+
+
+async def _embedding_classify(query: str, top_k: int = 5, threshold: float = 0.45) -> str:
+    """KNN vote từ top_k examples gần nhất. Conservative = BLOCK nếu không confident."""
+    try:
+        query_vec = await _embed_text(query)
+        examples = await _load_example_embeddings()
+        if not examples:
+            return "BLOCK"
+        sims = sorted(
+            [(_cosine_sim(query_vec, vec), label) for vec, label in examples],
+            reverse=True,
+        )
+        if sims[0][0] < threshold:
+            return "BLOCK"
+        top = sims[:top_k]
+        block_score = sum(s for s, label in top if label == "BLOCK")
+        allow_score = sum(s for s, label in top if label == "ALLOW")
+        return "BLOCK" if block_score > allow_score else "ALLOW"
+    except Exception:
+        return "BLOCK"
 
 
 def _fold_text(text: str) -> str:
@@ -80,45 +192,38 @@ def _current_academic_year() -> str:
     return f"{year}-{year + 1}" if month >= 8 else f"{year - 1}-{year}"
 
 
-def _is_borderline(folded_query: str) -> bool:
-    return any(_fold_text(hint) in folded_query for hint in _BORDERLINE_HINTS)
-
-
-def _get_cached_safety(folded_query: str) -> str | None:
-    entry = _SAFETY_CACHE.get(folded_query)
-    if entry and time.monotonic() < entry[1]:
-        return entry[0]
+def _extract_academic_year(folded: str) -> str | None:
+    """Trả về '2024-2025' nếu tìm thấy cặp năm học hợp lệ, None nếu không."""
+    m = _YEAR_PAIR_RE.search(folded)
+    if not m:
+        return None
+    y1, y2 = int(m.group(1)), int(m.group(2))
+    if abs(y2 - y1) == 1:
+        return f"{min(y1, y2)}-{max(y1, y2)}"
     return None
 
 
-def _set_cached_safety(folded_query: str, decision: str) -> None:
-    _SAFETY_CACHE[folded_query] = (decision, time.monotonic() + _SAFETY_CACHE_TTL)
+def _has_answer_hint(folded: str) -> bool:
+    return any(_fold_text(hint) in folded for hint in _ANSWER_HINTS)
 
 
-async def _call_llm_for_safety(system_prompt: str, query: str) -> str:
-    url, model, headers = _llm_target()
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": query},
-    ]
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        res = await client.post(
-            url,
-            headers=headers,
-            json={"model": model, "messages": messages, "temperature": 0.1},
-        )
-        res.raise_for_status()
-        return (res.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
+def _classify_year_context(folded: str, current_year: str) -> str:
+    """
+    ALLOW    → rõ năm cũ (explicit past year hoặc relative past hint)
+    BLOCK    → rõ năm hiện tại (explicit current year hoặc relative current hint)
+    AMBIGUOUS → không rõ năm → để embedding classifier xử lý
+    """
+    explicit = _extract_academic_year(folded)
+    if explicit is not None:
+        return "ALLOW" if explicit != current_year else "BLOCK"
 
+    if any(_fold_text(h) in folded for h in _PAST_RELATIVE_HINTS):
+        return "ALLOW"
 
-async def llm_safety_classify(query: str, policy_rules: str) -> bool:
-    """True = ALLOW (safe), False = BLOCK. Fail open if LLM errors."""
-    try:
-        raw = await _call_llm_for_safety(policy_rules, query)
-        parsed = json.loads(raw.strip())
-        return parsed.get("decision", "ALLOW").upper() != "BLOCK"
-    except Exception:
-        return True
+    if any(_fold_text(h) in folded for h in _CURRENT_RELATIVE_HINTS):
+        return "BLOCK"
+
+    return "AMBIGUOUS"
 
 
 async def log_policy_event(
@@ -165,7 +270,35 @@ async def maybe_refuse_query(query: str, user: dict | None = None) -> dict | Non
         return None
 
     refusal_message = str(policy.get("safeRefusalMessage") or DEFAULT_SAFE_REFUSAL)
+    folded = _fold_text(query)
 
+    # "đáp án" / "nội dung bài thi" → check year để phân biệt năm cũ/hiện tại.
+    # "lịch thi", "mẫu đề", "ôn tập" không có _ANSWER_HINTS → xuống guardrail bình thường.
+    if _has_answer_hint(folded):
+        current_year = _current_academic_year()
+        decision = _classify_year_context(folded, current_year)
+        if decision == "AMBIGUOUS":
+            decision = await _embedding_classify(query)
+        if decision == "BLOCK":
+            await log_policy_event(
+                user=user,
+                question=query,
+                matched_rule_id="year_policy",
+                matched_keyword="answer_current_year",
+                status="blocked",
+                audit_reason=f"answer_hint current={current_year}",
+            )
+            return {
+                "answer": refusal_message,
+                "citations": [],
+                "route": "refusal",
+                "blocked_keyword": "answer_current_year",
+                "blocked_rule_id": "year_policy",
+                "match_layer": "year_policy",
+            }
+        return None
+
+    # Không phải "đáp án" → để keyword/guardrail xử lý bình thường
     matched = await evaluate_guardrails(query, policy.get("guardrailRules"), user=user)
     if matched:
         await log_policy_event(
@@ -184,37 +317,6 @@ async def maybe_refuse_query(query: str, user: dict | None = None) -> dict | Non
             "blocked_rule_id": matched.rule_id,
             "match_layer": matched.match_layer,
             "match_score": matched.score,
-        }
-
-    folded = _fold_text(query)
-    if not _is_borderline(folded):
-        return None
-
-    cached = _get_cached_safety(folded)
-    if cached is None:
-        rules = policy.get("policyRules") or DEFAULT_POLICY_RULES.format(
-            current_year=_current_academic_year()
-        )
-        is_safe = await llm_safety_classify(query, rules)
-        cached = "ALLOW" if is_safe else "BLOCK"
-        _set_cached_safety(folded, cached)
-
-    if cached == "BLOCK":
-        await log_policy_event(
-            user=user,
-            question=query,
-            matched_rule_id="llm_classifier",
-            matched_keyword="llm_classifier",
-            status="blocked",
-            audit_reason="borderline_llm_block",
-        )
-        return {
-            "answer": refusal_message,
-            "citations": [],
-            "route": "refusal",
-            "blocked_keyword": "llm_classifier",
-            "blocked_rule_id": "llm_classifier",
-            "match_layer": "llm_classifier",
         }
 
     return None
