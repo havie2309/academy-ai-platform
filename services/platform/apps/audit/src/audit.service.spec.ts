@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import type { AuthUser } from '../../../src/common/auth.types'
 import { AuditService } from './audit.service'
 
@@ -11,11 +11,21 @@ describe('AuditService', () => {
     maxSecurityLevel: 4,
   }
 
+  const securityAlerts = {
+    getAlert: jest.fn(),
+    listAlerts: jest.fn(),
+    updateAlertStatus: jest.fn(),
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+})
+
   it('builds filtered audit queries and caps export limit', async () => {
     const pg = {
       query: jest.fn().mockResolvedValue({ rows: [] }),
     }
-    const service = new AuditService(pg as any)
+    const service = new AuditService(pg as any, securityAlerts as any)
 
     await service.listLogs(adminUser, {
       status: 'denied',
@@ -52,7 +62,7 @@ describe('AuditService', () => {
     const pg = {
       query: jest.fn(),
     }
-    const service = new AuditService(pg as any)
+    const service = new AuditService(pg as any, securityAlerts as any)
 
     await expect(
       service.listLogs(
@@ -63,5 +73,37 @@ describe('AuditService', () => {
         {},
       ),
     ).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('delegates security alert listing to the shared alert store', async () => {
+    const pg = {
+      query: jest.fn(),
+    }
+    securityAlerts.listAlerts.mockResolvedValue([{ id: 1 }])
+    const service = new AuditService(pg as any, securityAlerts as any)
+
+    const result = await service.listSecurityAlerts(adminUser, {
+      severity: 'high',
+      status: 'open',
+      limit: '20',
+    })
+
+    expect(securityAlerts.listAlerts).toHaveBeenCalledWith({
+      severity: 'high',
+      status: 'open',
+      limit: '20',
+    })
+    expect(result).toEqual([{ id: 1 }])
+  })
+
+  it('rejects invalid security alert status updates', async () => {
+    const pg = {
+      query: jest.fn(),
+    }
+    const service = new AuditService(pg as any, securityAlerts as any)
+
+    await expect(
+      service.updateSecurityAlertStatus(adminUser, '15', 'paused'),
+    ).rejects.toBeInstanceOf(BadRequestException)
   })
 })

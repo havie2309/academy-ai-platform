@@ -4,6 +4,8 @@ import {
   resolveAccessScope,
   type AccessScope,
 } from '../../../src/common/access-scope'
+import { SecurityAlertsService } from '../../../src/common/security-alerts.service'
+import { normalizeRequestPath, resolveClientIp } from './request-network'
 
 interface GatewayJwtPayload {
   sub: string
@@ -17,7 +19,9 @@ interface GatewayJwtPayload {
   iat_ms?: number
 }
 
-export interface GatewayUser extends AccessScope {}
+export interface GatewayUser extends AccessScope {
+  sessionId?: string | null
+}
 
 export interface GatewayRequest extends Request {
   gatewayUser?: GatewayUser
@@ -105,7 +109,7 @@ async function toGatewayUser(
   payload: GatewayJwtPayload,
 ): Promise<GatewayUser | null> {
   if (!payload.sub) return null
-  return resolveAccessScope({
+  const scope = await resolveAccessScope({
     userId: payload.sub,
     username: payload.username ?? '',
     roles: Array.isArray(payload.roles) ? payload.roles.map(String) : [],
@@ -115,6 +119,10 @@ async function toGatewayUser(
         ? payload.max_security_level
         : 1,
   })
+  return {
+    ...scope,
+    sessionId: payload.sid ?? null,
+  }
 }
 
 function allowedOrigin(req: Request): string {
@@ -153,12 +161,14 @@ function createAnonymousUser(req: Request): GatewayUser {
     maxSecurityLevel: 1,
     scopeMaHv: null,
     scopeMaGv: null,
+    sessionId: null,
   }
 }
 
 export function createGatewayAuthMiddleware(
   jwtSecret: string,
   tokenRevocations?: AccessTokenRevocationChecker,
+  securityAlerts?: SecurityAlertsService,
 ) {
   const jwt = new JwtService({ secret: jwtSecret })
 
@@ -174,15 +184,41 @@ export function createGatewayAuthMiddleware(
     if (token) {
       try {
         const payload = jwt.verify<GatewayJwtPayload>(token)
+        const user = await toGatewayUser(payload)
+        if (user) {
+          req.gatewayUser = user
+        }
         if (
           tokenRevocations &&
           (await tokenRevocations.isAccessTokenRevoked(payload))
         ) {
+          const subject =
+            payload.sid?.trim() || payload.sub?.trim() || 'unknown'
+          await securityAlerts?.safeRecordAlert({
+            fingerprint: `gateway-revoked-token:${subject}`,
+            ruleCode: 'gateway.revoked_token_reuse',
+            severity: 'medium',
+            title: 'Access token da bi revoke nhung van duoc su dung',
+            summary:
+              'Gateway tu choi request vi access token da thu hoi van tiep tuc duoc gui len.',
+            userId: payload.sub ?? null,
+            username: payload.username ?? null,
+            sessionId: payload.sid ?? null,
+            ipAddress: resolveClientIp(req),
+            resourceType: 'gateway',
+            resourceId: subject,
+            httpMethod: req.method,
+            httpPath: normalizeRequestPath(req.path || req.originalUrl || req.url),
+            payload: {
+              path: req.originalUrl || req.url,
+              reason: 'revoked_access_token',
+              tokenSessionId: payload.sid ?? null,
+              tokenSubject: payload.sub ?? null,
+            },
+          })
           throw new Error('revoked_access_token')
         }
-        const user = await toGatewayUser(payload)
         if (user) {
-          req.gatewayUser = user
           next()
           return
         }
@@ -218,5 +254,6 @@ export function attachGatewayUserHeaders(
   setHeader('x-gateway-max-security-level', String(user.maxSecurityLevel))
   setHeader('x-gateway-scope-ma-hv', user.scopeMaHv ?? '')
   setHeader('x-gateway-scope-ma-gv', user.scopeMaGv ?? '')
+  setHeader('x-gateway-session-id', user.sessionId ?? '')
   setHeader('x-gateway-access-scope', JSON.stringify(user))
 }

@@ -26,6 +26,9 @@ describe('AuthService', () => {
     lockAccount: jest.Mock
     resetFailedAttempts: jest.Mock
   }
+  let securityAlerts: {
+    safeRecordAlert: jest.Mock
+  }
   let tokenRevocations: {
     revokeAccessForSession: jest.Mock
   }
@@ -58,6 +61,9 @@ describe('AuthService', () => {
       lockAccount: jest.fn(),
       resetFailedAttempts: jest.fn().mockResolvedValue(undefined),
     }
+    securityAlerts = {
+      safeRecordAlert: jest.fn().mockResolvedValue(undefined),
+    }
     tokenRevocations = {
       revokeAccessForSession: jest.fn().mockResolvedValue(undefined),
     }
@@ -67,6 +73,7 @@ describe('AuthService', () => {
       jwt as never,
       config as never,
       redis as never,
+      securityAlerts as never,
       tokenRevocations as never,
     )
   })

@@ -31,6 +31,7 @@ import {
 import { authApi } from '../api/auth'
 import AdminAuditSection from '../components/admin/AdminAuditSection'
 import AdminOpsSection from '../components/admin/AdminOpsSection'
+import AdminSecurityAlertsSection from '../components/admin/AdminSecurityAlertsSection'
 import AdminTechnicalDetails from '../components/admin/AdminTechnicalDetails'
 import { formatRoleLabel, normalizeRoles } from '../lib/authz'
 import {
@@ -55,7 +56,7 @@ import {
 } from '../lib/guardrailRules'
 
 type UpstreamKey = keyof GatewayHealth['upstream']
-type AdminTab = 'operations' | 'users' | 'policy' | 'technical'
+type AdminTab = 'operations' | 'security' | 'users' | 'policy' | 'technical'
 
 const SERVICE_META: Array<{
   key: UpstreamKey
@@ -107,6 +108,12 @@ const ADMIN_TABS = [
     label: 'Kiểm tra hoạt động',
     icon: LayoutDashboard,
     description: 'Snapshot nhanh về tình trạng hệ thống, user cần xử lý và lỗi bị chặn gần đây.',
+  },
+  {
+    key: 'security' as const,
+    label: 'Security Alerts',
+    icon: ShieldAlert,
+    description: 'Theo doi hanh vi dang ngo, auto action va cach admin xu ly alert ngay trong dashboard.',
   },
   {
     key: 'users' as const,
@@ -688,7 +695,7 @@ export default function AdminPage() {
       )}
 
       <div className="mt-6 rounded-3xl border border-slate-200/70 bg-white p-2 shadow-sm">
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
           {ADMIN_TABS.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.key
@@ -1606,6 +1613,8 @@ export default function AdminPage() {
           </aside>
         </section>
       )}
+
+      {activeTab === 'security' && <AdminSecurityAlertsSection />}
 
       {activeTab === 'technical' && (
         <>
