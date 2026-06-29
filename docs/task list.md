@@ -134,7 +134,7 @@
 
 | Loại    | Mô tả                                                        | MS  | Tiến độ | Evidence |
 | ------- | ------------------------------------------------------------ | --- | ------- | -------- |
-| Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  | `[x]`   | Proxy `/api/auth`, `/api/users` → `user-management`; proxy `/api/chat`, `/api/documents` → `chat` `:3002`; **proxy `/api/rag/*` / `/api/rbac/*` / `/api/admin-config/*` / `/api/audit/*`** qua service tương ứng; protected routes verify **access JWT** ngay tại gateway, public giữ `login`/`refresh`; gateway forward `x-gateway-user-*` headers + scope headers; SSE-friendly timeouts + tắt upstream keep-alive (`http.Agent keepAlive:false`); health upstream có `userManagement` + `chat` + `rbac` + `adminConfig` + `audit` + `rag`; build pass + test `gateway-auth.spec.ts` pass (2026-06-18) |
+| Backend | G-01 · `api-gateway` NestJS — JWT, routing, proxy Python AI  | M5  | `[x]`   | Proxy `/api/auth`, `/api/users` → `user-management`; proxy `/api/chat`, `/api/documents` → `chat` `:3002`; **proxy `/api/rag/*` / `/api/rbac/*` / `/api/admin-config/*` / `/api/audit/*` / `/api/etl/*`** qua service tương ứng; protected routes verify **access JWT** ngay tại gateway, public giữ `login`/`refresh`; gateway forward `x-gateway-user-*` headers + scope headers + `x-gateway-session-id`; ETL proxy rewrite `/api/etl` → `/v1/etl`, attach internal auth header, SSE-friendly timeouts và tắt upstream keep-alive (`http.Agent keepAlive:false`); build pass + test `gateway-auth.spec.ts`, `etl-internal-auth.spec.ts` pass (2026-06-29) |
 | Backend | G-02 · `rbac` NestJS — role model, permission matrix         | M5  | `[x]`   | App `services/platform/apps/rbac/` có `/api/rbac/me`, `/matrix`, `/check`, `/row-filter`; load role + permission matrix trực tiếp từ Postgres, normalize alias role `HocVien/GV`; có test `rbac.controller.spec.ts` + `access-scope.spec.ts`; build `services/platform` pass (2026-06-18) |
 | Backend | G-03 · `rbac` — inject `access_scope` cho downstream         | M5  | `[x]`   | `services/platform/src/common/access-scope.ts` resolve `normalizedRoles`, `scopeMaHv`, `scopeMaGv`; gateway attach `x-gateway-access-scope`, `x-gateway-scope-ma-hv`, `x-gateway-scope-ma-gv`; `chat` → `rag-engine` propagate scope fields cho retrieval/SQL; test `gateway-auth.spec.ts`, `access-scope.spec.ts`, `services/rag-engine/tests/test_main_citations.py` pass |
 | Bảo mật | G-04 · Row-level filter (NestJS `rbac` + Postgres policy)    | M5  | `[x]`   | `rbac.service.ts` trả predicate self-scope cho `hoc_vien` / `diem` / `ket_qua_hoc_ky` / curated views và scope giảng viên; `documents` filter theo `role_category_policies`; `infra/postgres/init/19-user-scope-bindings.sql` thêm `user_scope_bindings`; `services/rag-engine/app/sql_resolve.py` + `sql_scope.py` đồng bộ resolve/inject filter cho Text-to-SQL |
@@ -145,9 +145,12 @@
 | Backend | G-09 · `workflow` NestJS — luồng phê duyệt / trạng thái      | M5  |         |          |
 | Backend | G-10 · `notification` NestJS — in-app, hook RabbitMQ         | M6  |         |          |
 | Backend | G-12 · Chat service — session/message Mongo, LLM multi-turn | M5  | `[x]`   | App `chat` `:3002`; Mongo `chat_sessions`/`chat_messages`; CRUD session/message + auto-title; **SSE stream endpoint** (`/messages/stream`: `meta`/`token`/`done`/`error`) + non-stream; **LLM provider abstraction** (`getLlmConfig`/`streamLlm`/`callLlm`) — switch `LLM_PROVIDER` Ollama(local `qwen2.5:3b`)↔OpenAI, mặc định Ollama; đã hook `RagService` để lấy citations từ `rag-engine` và fallback stub khi engine lỗi/chưa chạy; JWT; gateway proxy `/api/chat`; build pass. **Chưa:** service trong `docker-compose`, RAG quality/rerank hoàn thiện |
-| Test    | G-11 · Penetration test auth, RBAC, audit                    | M5  | `[x]`   | Ngoài `scripts/smoke-app.ps1` + các spec RBAC/audit sẵn có, đã bổ sung `rate-limit.spec.ts` (abuse `429`, role policy, fail-open Redis), `load-shedding.spec.ts` (saturation `503`, release counter khi reject/close), `auth.controller.spec.ts` (invalid/replayed refresh token bị clear cookie) và Playwright `admin.spec.ts` cho non-admin bị redirect khỏi `/admin`. Verify pass 2026-06-24: Jest 4 suite/15 test, Playwright `admin.spec.ts` 2 passed |
+| Test    | G-11 · Penetration test auth, RBAC, audit                    | M5  | `[x]`   | Ngoài `scripts/smoke-app.ps1` + các spec RBAC/audit sẵn có, đã bổ sung `rate-limit.spec.ts` (abuse `429`, role policy, fail-open Redis), `load-shedding.spec.ts` (saturation `503`, release counter khi reject/close), `gateway-audit.spec.ts` (privileged probe → alert + revoke session), `audit.service.spec.ts`, `audit.controller.spec.ts`, `auth.controller.spec.ts` (invalid/replayed refresh token bị clear cookie). Verify pass 2026-06-29: Jest 6 suite/21 test + build `services/platform`, `services/web-ui` pass |
 | Bảo mật | G-13 · Thêm format validation cho access token trước khi truy vấn DB/memory | M5 | `[ ]` | Gateway kiểm tra cấu trúc token (prefix, base64, JWT header/payload) trước khi xác thực; từ chối nếu không đúng format |
 | Bảo mật | G-14 · Giảm TTL access token xuống 5 phút (tùy chọn nâng cao) | M5 | `[ ]` | Cấu hình `JWT_EXPIRES_IN=5m`; đảm bảo refresh flow hoạt động tốt với TTL ngắn |
+| Bảo mật | G-15 · Shared access-token revocation và session revoke consistency | M5 | `[x]` | `services/platform/src/common/token-revocation.service.ts` dùng Redis shared store cho marker `revoked session` và `revoke-all after`; gateway kiểm tra revocation theo cùng một logic và **fail-closed** khi Redis trả dữ liệu lỗi/không tin cậy; logout, revoke session hiện tại và admin revoke toàn bộ session đều đẩy marker đúng. Regression `token-revocation.service.spec.ts`, `gateway-auth.spec.ts` pass (2026-06-29) |
+| Bảo mật | G-16 · ETL internal-only route protection và gateway network hardening | M5 | `[x]` | Flow app đi `web-ui → api-gateway → etl-sync`; gateway inject internal ETL secret header, ETL verify nội bộ thay vì cho gọi admin API trực tiếp; `services/platform/apps/api-gateway/src/network-policy.ts` hỗ trợ restricted path + country policy config, hiện có thể để disabled-by-default cho production tới khi có trusted geo source. Test `etl-internal-auth.spec.ts`, `network-policy.spec.ts` pass (2026-06-29) |
+| Bảo mật | G-17 · Security alerts + auto response backend | M5 | `[x]` | Thêm `infra/postgres/init/19-security-alerts.sql`, `security-alerts.service.ts`, `security-response.service.ts`; alert tạo từ `login_failed_burst`, `gateway.revoked_token_reuse`, `gateway.rate_limit_hit`, `gateway.network_policy_blocked`, `gateway.denied_burst`, `gateway.privileged_probe`; hỗ trợ auto action `temporary_lock`, `revoke_session`, `lock_account`; audit service expose `/api/audit/security-alerts*`. Verify pass qua `gateway-audit.spec.ts`, `audit.service.spec.ts`, `audit.controller.spec.ts`, build pass (2026-06-29) |
 
 ---
 
@@ -219,8 +222,9 @@
 | UI | K-13 · Admin Chat Monitoring: xem chat history/session của các user khác | M6 | `[ ]` | Admin có thể filter theo user, date range, xem chi tiết session và messages; có phân quyền và audit |
 | UI | K-14 · Admin Log Viewer: xem logs của các service (rag-engine, document-processor, etl-sync) | M6 | `[ ]` | Admin UI để xem service logs với filter theo service, level (info/error), thời gian |
 | UI | K-15 · Admin Scope Management: gán/sửa vùng dữ liệu (access scope) cho tài liệu và tài khoản | M6 | `[ ]` | Admin có thể chỉnh sửa `securityLevel`, `scopeType`, danh sách được phép của tài liệu sau upload; API `PATCH /api/documents/:id/scope` |
-| UI | K-16 · Admin Dashboard UX: chuyển sang tab view, pagination, giới hạn hiển thị | M6 | `[ ]` | Tabbed navigation: Dashboard/Accounts/Audit/Policy/Logs/Monitoring; giảm scrolling, cải thiện khả năng sử dụng |
+| UI | K-16 · Admin Dashboard UX: chuyển sang tab view, pagination, giới hạn hiển thị | M6 | `[-]` | `AdminPage.tsx` đã chuyển sang tab view `operations / security / users / policy / technical`, giảm scrolling ở dashboard quản trị; **còn thiếu** pagination/list limit đồng nhất, tách thêm monitor/log tabs chuyên biệt và polish UX khi danh sách dài |
 | UI | K-17 · K-04 phase 2: timeline chi tiết, chunk preview (đã có) | M6 | `[x]` | `DocsPage.tsx` đã có timeline hiển thị các giai đoạn `queued → extract → chunk → embed → index → done` và modal xem preview 5 chunks đầu tiên qua API `GET /api/documents/:id/chunks` |
+| UI | K-18 · Admin Security Alerts dashboard | M6 | `[x]` | `services/web-ui/src/components/admin/AdminSecurityAlertsSection.tsx` + `services/web-ui/src/pages/AdminPage.tsx` thêm tab `Security Alerts`; gọi `adminApi.getSecurityAlerts/getSecurityAlert/updateSecurityAlertStatus`, cho phép xem severity/status/event count/auto action/payload và thao tác `acknowledge / resolve / reopen`. Build `services/web-ui` pass (2026-06-29) |
 
 ---
 
@@ -233,7 +237,7 @@
 | Nghiệp vụ | UC-KT-01..04 — khảo thí          | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KH-01..04 — KHCN              | M2/M3/M6 |         |          |
 | AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    | `[-]`   | Phase 1 **done:** chat LLM local (`qwen2.5:3b`) + history (**G-12** `[x]`, **K-12** `[x]`); Phase 2 **core done:** ingest/OCR/chunk/embed (**D-01..D-12** `[x]`, gồm parent-child chunking/prefix/re-ingest cleanup), RAG retrieve/rerank/grounding (**E-01..E-09** `[x]`, gồm access filter theo role chuẩn hóa + context budget sau rerank), multi-turn Redis E2E (**E-06** `[x]`), safe refusal (**E-07** `[x]`), eval harness (**E-09** `[x]`); Text-to-SQL read-only + format UX (**F-01..F-08** `[x]`); **còn:** smoke live full-stack với Milvus thật / profile `ai` 2 máy và mở rộng corpus eval |
-| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + refresh cookie (**K-02** `[x]`, **G-06** `[x]`); admin health live + AI policy editor (**K-08** `[x]`, **K-09** `[x]`); admin quota/token/account ops (**K-10** `[x]`); audit UI/detail/export (**K-07** `[x]`); RBAC/audit backend (**G-02..G-05** `[x]`); browser automation smoke (**K-11** `[x]`); gateway hardening (**G-07**, **G-11**) `[x]`; **Còn thiếu:** admin chat monitoring (**K-13**), admin log viewer (**K-14**), admin scope management (**K-15**), admin dashboard UX (**K-16**) |
+| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + refresh cookie (**K-02** `[x]`, **G-06** `[x]`); admin health live + AI policy editor (**K-08** `[x]`, **K-09** `[x]`); admin quota/token/account ops (**K-10** `[x]`); audit UI/detail/export (**K-07** `[x]`); **security alerts dashboard** (**K-18** `[x]`); RBAC/audit backend (**G-02..G-05** `[x]`); gateway/token hardening (**G-07**, **G-11**, **G-15**, **G-16**, **G-17**) `[x]`; admin dashboard UX tab view (**K-16**) `[-]`; **Còn thiếu:** admin chat monitoring (**K-13**), admin log viewer (**K-14**), admin scope management (**K-15**) |
 
 
 ---
@@ -260,9 +264,9 @@
 
 ---
 
-## Ưu tiên tiếp theo (cập nhật 2026-06-24 — M0 bootstrap, parent-child retrieval, K-07/K-10 admin flows và G-07/G-11 hardening đã re-verify/xong)
+## Ưu tiên tiếp theo (cập nhật 2026-06-29 — shared revocation, gateway/ETL hardening, Security Alerts backend + dashboard đã xong và đã verify)
 
-### Chat Phase 1 ✅ → Phase 2 (RAG + SQL) ✅ gần xong
+### Chat Phase 1 ✅ → Phase 2 (RAG + SQL) ✅ core done
 
 | # | Task | Trạng thái |
 | - | ---- | ---------- |
@@ -273,64 +277,69 @@
 | ~~C5~~ | ~~**E-05 / K-03**~~ | `[x]` polish citation/source formatting, tăng độ rõ cho câu trả lời nhiều điều kiện và regression test structured output |
 | ~~C6~~ | ~~**E-09**~~ | `[x]` eval RAG corpus + harness citation/refusal |
 | ~~C7~~ | ~~**G-02..G-05 / E-07 / K-08 / K-09 / K-11**~~ | `[x]` RBAC + audit + admin-config + safe refusal + admin UI + Playwright smoke |
+| ~~C8~~ | ~~**K-04 / K-17**~~ | `[x]` docs workspace timeline chi tiết + chunk preview đã xong |
+| ~~C9~~ | ~~**G-15 / G-16 / G-17 / K-18**~~ | `[x]` shared revocation, ETL internal auth/network hardening, security alerts + admin dashboard |
 
-**Trạng thái chat hiện tại** — Nền chat/RAG + SQL read-only + policy/RBAC an toàn đã nối end-to-end qua gateway; nhánh **parent-child chunking / retrieval** đã có đường section-path ổn định, prefix ngữ cảnh trước embed, cleanup re-ingest, router `reject/task_assist`, Milvus metadata push-down theo `document_id`, access filter theo role chuẩn hóa từ gateway và context budget sau rerank; full `services/rag-engine` suite đã pass ngày 2026-06-24. Bootstrap M0 cũng đã verify lại `up-code.ps1`, data-service connectivity và fresh DB seed; nhánh quản trị nay đã khép thêm **K-07 + K-10 + G-07/G-11** (audit viewer/export, quota/token/account ops + account status/session actions, role-aware gateway hardening và security regression). Phần còn thiếu rõ nhất: **K-04** phase 2 (timeline/chunk preview), **A-05/A-06/C-06** (bootstrap polish), **B-06/B-07** (profile `ai` + smoke 2 máy).
+**Trạng thái chat hiện tại** — Nền chat/RAG + SQL read-only + policy/RBAC an toàn đã nối end-to-end qua gateway; parent-child chunking / retrieval đã ổn định với `section_path`, prefix ngữ cảnh trước embed, cleanup re-ingest, router `reject/task_assist`, Milvus metadata push-down theo `document_id`, access filter theo role chuẩn hóa từ gateway và context budget sau rerank. Nhánh quản trị đã khép thêm shared token revocation, gateway/ETL hardening và Security Alerts trong Admin Dashboard. Phần còn thiếu rõ nhất lúc này là bootstrap 2 máy / profile `ai`, CRUD quản trị sâu hơn, ETL admin flow hoàn chỉnh và các admin tool monitoring/logging còn lại.
 
 **Lộ trình chat**
 
 ```
 [K-12 UI] ──► [G-12 API + Mongo] ──► [LLM provider: Ollama/OpenAI]
                       │
-                      ▼ (D + E + F v1 done)
+                      ▼ (D + E + F core done)
               [E-08 rag-engine] ──► [K-03 citation/SSE/SQL table]
                       │
-                      ▼ (còn K-04 docs timeline, J advanced features)
-              [K-04 docs timeline] · [J advanced features]
+                      ▼
+              [K-04 docs workspace] · [J advanced AI features]
 ```
 
-### Ngay — đóng M0 bootstrap
+### Ngay — đóng M0/M1 polish
 
 | # | Task | Mô tả ngắn |
 | - | ---- | ---------- |
 | ~~1~~ | ~~**A-02**~~ | `[x]` `up-code.ps1` verify xong; `user-management` bootstrap OK, chỉ cần tránh local port `3001` collision |
 | ~~2~~ | ~~**A-07**~~ | `[x]` script smoke tự động qua gateway + chat session cleanup |
-| 3 | **A-05** | Bổ sung `up-ai.ps1`; health app local + `start-dev.ps1` đã xong |
+| 3 | **A-05** | Bổ sung `up-ai.ps1`; `health.ps1`, `start-dev.ps1`, `start-rag.ps1` đã xong |
 | 4 | **A-06** | README quickstart 2 máy (Máy nền tảng + Máy mô hình) |
 | ~~5~~ | ~~**C-09**~~ | `[x]` Connectivity pass: Mongo, Redis, RabbitMQ, Milvus |
 | 6 | **C-06** | Chạy thử `generate_seed.py` → validate output 11–14 không regress IAM |
+| 7 | **B-06 / B-07** | Hoàn thiện profile `ai`, contract test và smoke cross-host cho LLM/embedding/rerank |
 
-### Tiếp — RBAC + eval + UI ops (M5/M6)
+### Tiếp — Admin / Security / ETL (M5/M6)
 
 | # | Task | Mô tả ngắn |
 | - | ---- | ---------- |
-| ~~7~~ | ~~**G-01**~~ | `[x]` JWT verify gateway; proxy `rag-engine` |
-| 8 | **G-12** (ops) | Thêm `chat` vào `docker-compose` profile `code` |
-| ~~9~~ | ~~**G-02..G-05**~~ | `[x]` RBAC service, `access_scope`, row filter, audit log |
-| 10 | **K-04** | Doc workspace Phase 2: timeline chi tiết, chunk preview, UX ingest tốt hơn |
-| ~~11~~ | ~~**K-07**~~ | `[x]` Audit panel trong `/admin`: list/filter/detail/export JSON/CSV qua `AdminAuditSection`; build `services/web-ui` + Playwright `admin.spec.ts` pass |
+| ~~8~~ | ~~**G-01**~~ | `[x]` JWT verify gateway; proxy `rag-engine`, `etl-sync`, forward user context header |
+| 9 | **G-12** (ops) | Thêm `chat` vào `docker-compose` profile `code` |
+| ~~10~~ | ~~**G-15 / G-16 / G-17**~~ | `[x]` Shared revocation, ETL internal auth/network hardening, Security Alerts backend |
+| ~~11~~ | ~~**K-07 / K-10 / K-18**~~ | `[x]` Audit viewer/export, quota-token-account ops, Security Alerts dashboard |
 | 12 | **G-06** (mở rộng) | CRUD user, profile, đơn vị; flow refresh token đã xong |
-| ~~13~~ | ~~**E-09**~~ | `[x]` Eval RAG: corpus `eval/rag_cases.json` + helper `app/rag_eval.py` + test fixture end-to-end cho citation/refusal |
-| ~~14~~ | ~~**K-11**~~ | `[x]` Playwright `admin.spec.ts` + `chat.spec.ts` + `docs/accessibility-checklist.md` |
-| ~~15~~ | ~~**K-10**~~ | `[x]` Quota/token overview, account status đổi trực tiếp và revoke refresh sessions trong `/admin`; API `users/admin/*` + `AdminOpsSection` + Playwright `admin.spec.ts` pass |
+| 13 | **H-04 / H-05** | Event-driven sync + manual sync trigger cho ETL |
+| 14 | **H-07 / H-08** | ETL admin dashboard status/error log + test lineage/recovery |
+| 15 | **K-13** | Admin chat monitoring: xem session/message của user khác |
+| 16 | **K-14** | Admin log viewer cho `rag-engine`, `document-processor`, `etl-sync` |
+| 17 | **K-15** | Admin scope management cho tài liệu và account |
+| 18 | **K-16** | Hoàn tất pagination, list limit và tách thêm monitor/log tabs trong admin dashboard |
+| 19 | **D-14** | Validate upload security level theo role khi upload tài liệu |
 
-### Sau — AI pipeline + nâng cao (M1–M6)
+### Sau — Domain modules / AI nâng cao (M1–M6)
 
 | # | Task | Mô tả ngắn |
 | - | ---- | ---------- |
-| 16 | **B-01..B-07** | Ollama Qwen2.5-3B production profile `ai`, embedding BGE-M3, rerank production model |
-| ~~17~~ | ~~**D-06..D-08 / E-02**~~ | `[x]` parent-child chunking + retrieval đã có regression cho `section_path`, prefix embed, re-ingest cleanup/rollback và parent citation |
-| ~~18~~ | ~~**E-01 / C-03**~~ | `[x]` Router `reject/task_assist` trong `rag-engine` + Milvus search expr `document_id in [...]` dựa trên ACL Mongo; test `test_sql.py`, `test_main_citations.py`, `test_retrieval.py` pass |
-| ~~19~~ | ~~**G-07 / G-11**~~ | `[x]` role-aware rate limit, load-shedding cleanup va auth/admin hardening regression |
+| 20 | **B-01..B-07** | Ollama Qwen2.5-3B production profile `ai`, embedding BGE-M3, rerank production model |
+| ~~21~~ | ~~**D-06..D-08 / E-02**~~ | `[x]` parent-child chunking + retrieval đã có regression cho `section_path`, prefix embed, re-ingest cleanup/rollback và parent citation |
+| ~~22~~ | ~~**E-01 / C-03**~~ | `[x]` Router `reject/task_assist` trong `rag-engine` + Milvus search expr `document_id in [...]` dựa trên ACL Mongo; test `test_sql.py`, `test_main_citations.py`, `test_retrieval.py` pass |
+| ~~23~~ | ~~**G-07 / G-11**~~ | `[x]` role-aware rate limit, load-shedding cleanup và auth/admin hardening regression |
+| 24 | **I-01..I-06** | API/UI nghiệp vụ cho Đào tạo / Khảo thí / KHCN / Thư viện |
+| 25 | **J-01..J-07** | Tóm tắt tài liệu, hỗ trợ bài tập, quiz, giáo án, semantic search nâng cao, red-team |
 
 ### Đã xong gần đây
 
-- **G-07 + G-11 hoàn tất** (2026-06-24) — `api-gateway` nay rate-limit đúng theo role thật với env `RATE_LIMIT_ROLE_*`, anonymous bucket tách theo IP, thêm `X-RateLimit-*`/`Retry-After`; `load-shedding` release lại concurrent counter khi reject hoặc client đóng sớm; `AuthController.refresh` có regression cho invalid/replayed refresh token và web `RequireAuth` đã fix bug coi mọi route bắt đầu bằng `/` là public, kèm Playwright chặn non-admin vào `/admin`. Verify pass: `npm.cmd test -- --runInBand apps/api-gateway/src/gateway-auth.spec.ts apps/api-gateway/src/rate-limit.spec.ts apps/api-gateway/src/load-shedding.spec.ts apps/user-management/src/auth/auth.controller.spec.ts`, `npm.cmd run build` (`services/platform`, `services/web-ui`), `npm.cmd run test:e2e -- admin.spec.ts` |
-- **E-03 + E-04 hoàn tất** (2026-06-24) — `rag-engine` nay nhận `x-gateway-normalized-roles`, chuẩn hóa alias role/department trước khi build Mongo ACL query để push-down `document_id` vào Milvus và vẫn giữ hậu kiểm `can_view_chunk`; lớp rerank/context được siết thêm bằng candidate giàu metadata (`title/section/source`), giới hạn `RERANK_DOC_MAX_CHARS` và budget tổng `RAG_CONTEXT_MAX_CHARS` trước khi đưa vào grounding. Verify pass: targeted `tests/test_retrieval.py tests/test_main_citations.py tests/test_generate.py tests/test_rerank.py` (`18 passed`) và full `services/rag-engine` suite (`45 passed, 12 subtests passed`) |
-- **E-01 + C-03 hoàn tất** (2026-06-24) — `rag-engine` nay phân luồng `rag/sql/reject/task_assist`; `task_assist` có prompt LLM riêng cho yêu cầu soạn thảo/gợi ý, còn `reject` short-circuit không chạm retrieval. Ở nhánh retrieval, Mongo `documents` được dùng làm source-of-truth ACL để build tập `docId` được phép xem rồi push-down vào Milvus qua `document_id in [...]`, vẫn giữ `can_view_chunk` làm hậu kiểm. Verify pass: `services/rag-engine/.venv/Scripts/python.exe -m unittest discover -s services/rag-engine/tests -p "test_*.py" -v` và `services/rag-engine/.venv/Scripts/pytest.exe services/rag-engine/tests/test_main_citations.py -q` |
-- **K-10 hoàn tất** (2026-06-24) — `user-management` có thêm admin endpoints `/api/users/admin/overview`, `/api/users/admin/accounts`, đổi trạng thái tài khoản và revoke toàn bộ refresh sessions; `web-ui` render `AdminOpsSection` ngay trong `/admin` với overview quota/token/account usage, filter account và action lock/inactivate/activate/revoke. Verify pass: build `services/platform`, build `services/web-ui`, Playwright `services/web-ui/tests/e2e/admin.spec.ts` |
-- **H-06 + E-06 hoàn tất** (2026-06-19) — `etl-sync` nay transform/validate/load thật xuống Postgres + Mongo với lineage/error rõ ràng; chat service hydrate history từ Redis trước khi fallback Mongo và `rag-engine` đồng bộ cùng `sessionId`/context; test `services/etl-sync/tests/test_etl_sync.py`, `services/platform/apps/chat/src/chat/chat.service.spec.ts`, `services/rag-engine/tests/test_main_citations.py`, build `services/platform` + `services/web-ui` đều pass |
-- **K-07 hoàn tất** (2026-06-24) — `web-ui` có thêm `AdminAuditSection` trong `/admin`: filter `status/action/resourceType/userId/resourceId/from/to`, xem chi tiết bản ghi audit và export JSON/CSV qua cùng endpoint `GET /api/audit/logs` (limit export 500 dòng theo backend cap). Verify pass: `npm.cmd run build` và Playwright `services/web-ui/tests/e2e/admin.spec.ts` |
-- **A-05 + C-01/C-06 + G-06 cập nhật** (2026-06-22) — thêm `scripts/start-dev.ps1`; IAM/auth chuyển sang `pbkdf2_sha256` + `password_salt` + `hash_iterations` ở schema, seed và logic login verify của `user-management` |
-- **A-02 + C-09 re-verify, C-06 seed fresh DB pass** (2026-06-24) — `up-code.ps1` đã verify lại path dựng profile `code`; riêng máy hiện tại từng fail vì local `node` chiếm cổng `3001`, nên script nay báo rõ port collision và probe container alternate-port xác nhận `user-management` boot được với Postgres. Connectivity Mongo/Redis/RabbitMQ/Milvus đều pass. Fresh DB seed trên disposable Postgres pass với `users=74`, `roles=6`, `permissions=16`, `hoc_vien=50`, `exam_banks=15` |
-- **D-06..D-08 + E-02 hoàn tất** (2026-06-23, re-verify 2026-06-24) — `document-processor` + `rag-engine` đã chốt parent-child chunking/retrieval theo section ổn định: child chunk được embed kèm `section_path` + `parent_preview`, re-ingest cleanup/rollback có test riêng, retrieval giữ `query_text` đúng cho rerank/filter/cache và trả parent citation theo child hit mạnh nhất; re-run pass `services/document-processor/tests/test_chunker.py`, `test_pipeline_parent_child.py`, `services/rag-engine/tests/test_retrieval.py` |
+- **G-15 + G-16 + G-17 + K-18 hoàn tất** (2026-06-29) — đã thêm shared access-token revocation dùng Redis shared store, gateway fail-closed khi dữ liệu revoke lỗi, ETL internal auth header + restricted-path network policy, cùng hệ Security Alerts end-to-end từ gateway/auth → audit service → Admin Dashboard (`acknowledge / resolve / reopen`). Verify pass: `npm.cmd test -- --runInBand gateway-auth.spec.ts gateway-audit.spec.ts audit.service.spec.ts audit.controller.spec.ts network-policy.spec.ts rate-limit.spec.ts`, `npm.cmd run build` (`services/platform`, `services/web-ui`) |
+- **G-07 + G-11 hoàn tất** (2026-06-24) — `api-gateway` rate-limit đúng theo role thật với env `RATE_LIMIT_ROLE_*`, anonymous bucket tách theo IP, thêm `X-RateLimit-*`/`Retry-After`; `load-shedding` release lại concurrent counter khi reject hoặc client đóng sớm; `AuthController.refresh` có regression cho invalid/replayed refresh token và web `RequireAuth` đã fix bug coi mọi route bắt đầu bằng `/` là public, kèm Playwright chặn non-admin vào `/admin` |
+- **E-03 + E-04 hoàn tất** (2026-06-24) — `rag-engine` nhận `x-gateway-normalized-roles`, chuẩn hóa alias role/department trước khi build Mongo ACL query để push-down `document_id` vào Milvus và vẫn giữ hậu kiểm `can_view_chunk`; lớp rerank/context được siết thêm bằng candidate giàu metadata (`title/section/source`), giới hạn `RERANK_DOC_MAX_CHARS` và budget tổng `RAG_CONTEXT_MAX_CHARS` trước khi đưa vào grounding |
+- **K-10 hoàn tất** (2026-06-24) — `user-management` có thêm admin endpoints `/api/users/admin/overview`, `/api/users/admin/accounts`, đổi trạng thái tài khoản và revoke toàn bộ refresh sessions; `web-ui` render `AdminOpsSection` ngay trong `/admin` với overview quota/token/account usage, filter account và action lock/inactivate/activate/revoke |
+- **K-07 hoàn tất** (2026-06-24) — `web-ui` có thêm `AdminAuditSection` trong `/admin`: filter `status/action/resourceType/userId/resourceId/from/to`, xem chi tiết bản ghi audit và export JSON/CSV qua cùng endpoint `GET /api/audit/logs` (limit export 500 dòng theo backend cap) |
+- **A-02 + C-09 re-verify, C-06 seed fresh DB pass** (2026-06-24) — `up-code.ps1` đã verify lại path dựng profile `code`; script nay báo rõ port collision và probe container alternate-port xác nhận `user-management` boot được với Postgres. Connectivity Mongo/Redis/RabbitMQ/Milvus đều pass; fresh DB seed trên disposable Postgres pass với `users=74`, `roles=6`, `permissions=16`, `hoc_vien=50`, `exam_banks=15` |
 

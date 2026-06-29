@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import { RedisService } from '../../../src/common/redis/redis.service';
+import { SecurityAlertsService } from '../../../src/common/security-alerts.service';
 import { ConfigService } from '@nestjs/config';
 import { GatewayRequest, GatewayUser } from './gateway-auth';
-import { resolveClientIp } from './request-network';
+import { normalizeRequestPath, resolveClientIp } from './request-network';
 
 const DEFAULT_ROLE_LIMITS: Record<string, number> = {
   ADMIN: 180,
@@ -128,6 +129,7 @@ export function resolveRateLimitPolicy(
 export function createRateLimitMiddleware(
   redis: RedisService,
   config: ConfigService,
+  securityAlerts?: SecurityAlertsService,
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const gatewayReq = req as GatewayRequest;
@@ -148,6 +150,32 @@ export function createRateLimitMiddleware(
         const ttl = await redis.ttl(key).catch(() => window);
         const retryAfter = ttl > 0 ? ttl : window;
         res.setHeader('Retry-After', String(retryAfter));
+        void securityAlerts?.safeRecordAlert({
+          fingerprint: `gateway-rate-limit:${
+            user?.userId ? `user:${user.userId}` : `ip:${resolveClientIdentifier(req)}`
+          }:${policy.toLowerCase()}`,
+          ruleCode: 'gateway.rate_limit_hit',
+          severity: isAnonymousGatewayUser(user) ? 'low' : 'medium',
+          title: 'Gateway da kich hoat rate limit',
+          summary:
+            'Request bi chan boi rate limit tai gateway do vuot nguong trong cua so hien tai.',
+          userId: user?.userId ?? null,
+          username: user?.username ?? null,
+          sessionId: user?.sessionId ?? null,
+          ipAddress: resolveClientIp(req),
+          resourceType: 'gateway',
+          resourceId: policy,
+          httpMethod: req.method,
+          httpPath: normalizeRequestPath(req.path || req.originalUrl || req.url),
+          payload: {
+            count,
+            key,
+            limit,
+            policy,
+            retryAfter,
+            window,
+          },
+        });
         res.status(429).json({
           message: 'Qua nhieu yeu cau. Vui long thu lai sau.',
           retryAfter,

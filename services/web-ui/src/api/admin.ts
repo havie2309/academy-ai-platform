@@ -63,6 +63,56 @@ export interface AuditLogFilters {
   limit?: number
 }
 
+export type SecurityAlertSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type SecurityAlertStatus = 'open' | 'acknowledged' | 'resolved'
+export type SecurityAlertAutoActionStatus =
+  | 'none'
+  | 'applied'
+  | 'failed'
+  | 'skipped'
+
+export interface SecurityAlertEntry {
+  id: number
+  fingerprint: string
+  rule_code: string
+  severity: SecurityAlertSeverity
+  status: SecurityAlertStatus
+  title: string
+  summary: string
+  user_id: string | null
+  username: string | null
+  session_id: string | null
+  ip_address: string | null
+  resource_type: string | null
+  resource_id: string | null
+  http_method: string | null
+  http_path: string | null
+  event_count: number
+  first_seen_at: string
+  last_seen_at: string
+  acknowledged_by: string | null
+  acknowledged_at: string | null
+  resolved_by: string | null
+  resolved_at: string | null
+  auto_action: string | null
+  auto_action_status: SecurityAlertAutoActionStatus
+  auto_action_note: string | null
+  payload: unknown
+  created_at: string
+  updated_at: string
+}
+
+export interface SecurityAlertFilters {
+  severity?: string
+  status?: string
+  ruleCode?: string
+  userId?: string
+  resourceType?: string
+  from?: string
+  to?: string
+  limit?: number
+}
+
 export interface AdminOpsOverview {
   generated_at: string
   quota_policy: {
@@ -149,6 +199,23 @@ function toSearchParams(filters: AuditLogFilters): URLSearchParams {
   return params
 }
 
+function toSecurityAlertSearchParams(
+  filters: SecurityAlertFilters,
+): URLSearchParams {
+  const params = new URLSearchParams()
+  if (filters.severity?.trim()) params.set('severity', filters.severity.trim())
+  if (filters.status?.trim()) params.set('status', filters.status.trim())
+  if (filters.ruleCode?.trim()) params.set('ruleCode', filters.ruleCode.trim())
+  if (filters.userId?.trim()) params.set('userId', filters.userId.trim())
+  if (filters.resourceType?.trim()) {
+    params.set('resourceType', filters.resourceType.trim())
+  }
+  if (filters.from?.trim()) params.set('from', filters.from.trim())
+  if (filters.to?.trim()) params.set('to', filters.to.trim())
+  if (filters.limit) params.set('limit', String(filters.limit))
+  return params
+}
+
 function toAccountSearchParams(filters: ManagedAccountFilters): URLSearchParams {
   const params = new URLSearchParams()
   if (filters.search?.trim()) params.set('search', filters.search.trim())
@@ -216,6 +283,42 @@ export const adminApi = {
       headers: { Accept: 'application/json' },
     })
     if (res.status === 404) return null
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async getSecurityAlerts(
+    filters: SecurityAlertFilters = {},
+  ): Promise<SecurityAlertEntry[]> {
+    const params = toSecurityAlertSearchParams(filters)
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetchWithAuth(`/api/audit/security-alerts${suffix}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async getSecurityAlert(
+    id: number | string,
+  ): Promise<SecurityAlertEntry | null> {
+    const res = await fetchWithAuth(`/api/audit/security-alerts/${id}`, {
+      headers: { Accept: 'application/json' },
+    })
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async updateSecurityAlertStatus(
+    id: number | string,
+    status: SecurityAlertStatus,
+  ): Promise<SecurityAlertEntry> {
+    const res = await fetchWithAuth(`/api/audit/security-alerts/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },

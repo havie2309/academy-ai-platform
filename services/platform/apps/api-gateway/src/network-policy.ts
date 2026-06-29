@@ -1,5 +1,6 @@
 import type { NextFunction, Response } from 'express'
 import type { ConfigService } from '@nestjs/config'
+import { SecurityAlertsService } from '../../../src/common/security-alerts.service'
 import { isPublicPath, type GatewayRequest } from './gateway-auth'
 import {
   normalizeRequestPath,
@@ -61,7 +62,37 @@ function denyRequest(
   reason: string,
   clientIp: string | null,
   country: string | null,
+  securityAlerts?: SecurityAlertsService,
 ) {
+  const path = normalizeRequestPath(req.path || req.originalUrl || req.url)
+  const subject =
+    req.gatewayUser?.userId
+      ? `user:${req.gatewayUser.userId}`
+      : `ip:${clientIp ?? 'unknown'}`
+
+  void securityAlerts?.safeRecordAlert({
+    fingerprint: `gateway-network-policy:${reason}:${subject}`,
+    ruleCode: 'gateway.network_policy_blocked',
+    severity: req.gatewayUser?.userId ? 'medium' : 'low',
+    title: 'Gateway chan request boi network policy',
+    summary:
+      'Gateway tu choi request vi khong dat network policy tren duong dan nhay cam.',
+    userId: req.gatewayUser?.userId ?? null,
+    username: req.gatewayUser?.username ?? null,
+    sessionId: req.gatewayUser?.sessionId ?? null,
+    ipAddress: clientIp,
+    resourceType: 'gateway',
+    resourceId: reason,
+    httpMethod: req.method,
+    httpPath: path,
+    payload: {
+      clientIp,
+      country,
+      path,
+      reason,
+    },
+  })
+
   console.warn('Gateway network policy denied request', {
     reason,
     path: req.originalUrl || req.url,
@@ -77,7 +108,10 @@ function denyRequest(
   })
 }
 
-export function createNetworkPolicyMiddleware(config: ConfigService) {
+export function createNetworkPolicyMiddleware(
+  config: ConfigService,
+  securityAlerts?: SecurityAlertsService,
+) {
   const policy = buildPolicy(config)
   const hasCountryPolicy =
     policy.allowedCountries.size > 0 || policy.blockedCountries.size > 0
@@ -101,18 +135,39 @@ export function createNetworkPolicyMiddleware(config: ConfigService) {
     const clientIp = resolveClientIp(req)
     const country = resolveClientCountry(req, policy.countryHeader)
     if (!country) {
-      denyRequest(req, res, 'country_unavailable', clientIp, null)
+      denyRequest(
+        req,
+        res,
+        'country_unavailable',
+        clientIp,
+        null,
+        securityAlerts,
+      )
       return
     }
     if (policy.blockedCountries.has(country)) {
-      denyRequest(req, res, 'country_blocked', clientIp, country)
+      denyRequest(
+        req,
+        res,
+        'country_blocked',
+        clientIp,
+        country,
+        securityAlerts,
+      )
       return
     }
     if (
       policy.allowedCountries.size > 0 &&
       !policy.allowedCountries.has(country)
     ) {
-      denyRequest(req, res, 'country_not_allowed', clientIp, country)
+      denyRequest(
+        req,
+        res,
+        'country_not_allowed',
+        clientIp,
+        country,
+        securityAlerts,
+      )
       return
     }
 

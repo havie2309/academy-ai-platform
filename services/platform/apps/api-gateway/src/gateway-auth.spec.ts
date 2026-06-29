@@ -55,6 +55,7 @@ describe('gateway-auth', () => {
       maxSecurityLevel: 4,
       scopeMaHv: null,
       scopeMaGv: null,
+      sessionId: null,
     })
   })
 
@@ -67,9 +68,12 @@ describe('gateway-auth', () => {
       sid: 'session-1',
       iat_ms: Date.now(),
     })
+    const securityAlerts = {
+      safeRecordAlert: jest.fn().mockResolvedValue(null),
+    }
     const middleware = createGatewayAuthMiddleware(secret, {
       isAccessTokenRevoked: jest.fn().mockResolvedValue(true),
-    })
+    }, securityAlerts as any)
 
     const req = {
       method: 'GET',
@@ -84,6 +88,12 @@ describe('gateway-auth', () => {
     expect(next).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(401)
     expect(res.json).toHaveBeenCalled()
+    expect(securityAlerts.safeRecordAlert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ruleCode: 'gateway.revoked_token_reuse',
+        sessionId: 'session-1',
+      }),
+    )
   })
 
   it('rejects missing tokens on protected routes', async () => {
@@ -114,6 +124,7 @@ describe('gateway-auth', () => {
         maxSecurityLevel: 4,
         scopeMaHv: '666106',
         scopeMaGv: 'GV001',
+        sessionId: 'session-77',
       },
     } as GatewayRequest
 
@@ -126,6 +137,7 @@ describe('gateway-auth', () => {
     expect(headers.get('x-gateway-normalized-roles')).toBe('ADMIN')
     expect(headers.get('x-gateway-scope-ma-hv')).toBe('666106')
     expect(headers.get('x-gateway-scope-ma-gv')).toBe('GV001')
+    expect(headers.get('x-gateway-session-id')).toBe('session-77')
     expect(headers.get('x-gateway-access-scope')).toContain(
       '"scopeMaHv":"666106"',
     )

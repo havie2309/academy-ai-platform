@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import * as argon2 from 'argon2'
 import { RedisService } from '../../../../src/common/redis/redis.service'
+import { SecurityAlertsService } from '../../../../src/common/security-alerts.service'
 import { TokenRevocationService } from '../../../../src/common/token-revocation.service'
 import { ADMIN_MANAGEMENT_ROLES } from '../user/admin-management-roles'
 import { UsersService } from '../user/users.service'
@@ -17,6 +18,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly redis: RedisService,
+    private readonly securityAlerts: SecurityAlertsService,
     private readonly tokenRevocations: TokenRevocationService,
   ) {}
 
@@ -135,8 +137,19 @@ export class AuthService {
 
     if (!user) {
       const attempts = await this.recordFailedAttempt(username)
-      if (attempts >= this.maxFailedAttempts) {
+      const locked = attempts >= this.maxFailedAttempts
+      if (locked) {
         await this.redis.lockAccount(username, this.lockDuration)
+      }
+      await this.recordLoginFailureAlert({
+        username,
+        attempts,
+        ip,
+        userAgent,
+        reason: 'unknown_username',
+        locked,
+      })
+      if (locked) {
         throw new UnauthorizedException(
           `Tài khoản bị khóa do nhập sai quá ${this.maxFailedAttempts} lần. Vui lòng thử lại sau 15 phút.`,
         )
@@ -148,8 +161,9 @@ export class AuthService {
     if (!valid) {
       if (!isAdmin) {
         const attempts = await this.recordFailedAttempt(username)
+        const locked = attempts >= this.maxFailedAttempts
 
-        if (attempts >= this.maxFailedAttempts) {
+        if (locked) {
           await this.redis.lockAccount(username, this.lockDuration)
           await this.users.logLogin(
             user.user_id,
@@ -159,10 +173,28 @@ export class AuthService {
             false,
             `account_locked_after_${attempts}_attempts`,
           )
+          await this.recordLoginFailureAlert({
+            username,
+            attempts,
+            ip,
+            userAgent,
+            userId: user.user_id,
+            reason: 'wrong_password',
+            locked: true,
+          })
           throw new UnauthorizedException(
             `Tài khoản bị khóa do nhập sai quá ${this.maxFailedAttempts} lần. Vui lòng thử lại sau 15 phút.`,
           )
         }
+        await this.recordLoginFailureAlert({
+          username,
+          attempts,
+          ip,
+          userAgent,
+          userId: user.user_id,
+          reason: 'wrong_password',
+          locked: false,
+        })
       }
       await this.users.logLogin(
         user.user_id,
@@ -268,5 +300,56 @@ export class AuthService {
 
   private async recordFailedAttempt(username: string): Promise<number> {
     return await this.redis.incrementFailedAttempts(username, this.lockWindow)
+  }
+
+  private loginFailureThreshold(): number {
+    return Math.max(1, Math.min(3, this.maxFailedAttempts))
+  }
+
+  private async recordLoginFailureAlert(input: {
+    username: string
+    attempts: number
+    ip: string
+    userAgent: string
+    userId?: string | null
+    reason: string
+    locked: boolean
+  }) {
+    if (input.attempts < this.loginFailureThreshold()) {
+      return
+    }
+
+    await this.securityAlerts.safeRecordAlert({
+      fingerprint: `auth-login-failed:${input.username.trim().toLowerCase()}`,
+      ruleCode: 'auth.login_failed_burst',
+      severity: input.locked ? 'high' : 'medium',
+      title: input.locked
+        ? 'Tài khoản bị khóa tạm thời do đăng nhập thất bại'
+        : 'Nhiều lần đăng nhập thất bại',
+      summary: input.locked
+        ? `Tài khoản ${input.username} đã bị khóa tạm thời sau ${input.attempts} lần đăng nhập thất bại.`
+        : `Phát hiện ${input.attempts} lần đăng nhập thất bại liên tiếp cho tài khoản ${input.username}.`,
+      userId: input.userId ?? null,
+      username: input.username,
+      ipAddress: input.ip,
+      resourceType: 'auth',
+      resourceId: input.username,
+      httpMethod: 'POST',
+      httpPath: '/api/auth/login',
+      autoAction: input.locked ? 'temporary_lock' : null,
+      autoActionStatus: input.locked ? 'applied' : 'none',
+      autoActionNote: input.locked
+        ? `Khóa tạm ${this.lockDuration} giây sau ${input.attempts} lần thất bại.`
+        : null,
+      payload: {
+        attempts: input.attempts,
+        maxFailedAttempts: this.maxFailedAttempts,
+        ip: input.ip || null,
+        reason: input.reason,
+        locked: input.locked,
+        userAgent: input.userAgent || '',
+        username: input.username,
+      },
+    })
   }
 }

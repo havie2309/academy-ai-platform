@@ -19,6 +19,8 @@ import { createLoadSheddingMiddleware } from './load-shedding';
 import { createCircuitBreakerMiddleware } from './circuit-breaker-middleware';
 import { CircuitBreaker } from './circuit-breaker';
 import { RedisService } from '../../../src/common/redis/redis.service';
+import { SecurityAlertsService } from '../../../src/common/security-alerts.service';
+import { SecurityResponseService } from '../../../src/common/security-response.service';
 import { TokenRevocationService } from '../../../src/common/token-revocation.service';
 import { ConfigService } from '@nestjs/config';
 import { parseTrustProxySetting } from './request-network';
@@ -66,6 +68,8 @@ async function bootstrap() {
 
   // Get services from the app context
   const redisService = app.get(RedisService);
+  const securityAlerts = app.get(SecurityAlertsService);
+  const securityResponses = app.get(SecurityResponseService);
   const tokenRevocations = app.get(TokenRevocationService);
   const configService = app.get(ConfigService);
 
@@ -82,16 +86,26 @@ async function bootstrap() {
   });
 
   // 2c. Audit logging
-  server.use(createGatewayAuditMiddleware());
+  server.use(
+    createGatewayAuditMiddleware(
+      redisService,
+      securityAlerts,
+      securityResponses,
+    ),
+  );
 
   // 2d. JWT Authentication
-  server.use(createGatewayAuthMiddleware(jwtSecret, tokenRevocations));
+  server.use(
+    createGatewayAuthMiddleware(jwtSecret, tokenRevocations, securityAlerts),
+  );
 
   // 2e. Network policy (country restrictions for sensitive paths)
-  server.use(createNetworkPolicyMiddleware(configService));
+  server.use(createNetworkPolicyMiddleware(configService, securityAlerts));
 
   // 2f. Rate limiting (per user/IP)
-  server.use(createRateLimitMiddleware(redisService, configService));
+  server.use(
+    createRateLimitMiddleware(redisService, configService, securityAlerts),
+  );
 
   // ──────────────────────────────────────────────────────────────
   // 3. Circuit Breaker instances for each upstream service
