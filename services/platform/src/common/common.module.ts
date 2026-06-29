@@ -4,13 +4,14 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common'
+import { ConfigModule } from '@nestjs/config'
 import { PostgresService } from './postgres.service'
 import { LoggerMiddleware } from './logger.middleware'
 import { RedisModule } from './redis/redis.module'
 import { TokenRevocationService } from './token-revocation.service'
 
 @Module({
-  imports: [RedisModule],
+  imports: [ConfigModule, RedisModule],
   providers: [PostgresService, TokenRevocationService],
   exports: [PostgresService, TokenRevocationService, RedisModule],
 })

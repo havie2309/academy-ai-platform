@@ -48,7 +48,7 @@ def _docx_to_markdown(path: Path) -> str:
             if not text:
                 lines.append("")
                 continue
-            style = para.style.name  # "Heading 1", "Heading 2", "Normal", ...
+            style = para.style.name if para.style else ""
             if style.startswith("Heading"):
                 try:
                     level = int(style.split()[-1])
