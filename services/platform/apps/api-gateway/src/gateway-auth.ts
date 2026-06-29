@@ -75,7 +75,7 @@ function normalizePath(pathname: string): string {
 // NEW: Check if path is public
 // ============================================================
 
-function isPublicPath(pathname: string, method?: string): boolean {
+export function isPublicPath(pathname: string, method?: string): boolean {
   const path = normalizePath(pathname)
   if (PUBLIC_ROUTES.has(path)) return true
   if (method === 'GET' && path.startsWith('/api/documents')) {

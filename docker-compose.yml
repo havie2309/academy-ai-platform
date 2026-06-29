@@ -194,6 +194,11 @@ services:
       APP_PORT: 3000
       JWT_SECRET: ${JWT_SECRET:-dev-secret}
       WEB_URL: ${WEB_URL:-http://localhost:5173}
+      GATEWAY_TRUST_PROXY: ${GATEWAY_TRUST_PROXY:-false}
+      NETWORK_RESTRICTED_PATHS: ${NETWORK_RESTRICTED_PATHS:-/api/etl}
+      NETWORK_COUNTRY_HEADER: ${NETWORK_COUNTRY_HEADER:-x-geo-country}
+      NETWORK_ALLOWED_COUNTRIES: ${NETWORK_ALLOWED_COUNTRIES:-}
+      NETWORK_BLOCKED_COUNTRIES: ${NETWORK_BLOCKED_COUNTRIES:-}
       USER_MANAGEMENT_URL: http://user-management:3001
       CHAT_URL: ${CHAT_URL:-http://host.docker.internal:3002}
       RBAC_URL: ${RBAC_URL:-http://host.docker.internal:3003}
