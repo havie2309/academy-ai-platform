@@ -18,6 +18,8 @@ Optional:
 """
 
 import argparse
+import argon2
+from argon2 import PasswordHasher
 import hashlib
 import os
 import random
@@ -798,32 +800,27 @@ def generate_khao_thi_data(mon_hoc_list, hoc_ky_list, lop_hoc_phan_list, hoc_vie
         "answers": answers,
     }
 
-ITERATIONS = os.getenv('PASSWORD_HASH_ITERATIONS') or 100000
-KEY_LENGTH = os.getenv('PASSWORD_HASH_KEY_LENGTH') or 32
-DIGEST = os.getenv('PASSWORD_HASH_ALGORITHM') or 'sha256'
+ph = PasswordHasher(
+    time_cost=3,
+    memory_cost=65536,
+    parallelism=4,
+    hash_len=32,
+    salt_len=16,
+)
 
 def hash_password(password: str) -> str:
-    salt = os.urandom(16).hex()
-    hash_bytes = hashlib.pbkdf2_hmac(DIGEST, password.encode(), salt.encode(), ITERATIONS, KEY_LENGTH)
-    return hash_bytes.hex(), salt
-
-def verify_password(password: str, hash: str, salt: str) -> bool:
-    computed = hashlib.pbkdf2_hmac(DIGEST, password.encode(), salt.encode(), int(ITERATIONS), KEY_LENGTH)
-    return computed.hex() == hash
-
+    return ph.hash(password)
 
 def generate_iam_data(hoc_vien_list, giang_vien_list):
     password = '123456'
-    hash, salt = hash_password(password)
+    hash = hash_password(password)
     users = [
         {
             "user_id": "USR001",
             "username": "admin",
             "email": "admin@pm2.edu.vn",
             "password_hash": hash,
-            "password_salt": salt,
-            "hash_iterations": ITERATIONS,
-            "hash_algorithm": f'pbkdf2_{DIGEST}',
+            "hash_algorithm": 'argon2id',
             "fullname": "Quản trị viên",
             "department": "Phòng CNTT",
             "max_security_level": 4,
@@ -834,9 +831,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "username": "BGD",
             "email": "pgd@pm2.edu.vn",
             "password_hash": hash,
-            "password_salt": salt,
-            "hash_iterations": ITERATIONS,
-            "hash_algorithm": f'pbkdf2_{DIGEST}',
+            "hash_algorithm": 'argon2id',
             "fullname": "Ban Giám đốc 01",
             "department": "BGD",
             "max_security_level": 4,
@@ -847,9 +842,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "username": "p2_01",
             "email": "p2_01@pm2.edu.vn",
             "password_hash": hash,
-            "password_salt": salt,
-            "hash_iterations": ITERATIONS,
-            "hash_algorithm": f'pbkdf2_{DIGEST}',
+            "hash_algorithm": 'argon2id',
             "fullname": "Phòng Đào tạo",
             "department": "P2",
             "max_security_level": 3,
@@ -860,9 +853,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "username": "khaothi_01",
             "email": "khaothi_01@pm2.edu.vn",
             "password_hash": hash,
-            "password_salt": salt,
-            "hash_iterations": ITERATIONS,
-            "hash_algorithm": f'pbkdf2_{DIGEST}',
+            "hash_algorithm": 'argon2id',
             "fullname": "Ban Khảo thí 01",
             "department": "BKT",
             "max_security_level": 3,
@@ -885,9 +876,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "username": hv["ma_hv"],
             "email": hv["email"],
             "password_hash": hash,
-            "password_salt": salt,
-            "hash_iterations": ITERATIONS,
-            "hash_algorithm": f'pbkdf2_{DIGEST}',
+            "hash_algorithm": 'argon2id',
             "fullname": hv["ho_ten"],
             "department": hv["ten_nganh"],
             "max_security_level": 1,
@@ -903,9 +892,7 @@ def generate_iam_data(hoc_vien_list, giang_vien_list):
             "username": gv["ma_gv"],
             "email": gv["email"],
             "password_hash": hash,
-            "password_salt": salt,
-            "hash_iterations": ITERATIONS,
-            "hash_algorithm": f'pbkdf2_{DIGEST}',
+            "hash_algorithm": 'argon2id',
             "fullname": gv["ho_ten"],
             "department": gv["ten_don_vi"],
             "max_security_level": 2,
@@ -1028,7 +1015,7 @@ def write_iam_seed(path, iam_data, truncate=False):
         if truncate:
             write_truncate_statements(f)
         f.write("-- ============================================\n-- IAM SEED\n-- ============================================\n\n")
-        write_insert_statement(f, "users", ["user_id", "username", "email", "password_hash", "password_salt", "hash_iterations", "hash_algorithm", "fullname", "department", "max_security_level", "status"], iam_data["users"])
+        write_insert_statement(f, "users", ["user_id", "username", "email", "password_hash", "hash_algorithm", "fullname", "department", "max_security_level", "status"], iam_data["users"])
         write_insert_statement(f, "permissions", ["id", "code", "resource", "action", "description"], iam_data["permissions"])
         write_insert_statement(f, "roles", ["id", "name", "code", "description"], iam_data["roles"])
         write_insert_statement(f, "role_permissions", ["role_id", "permission_id"], iam_data["role_permissions"])

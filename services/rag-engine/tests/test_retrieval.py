@@ -49,12 +49,19 @@ def _matches(doc: dict, query: dict) -> bool:
     for key, expected in query.items():
         if key == "$or":
             return any(_matches(doc, clause) for clause in expected)
+        if key == "$and":
+            return all(_matches(doc, clause) for clause in expected)
 
         actual = _lookup(doc, key)
         if isinstance(expected, dict):
             for op, value in expected.items():
                 if op == "$or":
                     if not any(_matches(doc, clause) for clause in value):
+                        return False
+                    continue
+                if op == "$exists":
+                    exists = actual is not _MISSING
+                    if bool(value) != exists:
                         return False
                     continue
                 if not _op_matches(actual, op, value):
@@ -67,6 +74,12 @@ def _matches(doc: dict, query: dict) -> bool:
         elif actual != expected:
             return False
     return True
+
+
+def _result_citations(result):
+    if hasattr(result, "citations"):
+        return result.citations
+    return result
 
 
 class _FakeCollection:
@@ -213,12 +226,16 @@ class RetrievalFlowTests(unittest.TestCase):
         async def _fake_rerank(_query: str, citations: list[dict]):
             return [{**citation, "rerank_score": citation["score"]} for citation in citations]
 
+        async def _noop_audit(**_kwargs):
+            return None
+
         with (
             patch.object(retrieval, "cache", fake_cache),
             patch.object(retrieval, "embed_query", return_value=[0.1, 0.2]),
             patch.object(retrieval, "search_vectors", new=_fake_search),
             patch.object(retrieval, "MongoClient", return_value=_FakeMongoClient(fake_db)),
             patch.object(retrieval, "rerank_citations", new=_fake_rerank),
+            patch.object(retrieval, "persist_document_security_audit", new=_noop_audit),
         ):
             result = asyncio.run(
                 retrieval.retrieve_citations(
@@ -233,7 +250,7 @@ class RetrievalFlowTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual([item["chunk_id"] for item in result], ["parent-gv"])
+        self.assertEqual([item["chunk_id"] for item in _result_citations(result)], ["parent-gv"])
         expr = str(captured.get("expr") or "")
         self.assertIn("doc-lecturer", expr)
         self.assertNotIn("doc-student", expr)
@@ -310,6 +327,9 @@ class RetrievalFlowTests(unittest.TestCase):
             self.assertEqual(query, "dieu kien du thi")
             return [{**citation, "rerank_score": citation["score"]} for citation in citations]
 
+        async def _noop_audit(**_kwargs):
+            return None
+
         with (
             patch.object(retrieval, "cache", fake_cache),
             patch.object(retrieval, "embed_query", return_value=[0.1, 0.2]),
@@ -323,6 +343,7 @@ class RetrievalFlowTests(unittest.TestCase):
             ),
             patch.object(retrieval, "MongoClient", return_value=_FakeMongoClient(fake_db)),
             patch.object(retrieval, "rerank_citations", new=_fake_rerank),
+            patch.object(retrieval, "persist_document_security_audit", new=_noop_audit),
         ):
             result = asyncio.run(
                 retrieval.retrieve_citations(
@@ -331,9 +352,9 @@ class RetrievalFlowTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual([item["chunk_id"] for item in result], ["parent-b", "parent-a"])
-        self.assertEqual(result[0]["section_path"], "Chuong II > Dieu 5")
-        self.assertEqual(result[1]["section_path"], "Chuong I > Dieu 2")
+        self.assertEqual([item["chunk_id"] for item in _result_citations(result)], ["parent-b", "parent-a"])
+        self.assertEqual(_result_citations(result)[0]["section_path"], "Chuong II > Dieu 5")
+        self.assertEqual(_result_citations(result)[1]["section_path"], "Chuong I > Dieu 2")
         self.assertEqual(fake_cache.saved[0], "dieu kien du thi")
         self.assertEqual(fake_cache.saved[2], "u-1")
 
@@ -426,12 +447,16 @@ class RetrievalFlowTests(unittest.TestCase):
         async def _fake_rerank(_query: str, citations: list[dict]):
             return [{**citation, "rerank_score": citation["score"]} for citation in citations]
 
+        async def _noop_audit(**_kwargs):
+            return None
+
         with (
             patch.object(retrieval, "cache", fake_cache),
             patch.object(retrieval, "embed_query", return_value=[0.1, 0.2]),
             patch.object(retrieval, "search_vectors", new=_fake_search),
             patch.object(retrieval, "MongoClient", return_value=_FakeMongoClient(fake_db)),
             patch.object(retrieval, "rerank_citations", new=_fake_rerank),
+            patch.object(retrieval, "persist_document_security_audit", new=_noop_audit),
         ):
             result = asyncio.run(
                 retrieval.retrieve_citations(
@@ -449,7 +474,7 @@ class RetrievalFlowTests(unittest.TestCase):
         self.assertIn("doc-public", expr)
         self.assertIn("doc-user", expr)
         self.assertNotIn("doc-hidden", expr)
-        self.assertEqual([item["chunk_id"] for item in result], ["parent-public", "parent-user"])
+        self.assertEqual([item["chunk_id"] for item in _result_citations(result)], ["parent-public", "parent-user"])
 
 
 if __name__ == "__main__":

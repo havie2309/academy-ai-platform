@@ -28,7 +28,13 @@ export interface GuardrailRule {
   label: string
   enabled: boolean
   phrases: string[]
+  matchMode?: GuardrailMatchMode
+  fuzzyThreshold?: number
+  semanticThreshold?: number
+  synonyms?: string[]
 }
+
+export type GuardrailMatchMode = 'substring' | 'exact' | 'fuzzy' | 'semantic'
 
 export interface StoredAdminConfig<T> {
   config_key: string

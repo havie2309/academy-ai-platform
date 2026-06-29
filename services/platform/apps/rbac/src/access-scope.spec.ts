@@ -25,6 +25,7 @@ describe('access-scope helpers', () => {
         'BGD',
       ])
       expect(isAdminLike(['BGD'])).toBe(true)
+      expect(isAdminLike(['P7'])).toBe(true)
     })
   })
 

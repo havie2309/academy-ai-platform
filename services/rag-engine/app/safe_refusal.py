@@ -23,6 +23,7 @@ from app.config import (
 )
 from app.guardrails.normalize import normalize_guardrail_rules, normalize_keywords
 from app.guardrails.pipeline import evaluate_guardrails
+from app.guardrails.policy_store import get_rag_policy
 from app.guardrails.rule_match import match_blacklist, match_guardrail_rules
 from app.guardrails.types import (
     DEFAULT_BLACKLIST,
@@ -160,42 +161,24 @@ async def _load_example_embeddings() -> list[tuple[list[float], str]]:
 
 
 async def _embedding_classify(query: str, top_k: int = 5, threshold: float = 0.45) -> str:
-    """KNN vote từ top_k examples gần nhất. Fail open = ALLOW."""
+    """KNN vote từ top_k examples gần nhất. Conservative = BLOCK nếu không confident."""
     try:
         query_vec = await _embed_text(query)
         examples = await _load_example_embeddings()
         if not examples:
-            return "BLOCK"  # không có examples → conservative
+            return "BLOCK"
         sims = sorted(
             [(_cosine_sim(query_vec, vec), label) for vec, label in examples],
             reverse=True,
         )
         if sims[0][0] < threshold:
-            return "BLOCK"  # không đủ confident → conservative
+            return "BLOCK"
         top = sims[:top_k]
         block_score = sum(s for s, label in top if label == "BLOCK")
         allow_score = sum(s for s, label in top if label == "ALLOW")
         return "BLOCK" if block_score > allow_score else "ALLOW"
     except Exception:
-        return "BLOCK"  # fail conservative nếu embedding service down
-
-
-DEFAULT_GUARDRAIL_RULE = {
-    "id": "default-keyword-blocklist",
-    "label": "Danh sach tu khoa bi chan",
-    "enabled": True,
-    "phrases": DEFAULT_BLACKLIST[:],
-}
-
-_POLICY_LOCK = asyncio.Lock()
-_POLICY_CACHE: dict[str, object] = {
-    "value": {
-        "enabled": True,
-        "guardrailRules": [DEFAULT_GUARDRAIL_RULE.copy()],
-        "safeRefusalMessage": DEFAULT_SAFE_REFUSAL,
-    },
-    "expires_at": 0.0,
-}
+        return "BLOCK"
 
 
 def _fold_text(text: str) -> str:
@@ -205,8 +188,8 @@ def _fold_text(text: str) -> str:
 
 def _current_academic_year() -> str:
     now = datetime.now()
-    y, m = now.year, now.month
-    return f"{y}-{y + 1}" if m >= 8 else f"{y - 1}-{y}"
+    year, month = now.year, now.month
+    return f"{year}-{year + 1}" if month >= 8 else f"{year - 1}-{year}"
 
 
 def _extract_academic_year(folded: str) -> str | None:
@@ -226,9 +209,9 @@ def _has_answer_hint(folded: str) -> bool:
 
 def _classify_year_context(folded: str, current_year: str) -> str:
     """
-    ALLOW  → rõ năm cũ (explicit past year hoặc relative past hint)
-    BLOCK  → rõ năm hiện tại (explicit current year hoặc relative current hint)
-    BLOCK  → không rõ năm (conservative)
+    ALLOW    → rõ năm cũ (explicit past year hoặc relative past hint)
+    BLOCK    → rõ năm hiện tại (explicit current year hoặc relative current hint)
+    AMBIGUOUS → không rõ năm → để embedding classifier xử lý
     """
     explicit = _extract_academic_year(folded)
     if explicit is not None:
@@ -237,72 +220,10 @@ def _classify_year_context(folded: str, current_year: str) -> str:
     if any(_fold_text(h) in folded for h in _PAST_RELATIVE_HINTS):
         return "ALLOW"
 
-    return "AMBIGUOUS"  # không rõ năm → để embedding classifier xử lý
+    if any(_fold_text(h) in folded for h in _CURRENT_RELATIVE_HINTS):
+        return "BLOCK"
 
-
-def _policy_from_payload(payload: dict) -> dict:
-    value = payload.get("value") if isinstance(payload, dict) else None
-    source = value if isinstance(value, dict) else payload
-    safe_refusal = str(source.get("safeRefusalMessage") or "").strip()
-    guardrail_rules = source.get("guardrailRules")
-    blacklist_keywords = source.get("blacklistKeywords") or DEFAULT_BLACKLIST
-    return {
-        "enabled": bool(source.get("enabled", True)),
-        "guardrailRules": normalize_guardrail_rules(
-            guardrail_rules
-            if isinstance(guardrail_rules, list)
-            else [
-                {
-                    "id": DEFAULT_GUARDRAIL_RULE["id"],
-                    "label": DEFAULT_GUARDRAIL_RULE["label"],
-                    "enabled": True,
-                    "phrases": blacklist_keywords,
-                }
-            ]
-        ),
-        "safeRefusalMessage": safe_refusal or DEFAULT_SAFE_REFUSAL,
-        "policyRules": str(source.get("policyRules") or "").strip() or None,
-    }
-
-
-async def _fetch_remote_policy() -> dict:
-    if not ADMIN_CONFIG_URL or not ADMIN_CONFIG_INTERNAL_KEY:
-        return _policy_from_payload({})
-
-    async with httpx.AsyncClient(timeout=5.0) as client:
-        response = await client.get(
-            f"{ADMIN_CONFIG_URL.rstrip('/')}/api/admin-config/internal/rag-policy",
-            headers={"x-admin-config-key": ADMIN_CONFIG_INTERNAL_KEY},
-        )
-        response.raise_for_status()
-        return _policy_from_payload(response.json())
-
-
-async def get_rag_policy(force_refresh: bool = False) -> dict:
-    now = time.monotonic()
-    expires_at = float(_POLICY_CACHE.get("expires_at") or 0.0)
-    cached = dict(_POLICY_CACHE.get("value") or {})
-    if cached and not force_refresh and now < expires_at:
-        return cached
-
-    async with _POLICY_LOCK:
-        now = time.monotonic()
-        expires_at = float(_POLICY_CACHE.get("expires_at") or 0.0)
-        cached = dict(_POLICY_CACHE.get("value") or {})
-        if cached and not force_refresh and now < expires_at:
-            return cached
-
-        try:
-            policy = await _fetch_remote_policy()
-        except Exception:
-            _POLICY_CACHE["expires_at"] = now + min(
-                max(ADMIN_CONFIG_CACHE_TTL_SECONDS, 5), 15
-            )
-            return cached or _policy_from_payload({})
-
-        _POLICY_CACHE["value"] = policy
-        _POLICY_CACHE["expires_at"] = now + max(ADMIN_CONFIG_CACHE_TTL_SECONDS, 5)
-        return dict(policy)
+    return "AMBIGUOUS"
 
 
 async def log_policy_event(
@@ -380,30 +301,44 @@ async def maybe_refuse_query(query: str, user: dict | None = None) -> dict | Non
     # Không phải "đáp án" → để keyword/guardrail xử lý bình thường
     matched = await evaluate_guardrails(query, policy.get("guardrailRules"), user=user)
     if matched:
-        matched_rule_id, matched_keyword = matched
         await log_policy_event(
             user=user,
             question=query,
-            matched_rule_id=matched_rule_id,
-            matched_keyword=matched_keyword,
+            matched_rule_id=matched.rule_id,
+            matched_keyword=matched.matched_phrase,
             status="blocked",
+            audit_reason=matched.audit_reason(),
         )
         return {
             "answer": refusal_message,
             "citations": [],
             "route": "refusal",
-            "blocked_keyword": matched_keyword,
-            "blocked_rule_id": matched_rule_id,
+            "blocked_keyword": matched.matched_phrase,
+            "blocked_rule_id": matched.rule_id,
+            "match_layer": matched.match_layer,
+            "match_score": matched.score,
         }
 
     return None
 
 
 def retrieve_refusal_payload(refusal: dict) -> dict:
-    return {
+    payload: dict = {
         "citations": [],
         "route": "refusal",
         "message": refusal.get("answer") or DEFAULT_SAFE_REFUSAL,
-        "blocked_keyword": refusal.get("blocked_keyword"),
-        "blocked_rule_id": refusal.get("blocked_rule_id"),
     }
+    for key in (
+        "blocked_keyword",
+        "blocked_rule_id",
+        "match_layer",
+        "match_score",
+        "deny_reason",
+        "denyReason",
+        "refusal_type",
+        "matchedRuleId",
+    ):
+        value = refusal.get(key)
+        if value is not None:
+            payload[key] = value
+    return payload

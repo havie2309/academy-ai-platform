@@ -21,8 +21,10 @@ import {
 } from 'lucide-react'
 import {
   docsApi,
+  type AiAccessPolicy,
   type DocItem,
   type IngestStatus,
+  type PublicationStatus,
   type SecurityLevel,
   type AccessScopeType,
 } from '../api/docs'
@@ -57,6 +59,34 @@ const ROLE_OPTIONS: { code: string; label: string }[] = [
   { code: 'KHAO_THI', label: 'Ban Khảo thí' },
   { code: 'GIANG_VIEN', label: 'Giảng viên' },
   { code: 'HOC_VIEN', label: 'Học viên' },
+]
+
+const PUBLICATION_STATUSES: { value: PublicationStatus; label: string }[] = [
+  { value: 'public', label: 'Công khai' },
+  { value: 'internal', label: 'Nội bộ' },
+  { value: 'confidential', label: 'Mật' },
+  { value: 'embargoed', label: 'Phong toả' },
+]
+
+const AI_ACCESS_POLICIES: { value: AiAccessPolicy; label: string }[] = [
+  { value: 'allow', label: 'Cho phép AI' },
+  { value: 'restricted', label: 'Hạn chế AI' },
+  { value: 'review_required', label: 'Cần duyệt' },
+  { value: 'deny', label: 'Chặn AI' },
+]
+
+const EXAM_TYPE_OPTIONS = [
+  { value: 'practice', label: 'Đề thi thử / luyện tập' },
+  { value: 'study_guide', label: 'Tài liệu ôn tập' },
+  { value: 'official', label: 'Đề chính thức' },
+  { value: 'answer_key', label: 'Đáp án' },
+]
+
+const EXAM_STATUS_OPTIONS = [
+  { value: 'upcoming', label: 'Sắp tới' },
+  { value: 'active', label: 'Đang diễn ra' },
+  { value: 'completed', label: 'Đã kết thúc' },
+  { value: 'archived', label: 'Lưu trữ' },
 ]
 
 const STAGE_ORDER = ['queued', 'extract', 'chunk', 'embed', 'index', 'done']
@@ -496,26 +526,26 @@ function formatIngestPollWarning(error: unknown): string {
       return 'Trang tài liệu đang tự làm mới trạng thái ingest và đã chạm rate limit tạm thời. Vui lòng đợi khoảng 1 phút rồi thử lại.'
     }
     if (
-      message.includes('\u0111\u0103ng nh\u1eadp') ||
+      message.includes('đăng nhập') ||
       message.includes('Phi') ||
       message.includes('401')
     ) {
-      return 'Phi\u00ean \u0111\u0103ng nh\u1eadp \u0111\u00e3 h\u1ebft h\u1ea1n n\u00ean ch\u01b0a th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i ingest. Vui l\u00f2ng \u0111\u0103ng nh\u1eadp l\u1ea1i.'
+      return 'Phiên đăng nhập đã hết hạn nên chưa thể cập nhật trạng thái ingest. Vui lòng đăng nhập lại.'
     }
     if (message.includes('API gateway') || message.includes('3000')) {
-      const target = API_BASE || 'proxy /api c\u1ee7a web-ui'
-      return `Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest qua ${target}. Ki\u1ec3m tra API gateway ho\u1eb7c proxy r\u1ed3i th\u1eed l\u1ea1i.`
+      const target = API_BASE || 'proxy /api của web-ui'
+      return `Chưa cập nhật được trạng thái ingest qua ${target}. Kiểm tra API gateway hoặc proxy rồi thử lại.`
     }
     if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
-      const target = API_BASE || 'proxy /api c\u1ee7a web-ui'
-      return `Kh\u00f4ng k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c ${target} n\u00ean ch\u01b0a th\u1ec3 c\u1eadp nh\u1eadt tr\u1ea1ng th\u00e1i ingest. Ki\u1ec3m tra API gateway ho\u1eb7c proxy r\u1ed3i th\u1eed l\u1ea1i.`
+      const target = API_BASE || 'proxy /api của web-ui'
+      return `Không kết nối được ${target} nên chưa thể cập nhật trạng thái ingest. Kiểm tra API gateway hoặc proxy rồi thử lại.`
     }
     if (message) {
-      return `Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest: ${message}`
+      return `Chưa cập nhật được trạng thái ingest: ${message}`
     }
   }
 
-  return 'Ch\u01b0a c\u1eadp nh\u1eadt \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ingest. Ki\u1ec3m tra API gateway ho\u1eb7c \u0111\u0103ng nh\u1eadp l\u1ea1i r\u1ed3i th\u1eed ti\u1ebfp.'
+  return 'Chưa cập nhật được trạng thái ingest. Kiểm tra API gateway hoặc đăng nhập lại rồi thử tiếp.'
 }
 
 function isSupportedUploadFile(file: File): boolean {
@@ -553,6 +583,10 @@ export default function DocsPage() {
   const [uploadRoles, setUploadRoles] = useState<string[]>([])
   const [uploadDepartments, setUploadDepartments] = useState('')
   const [uploadUserIds, setUploadUserIds] = useState('')
+  const [uploadPublication, setUploadPublication] = useState<PublicationStatus>('internal')
+  const [uploadAiPolicy, setUploadAiPolicy] = useState<AiAccessPolicy>('allow')
+  const [uploadExamType, setUploadExamType] = useState('practice')
+  const [uploadExamStatus, setUploadExamStatus] = useState('upcoming')
     // Preview chunks modal
   const [previewDocId, setPreviewDocId] = useState<string | null>(null)
   const [previewChunks, setPreviewChunks] = useState<Array<{
@@ -754,6 +788,17 @@ export default function DocsPage() {
             uploadScope === 'custom'
               ? uploadUserIds.split(',').map((s) => s.trim()).filter(Boolean)
               : undefined,
+        },
+        security: {
+          domain: uploadCat === 'Lịch thi' ? 'exam' : undefined,
+          document_type: uploadCat === 'Lịch thi' ? 'exam' : undefined,
+          publication_status: uploadPublication,
+          ai_access_policy: uploadAiPolicy,
+          domain_metadata:
+            uploadCat === 'Lịch thi'
+              ? { examType: uploadExamType, examStatus: uploadExamStatus }
+              : undefined,
+          tags: uploadCat === 'Lịch thi' ? ['exam'] : undefined,
         },
       })
       setDocs((prev) => [created, ...prev])
@@ -1285,7 +1330,68 @@ export default function DocsPage() {
               </div>
             )}
 
-            {uploadScope === 'all' && <div className="mb-6" />}
+            {uploadScope === 'all' && <div className="mb-2" />}
+
+            <div className="mb-6 rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Metadata bảo mật AI
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Trạng thái công bố</label>
+                  <select
+                    value={uploadPublication}
+                    onChange={(e) => setUploadPublication(e.target.value as PublicationStatus)}
+                    className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-500 text-slate-800"
+                  >
+                    {PUBLICATION_STATUSES.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Chính sách AI</label>
+                  <select
+                    value={uploadAiPolicy}
+                    onChange={(e) => setUploadAiPolicy(e.target.value as AiAccessPolicy)}
+                    className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-500 text-slate-800"
+                  >
+                    {AI_ACCESS_POLICIES.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {uploadCat === 'Lịch thi' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Loại đề (examType)</label>
+                    <select
+                      value={uploadExamType}
+                      onChange={(e) => setUploadExamType(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-500 text-slate-800"
+                    >
+                      {EXAM_TYPE_OPTIONS.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Trạng thái (examStatus)</label>
+                    <select
+                      value={uploadExamStatus}
+                      onChange={(e) => setUploadExamStatus(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl py-2 px-3 text-sm outline-none focus:border-blue-500 text-slate-800"
+                    >
+                      {EXAM_STATUS_OPTIONS.map((item) => (
+                        <option key={item.value} value={item.value}>{item.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-2">
               <button

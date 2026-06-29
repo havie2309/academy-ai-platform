@@ -191,13 +191,26 @@ def build_document_access_query(
     return query
 
 
+def build_ai_access_prefilter() -> dict:
+    """Pre-filter documents that are explicitly blocked from AI retrieval."""
+    return {
+        "$or": [
+            {"aiAccessPolicy": {"$exists": False}},
+            {"aiAccessPolicy": None},
+            {"aiAccessPolicy": {"$nin": ["deny", "review_required"]}},
+        ]
+    }
+
+
 def resolve_accessible_document_ids(
     db,
     user: dict,
     *,
     allow_adversarial: bool = False,
 ) -> list[str]:
-    query = build_document_access_query(user, allow_adversarial=allow_adversarial)
+    acl_query = build_document_access_query(user, allow_adversarial=allow_adversarial)
+    ai_query = build_ai_access_prefilter()
+    query = {"$and": [acl_query, ai_query]} if acl_query else ai_query
     rows = list(db.documents.find(query))
     doc_ids: list[str] = []
     seen: set[str] = set()
