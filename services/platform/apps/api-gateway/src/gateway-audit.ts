@@ -1,13 +1,10 @@
 import type { NextFunction, Response } from 'express'
 import { writeAuditLog } from '../../../src/common/audit-log'
 import { isProtectedPath, type GatewayRequest } from './gateway-auth'
+import { normalizeRequestPath, resolveClientIp } from './request-network'
 
 function normalizePath(pathname: string): string {
-  const clean = pathname.split('?')[0] ?? pathname
-  if (clean.length > 1 && clean.endsWith('/')) {
-    return clean.slice(0, -1)
-  }
-  return clean
+  return normalizeRequestPath(pathname)
 }
 
 function auditStatus(statusCode: number): 'success' | 'failure' | 'denied' {
@@ -36,11 +33,7 @@ function resourceInfo(pathname: string): {
 }
 
 function forwardedIp(req: GatewayRequest): string | null {
-  const raw = req.headers['x-forwarded-for']
-  if (Array.isArray(raw)) {
-    return raw[0]?.split(',')[0]?.trim() || null
-  }
-  return raw?.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || null
+  return resolveClientIp(req)
 }
 
 export function createGatewayAuditMiddleware() {

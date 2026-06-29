@@ -13,6 +13,7 @@ import {
   type GatewayRequest,
 } from './gateway-auth';
 import { createGatewayAuditMiddleware } from './gateway-audit';
+import { createNetworkPolicyMiddleware } from './network-policy';
 import { createRateLimitMiddleware } from './rate-limit';
 import { createLoadSheddingMiddleware } from './load-shedding';
 import { createCircuitBreakerMiddleware } from './circuit-breaker-middleware';
@@ -20,6 +21,7 @@ import { CircuitBreaker } from './circuit-breaker';
 import { RedisService } from '../../../src/common/redis/redis.service';
 import { TokenRevocationService } from '../../../src/common/token-revocation.service';
 import { ConfigService } from '@nestjs/config';
+import { parseTrustProxySetting } from './request-network';
 
 // Load services/platform/.env so JWT_SECRET matches user-management + chat.
 loadEnv({ path: resolve(__dirname, '../../../.env') });
@@ -36,6 +38,10 @@ async function bootstrap() {
   const jwtSecret = process.env.JWT_SECRET ?? 'dev-secret';
 
   const server = express();
+  server.set(
+    'trust proxy',
+    parseTrustProxySetting(process.env.GATEWAY_TRUST_PROXY),
+  );
 
   const noKeepAliveAgent = new http.Agent({ keepAlive: false });
 
@@ -81,7 +87,10 @@ async function bootstrap() {
   // 2d. JWT Authentication
   server.use(createGatewayAuthMiddleware(jwtSecret, tokenRevocations));
 
-  // 2e. Rate limiting (per user/IP)
+  // 2e. Network policy (country restrictions for sensitive paths)
+  server.use(createNetworkPolicyMiddleware(configService));
+
+  // 2f. Rate limiting (per user/IP)
   server.use(createRateLimitMiddleware(redisService, configService));
 
   // ──────────────────────────────────────────────────────────────
@@ -114,9 +123,6 @@ async function bootstrap() {
       on: {
         proxyReq(proxyReq, req) {
           attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
-            proxyReq.setHeader(name, value);
-          });
-          attachEtlInternalAuthHeaders((name, value) => {
             proxyReq.setHeader(name, value);
           });
         },
@@ -239,6 +245,9 @@ async function bootstrap() {
       on: {
         proxyReq(proxyReq, req) {
           attachGatewayUserHeaders(req as GatewayRequest, (name, value) => {
+            proxyReq.setHeader(name, value);
+          });
+          attachEtlInternalAuthHeaders((name, value) => {
             proxyReq.setHeader(name, value);
           });
         },

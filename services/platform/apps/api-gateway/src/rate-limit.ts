@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { RedisService } from '../../../src/common/redis/redis.service';
 import { ConfigService } from '@nestjs/config';
 import { GatewayRequest, GatewayUser } from './gateway-auth';
+import { resolveClientIp } from './request-network';
 
 const DEFAULT_ROLE_LIMITS: Record<string, number> = {
   ADMIN: 180,
@@ -55,14 +56,7 @@ function isAnonymousGatewayUser(user?: GatewayUser): boolean {
 }
 
 function resolveClientIdentifier(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    return forwarded.split(',')[0]?.trim() || 'unknown';
-  }
-  if (Array.isArray(forwarded) && forwarded[0]) {
-    return String(forwarded[0]).split(',')[0]?.trim() || 'unknown';
-  }
-  return req.ip || req.socket?.remoteAddress || 'unknown';
+  return resolveClientIp(req) ?? 'unknown';
 }
 
 function resolveRolePolicy(
