@@ -13,7 +13,7 @@ from app.config import SESSION_CONTEXT_MAX_MESSAGES
 from app.generate import LlmError, complete_chat_structured, complete_task_assist
 from app.retrieval import retrieve_citations
 from app.router import classify_route
-from app.safe_refusal import maybe_refuse_query, retrieve_refusal_payload
+from app.safe_refusal import _load_example_embeddings, maybe_refuse_query, retrieve_refusal_payload
 from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
 
@@ -21,6 +21,7 @@ from app.sql_pipeline import SqlPipelineError, run_sql_query
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     await init_pool()
+    await _load_example_embeddings()
     yield
     await close_pool()
 
