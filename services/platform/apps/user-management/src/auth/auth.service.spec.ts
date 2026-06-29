@@ -1,29 +1,17 @@
 import { UnauthorizedException } from '@nestjs/common'
-import { hashSync } from 'bcrypt'
+import * as argon2 from 'argon2'
 import { AuthService } from './auth.service'
-import { pbkdf2Sync } from 'node:crypto'
-
-function buildPasswordRecord(password: string, salt = 'spec-salt') {
-  const iterations = 1000
-  const digest = 'sha256'
-  const password_hash = pbkdf2Sync(password, salt, iterations, 32, digest).toString('hex')
-
-  return {
-    password_hash,
-    password_salt: salt,
-    hash_iterations: iterations,
-    hash_algorithm: `pbkdf2_${digest}`,
-  }
-}
 
 describe('AuthService', () => {
-  const passwordRecord = buildPasswordRecord('correct-password')
+  let passwordHash: string
 
   let users: {
     findByUsername: jest.Mock
     saveSession: jest.Mock
     updateLastLogin: jest.Mock
     logLogin: jest.Mock
+    revokeSessionById: jest.Mock
+    revokeSessionByRefreshHash: jest.Mock
   }
   let jwt: {
     sign: jest.Mock
@@ -38,14 +26,24 @@ describe('AuthService', () => {
     lockAccount: jest.Mock
     resetFailedAttempts: jest.Mock
   }
+  let tokenRevocations: {
+    revokeAccessForSession: jest.Mock
+  }
   let service: AuthService
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    passwordHash = await argon2.hash('correct-password')
+
     users = {
       findByUsername: jest.fn(),
       saveSession: jest.fn().mockResolvedValue('session-1'),
       updateLastLogin: jest.fn().mockResolvedValue(undefined),
       logLogin: jest.fn().mockResolvedValue(undefined),
+      revokeSessionById: jest.fn().mockResolvedValue({
+        session_id: 'session-1',
+        user_id: 'u-p7',
+      }),
+      revokeSessionByRefreshHash: jest.fn().mockResolvedValue(null),
     }
     jwt = {
       sign: jest.fn().mockReturnValue('access-token'),
@@ -60,12 +58,16 @@ describe('AuthService', () => {
       lockAccount: jest.fn(),
       resetFailedAttempts: jest.fn().mockResolvedValue(undefined),
     }
+    tokenRevocations = {
+      revokeAccessForSession: jest.fn().mockResolvedValue(undefined),
+    }
 
     service = new AuthService(
       users as never,
       jwt as never,
       config as never,
       redis as never,
+      tokenRevocations as never,
     )
   })
 
@@ -77,7 +79,8 @@ describe('AuthService', () => {
       department: 'P7',
       max_security_level: 2,
       roles: ['P7'],
-      ...passwordRecord,
+      password_hash: passwordHash,
+      hash_algorithm: 'argon2id',
     })
     redis.isAccountLocked.mockResolvedValue(true)
 
@@ -90,7 +93,14 @@ describe('AuthService', () => {
 
     expect(redis.isAccountLocked).not.toHaveBeenCalled()
     expect(redis.incrementFailedAttempts).not.toHaveBeenCalled()
-    expect(jwt.sign).toHaveBeenCalled()
+    expect(jwt.sign).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sub: 'u-p7',
+        sid: 'session-1',
+        iat_ms: expect.any(Number),
+      }),
+      expect.objectContaining({ expiresIn: '15m' }),
+    )
     expect(users.saveSession).toHaveBeenCalled()
     expect(result).toMatchObject({
       access_token: 'access-token',
@@ -102,7 +112,8 @@ describe('AuthService', () => {
     })
   })
 
-  it('authenticates legacy bcrypt admin accounts when PBKDF2 columns are absent', async () => {
+  it('authenticates admin accounts when hash metadata is absent', async () => {
+    const legacyHash = await argon2.hash('123456')
     users.findByUsername.mockResolvedValue({
       user_id: 'u-admin',
       username: 'admin',
@@ -110,9 +121,7 @@ describe('AuthService', () => {
       department: 'CNTT',
       max_security_level: 4,
       roles: ['ADMIN'],
-      password_hash: hashSync('123456', 10),
-      password_salt: null,
-      hash_iterations: null,
+      password_hash: legacyHash,
       hash_algorithm: null,
     })
     redis.isAccountLocked.mockResolvedValue(true)
@@ -139,7 +148,8 @@ describe('AuthService', () => {
       department: 'P2',
       max_security_level: 1,
       roles: ['HOC_VIEN'],
-      ...passwordRecord,
+      password_hash: passwordHash,
+      hash_algorithm: 'argon2id',
     })
     redis.isAccountLocked.mockResolvedValue(true)
     redis.ttl.mockResolvedValue(300)
@@ -150,5 +160,28 @@ describe('AuthService', () => {
 
     expect(redis.isAccountLocked).toHaveBeenCalledWith('student01')
     expect(users.saveSession).not.toHaveBeenCalled()
+  })
+
+  it('revokes the current session id on logout', async () => {
+    await service.logout(
+      'refresh-token',
+      'u-p7',
+      'session-1',
+      '127.0.0.1',
+      'jest-agent',
+    )
+
+    expect(users.revokeSessionById).toHaveBeenCalledWith('session-1')
+    expect(tokenRevocations.revokeAccessForSession).toHaveBeenCalledWith(
+      'session-1',
+    )
+    expect(users.revokeSessionByRefreshHash).not.toHaveBeenCalled()
+    expect(users.logLogin).toHaveBeenCalledWith(
+      'u-p7',
+      'logout',
+      '127.0.0.1',
+      'jest-agent',
+      true,
+    )
   })
 })

@@ -129,6 +129,10 @@ class FakeMongoTargetWriter:
 
 class EtlSyncApiTests(unittest.TestCase):
     def setUp(self):
+        self._original_internal_auth_header = main.ETL_INTERNAL_AUTH_HEADER
+        self._original_internal_shared_secret = main.ETL_INTERNAL_SHARED_SECRET
+        main.ETL_INTERNAL_AUTH_HEADER = "x-etl-internal-secret"
+        main.ETL_INTERNAL_SHARED_SECRET = ""
         self.client_ctx = TestClient(main.app)
         self.client = self.client_ctx.__enter__()
         self.sql_adapter = FakeSqlServerAdapter()
@@ -144,6 +148,8 @@ class EtlSyncApiTests(unittest.TestCase):
 
     def tearDown(self):
         self.client_ctx.__exit__(None, None, None)
+        main.ETL_INTERNAL_AUTH_HEADER = self._original_internal_auth_header
+        main.ETL_INTERNAL_SHARED_SECRET = self._original_internal_shared_secret
 
     def _gateway_headers(
         self,
@@ -415,6 +421,29 @@ class EtlSyncApiTests(unittest.TestCase):
             overview = raw_client.get("/v1/etl/overview")
             self.assertEqual(overview.status_code, 401)
             self.assertEqual(overview.json()["detail"], "gateway-authenticated user required")
+
+    def test_requires_internal_gateway_secret_when_enabled(self):
+        main.ETL_INTERNAL_SHARED_SECRET = "spec-etl-secret"
+
+        with TestClient(main.app) as raw_client:
+            missing_secret = raw_client.get(
+                "/v1/etl/overview",
+                headers=self.admin_headers,
+            )
+            self.assertEqual(missing_secret.status_code, 401)
+            self.assertEqual(
+                missing_secret.json()["detail"],
+                "gateway internal authentication required",
+            )
+
+            valid_secret = raw_client.get(
+                "/v1/etl/overview",
+                headers={
+                    **self.admin_headers,
+                    "x-etl-internal-secret": "spec-etl-secret",
+                },
+            )
+            self.assertEqual(valid_secret.status_code, 200)
 
     def test_rejects_non_admin_gateway_user(self):
         student_headers = self._gateway_headers(

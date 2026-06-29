@@ -58,6 +58,34 @@ describe('gateway-auth', () => {
     })
   })
 
+  it('rejects revoked bearer tokens on protected routes', async () => {
+    const secret = 'spec-secret'
+    const token = new JwtService({ secret }).sign({
+      sub: 'u1',
+      username: 'tester',
+      roles: ['Admin'],
+      sid: 'session-1',
+      iat_ms: Date.now(),
+    })
+    const middleware = createGatewayAuthMiddleware(secret, {
+      isAccessTokenRevoked: jest.fn().mockResolvedValue(true),
+    })
+
+    const req = {
+      method: 'GET',
+      path: '/api/chat/sessions',
+      headers: { authorization: `Bearer ${token}` },
+    } as GatewayRequest
+    const res = mockResponse()
+    const next = jest.fn()
+
+    await middleware(req, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(401)
+    expect(res.json).toHaveBeenCalled()
+  })
+
   it('rejects missing tokens on protected routes', async () => {
     const middleware = createGatewayAuthMiddleware('spec-secret')
     const req = {

@@ -11,12 +11,22 @@ interface GatewayJwtPayload {
   roles?: string[]
   department?: string | null
   max_security_level?: number
+  sid?: string
+  iat?: number
+  exp?: number
+  iat_ms?: number
 }
 
 export interface GatewayUser extends AccessScope {}
 
 export interface GatewayRequest extends Request {
   gatewayUser?: GatewayUser
+}
+
+export interface AccessTokenRevocationChecker {
+  isAccessTokenRevoked(
+    payload: Pick<GatewayJwtPayload, 'sub' | 'sid' | 'iat' | 'iat_ms'>,
+  ): Promise<boolean>
 }
 
 // ============================================================
@@ -146,7 +156,10 @@ function createAnonymousUser(req: Request): GatewayUser {
   }
 }
 
-export function createGatewayAuthMiddleware(jwtSecret: string) {
+export function createGatewayAuthMiddleware(
+  jwtSecret: string,
+  tokenRevocations?: AccessTokenRevocationChecker,
+) {
   const jwt = new JwtService({ secret: jwtSecret })
 
   return async (req: GatewayRequest, res: Response, next: NextFunction) => {
@@ -161,6 +174,12 @@ export function createGatewayAuthMiddleware(jwtSecret: string) {
     if (token) {
       try {
         const payload = jwt.verify<GatewayJwtPayload>(token)
+        if (
+          tokenRevocations &&
+          (await tokenRevocations.isAccessTokenRevoked(payload))
+        ) {
+          throw new Error('revoked_access_token')
+        }
         const user = await toGatewayUser(payload)
         if (user) {
           req.gatewayUser = user
