@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { JwtService, JwtSignOptions } from '@nestjs/jwt'
 import * as argon2 from 'argon2'
@@ -284,6 +284,38 @@ export class AuthService {
     }
     await this.users.logLogin(userId, 'logout', ip, userAgent, true)
     return { message: 'Đăng xuất thành công.' }
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    nextPassword: string,
+    ip: string,
+    userAgent: string,
+  ) {
+    const user = await this.users.findCredentialsById(userId)
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('Tài khoản không còn hoạt động.')
+    }
+
+    const valid = await this.isPasswordValid(user, currentPassword)
+    if (!valid) {
+      await this.users.logLogin(
+        userId,
+        'password_change_failed',
+        ip,
+        userAgent,
+        false,
+        'wrong_current_password',
+      )
+      throw new BadRequestException('Mật khẩu hiện tại không đúng.')
+    }
+
+    const nextHash = await argon2.hash(nextPassword)
+    await this.users.updatePasswordHash(userId, nextHash)
+    await this.users.logLogin(userId, 'password_change', ip, userAgent, true)
+
+    return { message: 'Đổi mật khẩu thành công.' }
   }
 
   // ============================================================

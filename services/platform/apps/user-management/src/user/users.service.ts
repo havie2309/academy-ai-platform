@@ -27,6 +27,27 @@ interface AccountRow {
   refreshes_7d: number
 }
 
+interface SelfAccountRow {
+  user_id: string
+  username: string
+  email: string
+  fullname: string | null
+  department: string | null
+  max_security_level: number
+  roles: string[] | null
+  last_login_at: Date | null
+  current_session_user_agent: string | null
+  other_active_sessions_count: number
+}
+
+interface CredentialRow {
+  user_id: string
+  username: string
+  status: UserStatus
+  password_hash: string | null
+  hash_algorithm: string | null
+}
+
 interface ChatUsage {
   chatSessionsTotal: number
   chatMessages30d: number
@@ -69,7 +90,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
   async findByUsername(username: string) {
     const { rows: [user] } = await this.pool.query(
       `SELECT u.user_id, u.username, u.email, u.fullname,
-              u.department, u.password_hash,
+              u.department, u.password_hash, u.hash_algorithm,
               u.status, u.max_security_level,
               ARRAY_AGG(r.code) FILTER (WHERE r.code IS NOT NULL) AS roles
        FROM users u
@@ -95,6 +116,136 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
       [userId]
     )
     return user ?? null
+  }
+
+  async getSelfAccount(userId: string, currentSessionId: string | null) {
+    const sessionId = currentSessionId?.trim() ?? ''
+    const { rows } = await this.pool.query<SelfAccountRow>(
+      `SELECT
+         u.user_id,
+         u.username,
+         u.email,
+         u.fullname,
+         u.department,
+         u.max_security_level,
+         u.last_login_at,
+         role_stats.roles,
+         current_session.user_agent AS current_session_user_agent,
+         COALESCE(other_sessions.other_active_sessions_count, 0)::int AS other_active_sessions_count
+       FROM users u
+       LEFT JOIN LATERAL (
+         SELECT ARRAY_AGG(r.code ORDER BY r.code) FILTER (WHERE r.code IS NOT NULL) AS roles
+         FROM user_roles ur
+         LEFT JOIN roles r ON r.id = ur.role_id
+         WHERE ur.user_id = u.user_id
+           AND ur.is_active = TRUE
+       ) role_stats ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT s.user_agent
+         FROM user_sessions s
+         WHERE s.user_id = u.user_id
+           AND s.revoked_at IS NULL
+           AND s.expires_at > NOW()
+           AND ($2::text <> '' AND s.session_id::text = $2::text)
+         ORDER BY COALESCE(s.last_refreshed_at, s.expires_at) DESC
+         LIMIT 1
+       ) current_session ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*) FILTER (
+           WHERE s.revoked_at IS NULL
+             AND s.expires_at > NOW()
+             AND ($2::text = '' OR s.session_id::text <> $2::text)
+         )::int AS other_active_sessions_count
+         FROM user_sessions s
+         WHERE s.user_id = u.user_id
+       ) other_sessions ON TRUE
+       WHERE u.user_id = $1
+         AND u.status = 'active'
+       LIMIT 1`,
+      [userId, sessionId],
+    )
+
+    const row = rows[0]
+    if (!row) return null
+
+    return {
+      user_id: row.user_id,
+      username: row.username,
+      email: row.email,
+      full_name: row.fullname,
+      department: row.department,
+      max_security_level: row.max_security_level,
+      roles: row.roles ?? [],
+      last_login_at: row.last_login_at?.toISOString() ?? null,
+      current_session_user_agent: row.current_session_user_agent ?? null,
+      other_active_sessions_count: row.other_active_sessions_count ?? 0,
+    }
+  }
+
+  async updateSelfProfile(userId: string, fullName: string) {
+    const { rows } = await this.pool.query(
+      `UPDATE users
+       SET fullname = $2,
+           updated_at = NOW()
+       WHERE user_id = $1
+         AND status = 'active'
+       RETURNING user_id`,
+      [userId, fullName],
+    )
+    return rows[0] ?? null
+  }
+
+  async findCredentialsById(userId: string) {
+    const { rows } = await this.pool.query<CredentialRow>(
+      `SELECT user_id, username, status, password_hash, hash_algorithm
+       FROM users
+       WHERE user_id = $1
+       LIMIT 1`,
+      [userId],
+    )
+    return rows[0] ?? null
+  }
+
+  async updatePasswordHash(userId: string, passwordHash: string) {
+    const { rows } = await this.pool.query(
+      `UPDATE users
+       SET password_hash = $2,
+           hash_algorithm = 'argon2id',
+           updated_at = NOW()
+       WHERE user_id = $1
+         AND status = 'active'
+       RETURNING user_id`,
+      [userId, passwordHash],
+    )
+    return rows[0] ?? null
+  }
+
+  async revokeOtherSessionsForUser(
+    userId: string,
+    currentSessionId: string | null,
+  ): Promise<number> {
+    const sessionId = currentSessionId?.trim() ?? ''
+    const { rows } = await this.pool.query<{ session_id: string }>(
+      `UPDATE user_sessions
+       SET revoked_at = NOW()
+       WHERE user_id = $1
+         AND revoked_at IS NULL
+         AND expires_at > NOW()
+         AND ($2::text = '' OR session_id::text <> $2::text)
+       RETURNING session_id::text AS session_id`,
+      [userId, sessionId],
+    )
+
+    await Promise.all(
+      rows
+        .map((row) => row.session_id?.trim())
+        .filter(Boolean)
+        .map((session_id) =>
+          this.tokenRevocations.revokeAccessForSession(session_id!),
+        ),
+    )
+
+    return rows.length
   }
 
   async saveSession(

@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common'
+import { BadRequestException, UnauthorizedException } from '@nestjs/common'
 import * as argon2 from 'argon2'
 import { AuthService } from './auth.service'
 
@@ -7,8 +7,10 @@ describe('AuthService', () => {
 
   let users: {
     findByUsername: jest.Mock
+    findCredentialsById: jest.Mock
     saveSession: jest.Mock
     updateLastLogin: jest.Mock
+    updatePasswordHash: jest.Mock
     logLogin: jest.Mock
     revokeSessionById: jest.Mock
     revokeSessionByRefreshHash: jest.Mock
@@ -39,8 +41,10 @@ describe('AuthService', () => {
 
     users = {
       findByUsername: jest.fn(),
+      findCredentialsById: jest.fn(),
       saveSession: jest.fn().mockResolvedValue('session-1'),
       updateLastLogin: jest.fn().mockResolvedValue(undefined),
+      updatePasswordHash: jest.fn().mockResolvedValue({ user_id: 'u-p7' }),
       logLogin: jest.fn().mockResolvedValue(undefined),
       revokeSessionById: jest.fn().mockResolvedValue({
         session_id: 'session-1',
@@ -189,6 +193,67 @@ describe('AuthService', () => {
       '127.0.0.1',
       'jest-agent',
       true,
+    )
+  })
+
+  it('changes password when the current password is valid', async () => {
+    users.findCredentialsById.mockResolvedValue({
+      user_id: 'u-p7',
+      username: 'p7-admin',
+      status: 'active',
+      password_hash: passwordHash,
+      hash_algorithm: 'argon2id',
+    })
+
+    const result = await service.changePassword(
+      'u-p7',
+      'correct-password',
+      'new-password-123',
+      '127.0.0.1',
+      'jest-agent',
+    )
+
+    expect(users.updatePasswordHash).toHaveBeenCalledWith(
+      'u-p7',
+      expect.any(String),
+    )
+    expect(users.logLogin).toHaveBeenCalledWith(
+      'u-p7',
+      'password_change',
+      '127.0.0.1',
+      'jest-agent',
+      true,
+    )
+    expect(result).toEqual({ message: 'Đổi mật khẩu thành công.' })
+  })
+
+  it('rejects password change when the current password is wrong', async () => {
+    users.findCredentialsById.mockResolvedValue({
+      user_id: 'u-p7',
+      username: 'p7-admin',
+      status: 'active',
+      password_hash: passwordHash,
+      hash_algorithm: 'argon2id',
+    })
+
+    await expect(
+      service.changePassword(
+        'u-p7',
+        'wrong-password',
+        'new-password-123',
+        '127.0.0.1',
+        'jest-agent',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(users.updatePasswordHash).not.toHaveBeenCalled()
+    expect(users.logLogin).toHaveBeenCalledWith(
+      'u-p7',
+      'password_change_failed',
+      '127.0.0.1',
+      'jest-agent',
+      false,
+      'wrong_current_password',
     )
   })
 })

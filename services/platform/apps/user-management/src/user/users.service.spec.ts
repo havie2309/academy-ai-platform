@@ -5,6 +5,7 @@ describe('UsersService', () => {
     keys: jest.Mock
   }
   let tokenRevocations: {
+    revokeAccessForSession: jest.Mock
     revokeAllAccessForUser: jest.Mock
   }
   let service: UsersService
@@ -15,6 +16,7 @@ describe('UsersService', () => {
       keys: jest.fn(),
     }
     tokenRevocations = {
+      revokeAccessForSession: jest.fn(),
       revokeAllAccessForUser: jest.fn(),
     }
 
@@ -100,5 +102,28 @@ describe('UsersService', () => {
 
     expect(adminAccount?.temporary_locked).toBe(false)
     expect(studentAccount?.temporary_locked).toBe(true)
+  })
+
+  it('revokes other sessions for the current user and caches their access revocation', async () => {
+    poolQuery.mockResolvedValue({
+      rows: [{ session_id: 'session-2' }, { session_id: 'session-3' }],
+    })
+
+    const revokedCount = await service.revokeOtherSessionsForUser(
+      'u-admin',
+      'session-1',
+    )
+
+    expect(revokedCount).toBe(2)
+    expect(poolQuery).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE user_sessions'),
+      ['u-admin', 'session-1'],
+    )
+    expect(tokenRevocations.revokeAccessForSession).toHaveBeenCalledWith(
+      'session-2',
+    )
+    expect(tokenRevocations.revokeAccessForSession).toHaveBeenCalledWith(
+      'session-3',
+    )
   })
 })
