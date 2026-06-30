@@ -170,6 +170,36 @@ export class ChatService implements OnModuleInit {
     return rows.map((m) => this.toMessageDto(m))
   }
 
+  async adminListSessions(targetUserId?: string, page = 1, limit = 20) {
+    if (!this.sessions) throw new ServiceUnavailableException('Chat database chưa sẵn sàng.')
+    const filter = targetUserId ? { userId: targetUserId } : {}
+    const skip = (page - 1) * limit
+    const [rows, total] = await Promise.all([
+      this.sessions.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).toArray(),
+      this.sessions.countDocuments(filter),
+    ])
+    return {
+      total,
+      page,
+      limit,
+      items: rows.map((s) => ({ ...this.toSessionDto(s), user_id: s.userId })),
+    }
+  }
+
+  async adminListMessages(sessionId: string) {
+    if (!this.sessions) throw new ServiceUnavailableException('Chat database chưa sẵn sàng.')
+    const session = await this.sessions.findOne({ sessionId })
+    if (!session) throw new NotFoundException('Không tìm thấy hội thoại.')
+    const rows = await this.messages
+      .find({ sessionId, role: { $in: ['user', 'assistant'] } })
+      .sort({ createdAt: 1 })
+      .toArray()
+    return {
+      session: { ...this.toSessionDto(session), user_id: session.userId },
+      messages: rows.map((m) => this.toMessageDto(m)),
+    }
+  }
+
   async sendMessage(
     userId: string,
     sessionId: string,

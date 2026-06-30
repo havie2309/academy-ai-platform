@@ -3,6 +3,7 @@ import {
   AlertCircle,
   Ban,
   KeyRound,
+  MessageSquare,
   RefreshCw,
   Search,
   Shield,
@@ -73,11 +74,13 @@ function buildAccountLabel(account: ManagedAccount): string {
 interface AdminOpsSectionProps {
   showSummaryCards?: boolean
   showTechnical?: boolean
+  onViewChat?: (userId: string) => void
 }
 
 export default function AdminOpsSection({
   showSummaryCards = true,
   showTechnical = true,
+  onViewChat,
 }: AdminOpsSectionProps) {
   const currentUser = authApi.getUser()
 
@@ -670,6 +673,16 @@ export default function AdminOpsSection({
                             >
                               {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
                             </button>
+                            {onViewChat && (
+                              <button
+                                type="button"
+                                onClick={() => onViewChat(account.user_id)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 transition hover:border-violet-300 hover:bg-violet-100"
+                              >
+                                <MessageSquare size={14} />
+                                Xem chat
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

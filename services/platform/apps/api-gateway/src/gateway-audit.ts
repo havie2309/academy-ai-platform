@@ -19,6 +19,7 @@ const PRIVILEGED_ROUTE_PREFIXES = [
   '/api/audit',
   '/api/admin-config',
   '/api/rbac',
+  '/api/chat/admin',
 ]
 
 function normalizePath(pathname: string): string {

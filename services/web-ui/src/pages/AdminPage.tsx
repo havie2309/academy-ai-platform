@@ -16,6 +16,8 @@ import {
   Trash2,
   UserCog,
   Users,
+  MessageSquare,
+  ChevronLeft,
 } from 'lucide-react'
 import {
   adminApi,
@@ -369,6 +371,66 @@ export default function AdminPage() {
   const [docSecurityCustomJson, setDocSecurityCustomJson] = useState(
     JSON.stringify(DOCUMENT_SECURITY_PRESETS['practice-public'], null, 2),
   )
+
+  // Monitoring tab state
+  type MonitorSession = { id: string; title: string; user_id: string; created_at: string; updated_at: string }
+  type MonitorMessage = { id: string; role: string; content: string; created_at: string; route?: string }
+  const [chatMonitorOpen, setChatMonitorOpen] = useState(false)
+  const [monitorSessions, setMonitorSessions] = useState<MonitorSession[]>([])
+  const [monitorTotal, setMonitorTotal] = useState(0)
+  const [monitorPage, setMonitorPage] = useState(1)
+  const [monitorUserId, setMonitorUserId] = useState('')
+  const [monitorLoading, setMonitorLoading] = useState(false)
+  const [monitorError, setMonitorError] = useState<string | null>(null)
+  const [monitorSelected, setMonitorSelected] = useState<{ session: MonitorSession; messages: MonitorMessage[] } | null>(null)
+  const [monitorMsgLoading, setMonitorMsgLoading] = useState(false)
+
+  const authHeader = () => {
+    const token = authApi.getToken()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  }
+
+  const openChatMonitor = (userId: string) => {
+    setMonitorUserId(userId)
+    setMonitorSelected(null)
+    setMonitorSessions([])
+    setChatMonitorOpen(true)
+    void loadMonitorSessions(1, userId)
+  }
+
+  const loadMonitorSessions = async (page = 1, userId = monitorUserId) => {
+    setMonitorLoading(true)
+    setMonitorError(null)
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: '20' })
+      if (userId.trim()) params.set('userId', userId.trim())
+      const res = await fetch(`/api/chat/admin/sessions?${params}`, { headers: authHeader() })
+      if (!res.ok) throw new Error(`Lỗi ${res.status}`)
+      const data = await res.json()
+      setMonitorSessions(data.items)
+      setMonitorTotal(data.total)
+      setMonitorPage(page)
+    } catch (e) {
+      setMonitorError(e instanceof Error ? e.message : 'Không tải được danh sách session.')
+    } finally {
+      setMonitorLoading(false)
+    }
+  }
+
+  const loadMonitorMessages = async (session: MonitorSession) => {
+    setMonitorMsgLoading(true)
+    setMonitorSelected({ session, messages: [] })
+    try {
+      const res = await fetch(`/api/chat/admin/sessions/${session.id}/messages`, { headers: authHeader() })
+      if (!res.ok) throw new Error(`Lỗi ${res.status}`)
+      const data = await res.json()
+      setMonitorSelected({ session: data.session, messages: data.messages })
+    } catch (e) {
+      setMonitorSelected({ session, messages: [] })
+    } finally {
+      setMonitorMsgLoading(false)
+    }
+  }
 
   const loadHealth = async () => {
     setHealthLoading(true)
@@ -1047,7 +1109,7 @@ export default function AdminPage() {
             </div>
           </section>
 
-          <AdminOpsSection showSummaryCards={false} showTechnical={false} />
+          <AdminOpsSection showSummaryCards={false} showTechnical={false} onViewChat={openChatMonitor} />
         </>
       )}
 
@@ -1787,6 +1849,123 @@ export default function AdminPage() {
 
           <AdminAuditSection />
         </>
+      )}
+
+      {chatMonitorOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-xl mx-4 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+              <h2 className="flex items-center gap-2 text-base font-bold text-slate-800">
+                <MessageSquare className="text-violet-600" size={18} />
+                Lịch sử hội thoại — {monitorUserId || 'Tất cả'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => { setChatMonitorOpen(false); setMonitorSelected(null) }}
+                className="text-slate-400 hover:text-slate-700 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-5">
+              {monitorSelected ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setMonitorSelected(null)}
+                    className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-800 mb-4 cursor-pointer"
+                  >
+                    <ChevronLeft size={16} /> Quay lại danh sách
+                  </button>
+                  <div className="rounded-xl border border-slate-200 p-4 bg-slate-50 mb-4">
+                    <p className="text-xs text-slate-400 font-mono">User: {monitorSelected.session.user_id}</p>
+                    <p className="text-sm font-semibold text-slate-700 mt-1">{monitorSelected.session.title}</p>
+                    <p className="text-xs text-slate-400 mt-1">{new Date(monitorSelected.session.updated_at).toLocaleString('vi-VN')}</p>
+                  </div>
+                  {monitorMsgLoading ? (
+                    <div className="text-center py-8 text-slate-400 text-sm">Đang tải tin nhắn…</div>
+                  ) : (
+                    <div className="space-y-3 pr-1">
+                      {monitorSelected.messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`rounded-xl px-4 py-3 text-sm ${
+                            msg.role === 'user'
+                              ? 'bg-blue-50 border border-blue-100 ml-8'
+                              : 'bg-white border border-slate-200 mr-8'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-semibold text-slate-400 uppercase">
+                              {msg.role === 'user' ? 'Người dùng' : 'AI'}
+                              {msg.route && msg.route !== 'rag' && (
+                                <span className="ml-2 text-amber-500">[{msg.route}]</span>
+                              )}
+                            </span>
+                            <span className="text-xs text-slate-300">{new Date(msg.created_at).toLocaleTimeString('vi-VN')}</span>
+                          </div>
+                          <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {monitorError && (
+                    <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{monitorError}</div>
+                  )}
+                  {monitorLoading ? (
+                    <div className="text-center py-8 text-slate-400 text-sm">Đang tải…</div>
+                  ) : monitorSessions.length === 0 ? (
+                    <div className="text-center text-sm text-slate-400 py-8">Không có session nào.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {monitorSessions.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => loadMonitorMessages(s)}
+                          className="w-full text-left rounded-xl border border-slate-200 px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-slate-700 truncate max-w-[60%]">{s.title}</span>
+                            <span className="text-xs text-slate-400">{new Date(s.updated_at).toLocaleString('vi-VN')}</span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5 font-mono">User: {s.user_id}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {monitorTotal > 20 && (
+                    <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+                      <span>Tổng: {monitorTotal} session</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          disabled={monitorPage <= 1}
+                          onClick={() => loadMonitorSessions(monitorPage - 1)}
+                          className="px-3 py-1 rounded-lg border border-slate-200 disabled:opacity-40 cursor-pointer hover:bg-slate-50"
+                        >
+                          ← Trước
+                        </button>
+                        <span className="px-3 py-1">Trang {monitorPage}</span>
+                        <button
+                          type="button"
+                          disabled={monitorPage * 20 >= monitorTotal}
+                          onClick={() => loadMonitorSessions(monitorPage + 1)}
+                          className="px-3 py-1 rounded-lg border border-slate-200 disabled:opacity-40 cursor-pointer hover:bg-slate-50"
+                        >
+                          Sau →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
