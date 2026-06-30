@@ -1,6 +1,7 @@
 import json
 import re
 import unicodedata
+from urllib.parse import unquote
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -74,7 +75,7 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
     raw_scope = request.headers.get("x-gateway-access-scope")
     if raw_scope:
         try:
-            parsed = json.loads(raw_scope)
+            parsed = json.loads(unquote(raw_scope))
             if isinstance(parsed, dict):
                 scope_payload = parsed
         except json.JSONDecodeError:

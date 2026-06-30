@@ -95,7 +95,7 @@ function extractUserFromRequest(req: Request): AuthUser {
   const userId = (headers['x-gateway-user-id'] as string) || null
   const username = (headers['x-gateway-username'] as string) || null
   const rolesHeader = headers['x-gateway-roles'] as string
-  const department = (headers['x-gateway-department'] as string) || null
+  const department = headers['x-gateway-department'] ? decodeURIComponent(headers['x-gateway-department'] as string) : null
   const maxSecurityLevelHeader = headers['x-gateway-max-security-level'] as string
 
   // If we have gateway headers, use them (they are authoritative)
