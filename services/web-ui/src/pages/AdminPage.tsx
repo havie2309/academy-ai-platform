@@ -501,7 +501,7 @@ export default function AdminPage() {
   const [monitorSelected, setMonitorSelected] = useState<{ session: MonitorSession; messages: MonitorMessage[] } | null>(null)
   const [monitorMsgLoading, setMonitorMsgLoading] = useState(false)
 
-  const authHeader = () => {
+  const authHeader = (): Record<string, string> => {
     const token = authApi.getToken()
     return token ? { Authorization: `Bearer ${token}` } : {}
   }
