@@ -3,6 +3,7 @@ import ChatLayout from './layouts/ChatLayout.tsx'
 import ChatPage from './pages/ChatPage.tsx'
 import DocsPage from './pages/DocsPage.tsx'
 import AdminPage from './pages/AdminPage.tsx'
+import AccountPage from './pages/AccountPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
 import LoginPage from "./pages/LoginPage.tsx"
 import RequireAuth from "./components/RequireAuth.tsx"
@@ -19,11 +20,14 @@ function App() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/docs" element={<DocsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/account" element={<AccountPage />} />
 
-            {/* Admin only */}
             <Route element={<RequireAuth allowedRoles={['ADMIN', 'BGD', 'P2', 'P7']} />}>
               <Route path="/admin" element={<AdminPage />} />
+            </Route>
+
+            <Route element={<RequireAuth allowedRoles={['ADMIN']} />}>
+              <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
         </Route>

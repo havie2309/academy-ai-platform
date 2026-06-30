@@ -1,7 +1,6 @@
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -45,126 +44,27 @@ class DocumentSecurityTests(unittest.TestCase):
         decision = evaluate_document_security(_meta(), STUDENT)
         self.assertTrue(decision.allowed)
 
-    def test_ai_access_deny_blocks(self):
+    def test_legacy_ai_metadata_no_longer_blocks_if_acl_allows(self):
         decision = evaluate_document_security(
-            _meta(aiAccessPolicy="deny"),
+            _meta(aiAccessPolicy="deny", publicationStatus="confidential"),
             STUDENT,
         )
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "ai-access-deny")
+        self.assertTrue(decision.allowed)
 
-    def test_practice_exam_public_allowed(self):
+    def test_department_scope_allows_matching_department(self):
         decision = evaluate_document_security(
             _meta(
-                domain="exam",
-                documentType="exam",
-                securityLevel="public",
-                publicationStatus="public",
-                aiAccessPolicy="allow",
-                domainMetadata={"examType": "practice", "examStatus": "upcoming"},
+                scopeType="department",
+                accessDepartmentCodes=["CNTT"],
             ),
             STUDENT,
         )
         self.assertTrue(decision.allowed)
 
-    def test_official_upcoming_embargoed_denied(self):
-        decision = evaluate_document_security(
-            _meta(
-                domain="exam",
-                documentType="exam",
-                securityLevel="confidential",
-                publicationStatus="embargoed",
-                aiAccessPolicy="deny",
-                domainMetadata={"examType": "official", "examStatus": "upcoming"},
-            ),
-            STUDENT,
-        )
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "exam-official-embargoed")
-
-    def test_official_upcoming_not_public_denied_even_if_user_claims_public(self):
-        decision = evaluate_document_security(
-            _meta(
-                domain="exam",
-                documentType="exam",
-                securityLevel="internal",
-                publicationStatus="internal",
-                aiAccessPolicy="allow",
-                domainMetadata={"examType": "official", "examStatus": "active"},
-            ),
-            STUDENT,
-        )
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "exam-official-unpublished")
-
-    def test_answer_key_denied_before_generic_ai_deny(self):
-        decision = evaluate_document_security(
-            _meta(
-                domain="exam",
-                documentType="answer_key",
-                securityLevel="confidential",
-                publicationStatus="confidential",
-                aiAccessPolicy="deny",
-                domainMetadata={"examType": "answer_key", "examStatus": "active"},
-            ),
-            ADMIN,
-        )
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "exam-answer-leak")
-        self.assertEqual(
-            decision.audit_payload()["denyReason"],
-            "Exam answer or solution content is not allowed for AI retrieval.",
-        )
-
-    def test_answer_key_tag_denied(self):
-        decision = evaluate_document_security(
-            _meta(domain="exam", tags=["answer_key"], domainMetadata={}),
-            STUDENT,
-        )
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "exam-answer-leak")
-
-    def test_exam_missing_metadata_denied(self):
-        decision = evaluate_document_security(
-            _meta(domain="exam", documentType="exam"),
-            STUDENT,
-        )
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "metadata-missing-exam")
-
-    def test_legacy_exam_category_from_document_fallback_denied(self):
-        merged = merge_chunk_and_document_metadata(
-            {"securityLevel": "internal", "scopeType": "all", "title": "De thi"},
-            {"category": "Lịch thi", "docId": "legacy-1"},
-        )
-        decision = evaluate_document_security(merged, STUDENT)
-        self.assertFalse(decision.allowed)
-        self.assertEqual(decision.matched_rule_id, "metadata-missing-exam")
-        self.assertEqual(merged["domain"], "exam")
-
-    def test_chunk_metadata_overrides_document_metadata(self):
-        merged = merge_chunk_and_document_metadata(
-            {
-                "domainMetadata": {"examType": "practice", "examStatus": "upcoming"},
-                "publicationStatus": "public",
-            },
-            {
-                "category": "Lịch thi",
-                "domain": "exam",
-                "publicationStatus": "internal",
-            },
-        )
-        decision = evaluate_document_security(
-            {**merged, "securityLevel": "public", "scopeType": "all"},
-            STUDENT,
-        )
-        self.assertTrue(decision.allowed)
-
-    def test_acl_insufficient_for_restricted(self):
+    def test_role_scope_blocks_non_matching_role(self):
         decision = evaluate_document_security(
             _meta(
                 securityLevel="restricted",
-                publicationStatus="internal",
                 scopeType="role",
                 accessRoleCodes=["GIANG_VIEN"],
             ),
@@ -173,40 +73,74 @@ class DocumentSecurityTests(unittest.TestCase):
         self.assertFalse(decision.allowed)
         self.assertEqual(decision.matched_rule_id, "acl-insufficient")
 
-    def test_filter_rows_logs_and_filters(self):
+    def test_custom_scope_blocks_other_user(self):
+        decision = evaluate_document_security(
+            _meta(
+                scopeType="custom",
+                accessUserIds=["u-other"],
+            ),
+            STUDENT,
+        )
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.matched_rule_id, "acl-insufficient")
+
+    def test_confidential_level_allows_privileged_admin(self):
+        decision = evaluate_document_security(
+            _meta(
+                securityLevel="confidential",
+                scopeType="role",
+                accessRoleCodes=["ADMIN"],
+            ),
+            ADMIN,
+        )
+        self.assertTrue(decision.allowed)
+
+    def test_chunk_metadata_overrides_document_metadata(self):
+        merged = merge_chunk_and_document_metadata(
+            {
+                "scopeType": "custom",
+                "accessUserIds": ["u-student"],
+            },
+            {
+                "category": "Lịch thi",
+                "securityLevel": "internal",
+                "scopeType": "all",
+            },
+        )
+        decision = evaluate_document_security(merged, STUDENT)
+        self.assertTrue(decision.allowed)
+        self.assertEqual(merged["domain"], "exam")
+        self.assertEqual(merged["documentType"], "exam")
+
+    def test_filter_rows_logs_and_filters_acl_only(self):
         rows = [
             {
                 "documentId": "d1",
                 "chunkId": "p1",
                 "metadata": _meta(
-                    domain="exam",
-                    domainMetadata={"examType": "official", "examStatus": "upcoming"},
-                    publicationStatus="internal",
+                    securityLevel="internal",
+                    scopeType="all",
                 ),
             },
             {
                 "documentId": "d2",
                 "chunkId": "p2",
                 "metadata": _meta(
-                    domain="exam",
-                    publicationStatus="public",
-                    domainMetadata={"examType": "practice", "examStatus": "upcoming"},
+                    securityLevel="restricted",
+                    scopeType="role",
+                    accessRoleCodes=["GIANG_VIEN"],
                 ),
             },
         ]
-        with patch(
-            "app.guardrails.document_security.persist_document_security_audit",
-            new=AsyncMock(),
-        ):
-            allowed, blocked = filter_rows_by_document_security(
-                rows,
-                STUDENT,
-                query="de thi thu cong khai",
-            )
+        allowed, blocked = filter_rows_by_document_security(
+            rows,
+            STUDENT,
+            query="tai lieu noi bo",
+        )
         self.assertEqual(len(allowed), 1)
-        self.assertEqual(allowed[0]["chunkId"], "p2")
+        self.assertEqual(allowed[0]["chunkId"], "p1")
         self.assertEqual(len(blocked), 1)
-        self.assertEqual(blocked[0][1].matched_rule_id, "exam-official-unpublished")
+        self.assertEqual(blocked[0][1].matched_rule_id, "acl-insufficient")
 
 
 if __name__ == "__main__":

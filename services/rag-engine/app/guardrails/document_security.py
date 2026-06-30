@@ -5,7 +5,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.access import _role_inputs, can_view_chunk, is_privileged, normalize_roles
+from app.access import can_view_chunk
 
 logger = logging.getLogger(__name__)
 
@@ -444,56 +444,6 @@ def evaluate_document_security(
 ) -> DocumentSecurityDecision:
     meta = parse_document_security_meta(raw_meta)
 
-    leak = _check_answer_leak(meta)
-    if leak is not None:
-        return leak
-
-    if meta.domain == "exam":
-        exam_decision = _evaluate_exam_domain(meta)
-        if exam_decision is not None:
-            return exam_decision
-
-    if meta.ai_access_policy == "deny":
-        return _deny(
-            "ai-access-deny",
-            "Document aiAccessPolicy is deny.",
-            meta,
-        )
-
-    if meta.ai_access_policy == "review_required":
-        return _deny(
-            "ai-access-review-required",
-            "Document requires manual review before AI access.",
-            meta,
-        )
-
-    if meta.publication_status in {"embargoed", "confidential"}:
-        privileged = is_privileged(_role_inputs(user))
-        if not privileged:
-            return _deny(
-                "publication-embargoed",
-                "Document publication status blocks AI retrieval.",
-                meta,
-            )
-
-    if is_sensitive_document(meta):
-        if meta.domain == "exam":
-            exam_type = _exam_field(meta, "examType", "exam_type")
-            exam_status = _exam_field(meta, "examStatus", "exam_status")
-            if not exam_type or not exam_status:
-                return _deny(
-                    "metadata-missing-sensitive",
-                    "Sensitive document is missing required domain metadata.",
-                    meta,
-                )
-        elif not meta.domain_metadata and meta.ai_access_policy == "allow":
-            if meta.security_level in {"restricted", "confidential"}:
-                return _deny(
-                    "metadata-missing-sensitive",
-                    "Sensitive document is missing required security metadata.",
-                    meta,
-                )
-
     acl_meta = {
         "securityLevel": meta.security_level,
         "scopeType": meta.scope_type,
@@ -509,18 +459,6 @@ def evaluate_document_security(
             "User lacks permission for document security level or scope.",
             meta,
         )
-
-    if meta.ai_access_policy == "restricted":
-        privileged = is_privileged(_role_inputs(user))
-        if meta.security_level in {"restricted", "confidential"} and not privileged:
-            user_roles = normalize_roles(_role_inputs(user))
-            allowed_roles = normalize_roles(meta.allowed_roles or meta.access_role_codes)
-            if allowed_roles and not (user_roles & allowed_roles):
-                return _deny(
-                    "ai-access-restricted",
-                    "Restricted AI policy: user role not in allowedRoles.",
-                    meta,
-                )
 
     _ = query
     return _allow(meta)

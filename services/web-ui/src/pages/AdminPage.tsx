@@ -316,6 +316,122 @@ function extractAuditHttpMeta(log: AuditLogEntry): {
   return { method, route, statusCode }
 }
 
+function capitalizeFirst(value: string): string {
+  if (!value) return value
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function incidentTargetLabel(route: string | null, action: string): string {
+  if (!route) return humanizeAuditAction(action).toLowerCase()
+
+  const knownTargets: Array<{ prefix: string; label: string }> = [
+    { prefix: '/api/chat/sessions', label: 'phiên trò chuyện' },
+    { prefix: '/api/audit/logs', label: 'nhật ký hoạt động' },
+    { prefix: '/api/admin-config/rag-policy', label: 'cấu hình AI/RAG' },
+    { prefix: '/api/admin-config', label: 'cấu hình quản trị' },
+    { prefix: '/api/security-alerts', label: 'cảnh báo bảo mật' },
+    { prefix: '/api/documents', label: 'tài liệu' },
+    { prefix: '/api/chat', label: 'trợ lý AI' },
+  ]
+
+  const matched = knownTargets.find((item) => route.startsWith(item.prefix))
+  if (matched) return matched.label
+
+  return route.replace(/^\/api\//, '').replace(/\//g, ' ')
+}
+
+function timeoutSummaryForTarget(target: string): string {
+  const summaryByTarget: Record<string, string> = {
+    'nhật ký hoạt động': 'Hệ thống phản hồi quá lâu. Hãy thử tải lại.',
+    'cấu hình AI/RAG': 'Dịch vụ cấu hình đang phản hồi chậm.',
+    'phiên trò chuyện': 'Dịch vụ trò chuyện đang phản hồi chậm.',
+  }
+
+  return (
+    summaryByTarget[target] ??
+    `${capitalizeFirst(target)} đang phản hồi chậm. Hãy thử tải lại sau ít phút.`
+  )
+}
+
+function describeRecentIncident(log: AuditLogEntry): {
+  title: string
+  summary: string
+  technical: string
+} {
+  const httpMeta = extractAuditHttpMeta(log)
+  const target = incidentTargetLabel(httpMeta.route, log.action)
+  const technical = [
+    httpMeta.method ?? humanizeAuditAction(log.action),
+    httpMeta.route ?? log.action,
+    httpMeta.statusCode != null ? `HTTP ${httpMeta.statusCode}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  if (httpMeta.statusCode === 401) {
+    return {
+      title: 'Phiên đăng nhập đã hết hạn',
+      summary: 'Vui lòng đăng nhập lại để tiếp tục.',
+      technical,
+    }
+  }
+
+  if (httpMeta.statusCode === 403 || log.status === 'denied') {
+    return {
+      title: 'Yêu cầu đã bị chặn',
+      summary: 'Tài khoản hiện tại chưa có quyền thực hiện thao tác này.',
+      technical,
+    }
+  }
+
+  if (httpMeta.statusCode === 429) {
+    return {
+      title: 'Hệ thống đang giới hạn tần suất thao tác',
+      summary: 'Vui lòng chờ một lát rồi thử lại.',
+      technical,
+    }
+  }
+
+  if (httpMeta.statusCode === 504) {
+    return {
+      title: `Không tải được ${target}`,
+      summary: timeoutSummaryForTarget(target),
+      technical,
+    }
+  }
+
+  if (httpMeta.statusCode === 503) {
+    return {
+      title: `Không tải được ${target}`,
+      summary: 'Dịch vụ liên quan đang tạm thời chưa sẵn sàng.',
+      technical,
+    }
+  }
+
+  if (httpMeta.statusCode != null && httpMeta.statusCode >= 500) {
+    return {
+      title: `Không tải được ${target}`,
+      summary: 'Hệ thống đang gặp trục trặc tạm thời. Hãy thử tải lại.',
+      technical,
+    }
+  }
+
+  if (httpMeta.statusCode === 404) {
+    return {
+      title: `Không tìm thấy ${target}`,
+      summary: 'Nội dung này có thể đã được di chuyển hoặc tạm thời chưa sẵn sàng.',
+      technical,
+    }
+  }
+
+  return {
+    title: capitalizeFirst(target),
+    summary:
+      log.reason?.trim() || 'Có sự cố xảy ra khi xử lý yêu cầu này.',
+    technical,
+  }
+}
+
 
 export default function AdminPage() {
   const user = authApi.getUser()
@@ -367,9 +483,9 @@ export default function AdminPage() {
   const [reason, setReason] = useState('')
   const [policyPreviewText, setPolicyPreviewText] = useState('')
   const [docSecurityPreset, setDocSecurityPreset] =
-    useState<keyof typeof DOCUMENT_SECURITY_PRESETS | 'custom'>('practice-public')
+    useState<keyof typeof DOCUMENT_SECURITY_PRESETS | 'custom'>('student-internal-all')
   const [docSecurityCustomJson, setDocSecurityCustomJson] = useState(
-    JSON.stringify(DOCUMENT_SECURITY_PRESETS['practice-public'], null, 2),
+    JSON.stringify(DOCUMENT_SECURITY_PRESETS['student-internal-all'], null, 2),
   )
 
   // Monitoring tab state
@@ -536,7 +652,7 @@ export default function AdminPage() {
           (parsed.category ? { category: parsed.category } : undefined),
       )
     } catch {
-      return DOCUMENT_SECURITY_PRESETS['practice-public']
+      return DOCUMENT_SECURITY_PRESETS['student-internal-all']
     }
   }, [docSecurityPreset, docSecurityCustomJson])
 
@@ -887,13 +1003,13 @@ export default function AdminPage() {
 
             <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                Lỗi hoặc bị chặn gần đây
+                Lỗi hoặc yêu cầu bị chặn gần đây
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-800">
                 {recentIncidentsLoading ? '...' : recentIncidentCount}
               </p>
               <p className="mt-3 text-sm text-slate-500">
-                Chỉ hiển thị bản ghi thất bại hoặc bị chặn; đã ẩn GET thành công thông thường.
+                Chỉ hiển thị bản ghi thất bại hoặc bị từ chối; đã ẩn GET thành công thông thường.
               </p>
             </div>
 
@@ -970,15 +1086,15 @@ export default function AdminPage() {
 
           <section className="mt-6 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
-                  <History className="text-blue-600" size={18} />
-                  Lỗi và bị chặn gần đây
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Chỉ tập trung vào bản ghi thất bại hoặc bị chặn gần đây, không hiện GET thành công thường.
-                </p>
-              </div>
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                    <History className="text-blue-600" size={18} />
+                    Lỗi và yêu cầu bị chặn gần đây
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Mỗi mục được diễn giải bằng ngôn ngữ dễ hiểu; mở chi tiết kỹ thuật khi cần kiểm tra sâu hơn.
+                  </p>
+                </div>
               <button
                 type="button"
                 onClick={() => void loadRecentIncidents()}
@@ -1005,6 +1121,7 @@ export default function AdminPage() {
               {!recentIncidentsLoading &&
                 recentIncidents.map((log) => {
                   const httpMeta = extractAuditHttpMeta(log)
+                  const incident = describeRecentIncident(log)
                   return (
                     <article
                       key={log.id}
@@ -1027,19 +1144,21 @@ export default function AdminPage() {
                             )}
                           </div>
                           <p className="mt-3 font-semibold text-slate-800">
-                            {httpMeta.route
-                              ? `${httpMeta.route}`
-                              : humanizeAuditAction(log.action)}
+                            {incident.title}
                           </p>
                           <p className="mt-1 text-sm text-slate-500">
-                            {log.reason ?? 'Không có ghi chú bổ sung.'}
+                            {incident.summary}
                           </p>
-                          <p className="mt-2 text-xs text-slate-400">
-                            {log.user_id ?? 'Hệ thống'} ·{' '}
-                            {httpMeta.statusCode != null
-                              ? `HTTP ${httpMeta.statusCode}`
-                              : 'Chưa có mã HTTP'}
-                          </p>
+                          <div className="mt-3">
+                            <AdminTechnicalDetails
+                              title="Chi tiết kỹ thuật"
+                              description="Endpoint và mã HTTP để hỗ trợ kiểm tra."
+                            >
+                              <p className="text-sm text-slate-700">
+                                {incident.technical}
+                              </p>
+                            </AdminTechnicalDetails>
+                          </div>
                         </div>
                         <div className="shrink-0 text-xs font-semibold text-slate-500">
                           {formatTimestamp(log.created_at)}
@@ -1577,10 +1696,10 @@ export default function AdminPage() {
 
               <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                  Preview metadata tài liệu (sau retrieval)
+                  Preview quyền tài liệu (sau retrieval)
                 </p>
                 <label className="mt-3 block text-sm font-semibold text-slate-800">
-                  Preset metadata
+                  Preset ACL
                 </label>
                 <select
                   value={docSecurityPreset}
@@ -1598,12 +1717,11 @@ export default function AdminPage() {
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800"
                   data-testid="doc-security-preset"
                 >
-                  <option value="practice-public">Đề thi thử công khai</option>
-                  <option value="official-upcoming">Đề chính thức sắp tới (embargo)</option>
-                  <option value="answer-key">Đáp án / lộ đề (examType)</option>
-                  <option value="answer-key-tag-only">Đáp án (tag answer_key)</option>
-                  <option value="legacy-exam-category">Legacy Lịch thi thiếu metadata</option>
-                  <option value="chunk-fallback-practice">Chunk thiếu metadata + fallback doc</option>
+                  <option value="student-internal-all">Học viên xem tài liệu nội bộ</option>
+                  <option value="teacher-role-restricted">Tài liệu chỉ giảng viên</option>
+                  <option value="department-cntt">Tài liệu theo đơn vị CNTT</option>
+                  <option value="custom-user-only">Tài liệu theo user cụ thể</option>
+                  <option value="confidential-admin-only">Tài liệu mật cho admin</option>
                   <option value="legacy-internal">Tài liệu nội bộ legacy</option>
                   <option value="custom">JSON tùy chỉnh</option>
                 </select>
@@ -1634,7 +1752,7 @@ export default function AdminPage() {
                   <p className="font-semibold">
                     {docSecurityDecision.allowed
                       ? 'Chunk được phép đưa vào context LLM'
-                      : 'Chunk bị chặn sau retrieval'}
+                      : 'Chunk bị chặn do ACL tài liệu'}
                   </p>
                   {!docSecurityDecision.allowed && (
                     <div className="mt-2 space-y-1 text-xs">
@@ -1651,8 +1769,8 @@ export default function AdminPage() {
                         {docSecurityDecision.details.securityLevel}
                       </p>
                       <p>
-                        <span className="font-semibold">publicationStatus:</span>{' '}
-                        {docSecurityDecision.details.publicationStatus}
+                        <span className="font-semibold">scopeType:</span>{' '}
+                        {docSecurityDecision.details.scopeType}
                       </p>
                       <p>
                         <span className="font-semibold">denyReason:</span>{' '}

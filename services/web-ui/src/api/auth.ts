@@ -144,6 +144,12 @@ export const authApi = {
     }
   },
 
+  updateStoredUser(patch: Partial<LoginResponse['user']>): void {
+    const current = this.getUser()
+    if (!current || current.id === 'anonymous') return
+    localStorage.setItem('user', JSON.stringify({ ...current, ...patch }))
+  },
+
   isAuthenticated(): boolean {
     return !!this.getToken()
   },
