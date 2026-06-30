@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import fitz
+import pytesseract
 import re
 import subprocess
 import tempfile
 from pathlib import Path
+from pdf2image import convert_from_path
+from PIL import Image
 
 from app.config import (
     MINERU_BACKEND,
@@ -142,6 +146,27 @@ def _pdf_text_paddleocr(path: Path) -> str:
     return "\n\n".join(page_texts).strip()
 
 
+def _pdf_text_tesseract(path: Path, lang: str = "vie") -> str:
+    """OCR scanned PDF using Tesseract + pdf2image."""
+    try:
+        # Convert PDF pages to images
+        images = convert_from_path(str(path), dpi=200)  # 200 DPI for good balance
+    except Exception as e:
+        print(f"PDF to image conversion failed: {e}")
+        return ""
+
+    page_texts = []
+    for i, img in enumerate(images, start=1):
+        try:
+            # Use Tesseract with Vietnamese language
+            text = pytesseract.image_to_string(img, lang=lang, config="--psm 6")
+            if text.strip():
+                page_texts.append(f"Trang {i}\n{text.strip()}")
+        except Exception as e:
+            print(f"OCR page {i} failed: {e}")
+    return "\n\n".join(page_texts)
+
+
 def extract_text(storage_path: str, mime_type: str = "") -> str:
     path = Path(storage_path)
     if not path.exists():
@@ -149,15 +174,13 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
 
     ext = path.suffix.lower()
 
-    # Plain text: đọc trực tiếp, không cần MarkItDown
+    # Plain text
     if ext in (".txt", ".md", ".csv", ".tsv"):
         return path.read_text(encoding="utf-8", errors="replace").strip()
 
-    # PDF: fitz đọc thẳng text layer — chuẩn dấu tiếng Việt hơn pdfminer của MarkItDown.
-    # OCR fallback cho scanned PDF (fitz trả về rỗng).
+    # PDF
     if ext == ".pdf" or "pdf" in mime_type:
         import fitz
-
         doc = fitz.open(str(path))
         try:
             native = "\n\n".join(
@@ -165,12 +188,17 @@ def extract_text(storage_path: str, mime_type: str = "") -> str:
             ).strip()
         finally:
             doc.close()
+
         if _has_meaningful_text(native):
             return native
+
+        # Option 1: MinerU (if installed and enabled)
         mineru_text = _pdf_text_mineru(path)
         if mineru_text.strip():
             return mineru_text
-        ocr_text = _pdf_text_paddleocr(path)
+
+        # Option 2: Tesseract (new fallback)
+        ocr_text = _pdf_text_tesseract(path, lang="vie")
         return ocr_text or native
 
     # DOCX: python-docx đọc Word heading styles trực tiếp → reliable hơn MarkItDown

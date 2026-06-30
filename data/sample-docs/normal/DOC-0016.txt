@@ -1,24 +1,20 @@
 ============================================================
-                Mạng máy tính - Bài giảng 1                 
+             Đề cương môn học Trí tuệ nhân tạo              
 ============================================================
-Phân loại: Bài giảng
+Phân loại: Đề cương
 Nguồn: Khoa Vật lý
-Ngày tạo: 22/06/2026
+Ngày tạo: 30/06/2026
 ============================================================
 
-Chương 1: Số phức
-  1.1 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.
-  1.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.
-  1.3 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.
-Chương 2: Quản lý dự án phần mềm
-  2.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.
-  2.2 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.
-  2.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.
-Chương 3: Phương trình vi phân
-  3.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.
-  3.2 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.
-  3.3 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.
-Chương 4: Thị giác máy tính
-  4.1 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.
-  4.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.
-  4.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau.
+Chương 1: Ma trận và định thức
+  1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.
+  1.2 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau.
+  1.3 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.
+Chương 2: Thuật toán học có giám sát
+  2.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.
+  2.2 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.
+  2.3 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.
+Chương 3: Tích phân và ứng dụng
+  3.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.
+  3.2 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.
+  3.3 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.
