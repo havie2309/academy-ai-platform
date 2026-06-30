@@ -2,9 +2,11 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -107,5 +109,30 @@ export class ChatController {
       ragUser,
       res,
     )
+  }
+
+  // ── Admin-only endpoints ──────────────────────────────────────
+  @Get('admin/sessions')
+  adminListSessions(
+    @Req() req: { user: AuthUser },
+    @Query('userId') userId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!req.user.roles?.includes('ADMIN')) throw new ForbiddenException()
+    return this.chat.adminListSessions(
+      userId,
+      page ? parseInt(page, 10) : 1,
+      limit ? Math.min(parseInt(limit, 10), 50) : 20,
+    )
+  }
+
+  @Get('admin/sessions/:sessionId/messages')
+  adminListMessages(
+    @Req() req: { user: AuthUser },
+    @Param('sessionId') sessionId: string,
+  ) {
+    if (!req.user.roles?.includes('ADMIN')) throw new ForbiddenException()
+    return this.chat.adminListMessages(sessionId)
   }
 }
