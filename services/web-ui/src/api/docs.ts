@@ -217,6 +217,24 @@ export const docsApi = {
     if (!res.ok) throw new Error(await parseError(res))
   },
 
+  async updateScope(
+    id: string,
+    scope: {
+      security_level: SecurityLevel
+      scope_type: AccessScopeType
+      access_role_codes?: string
+      access_department_codes?: string
+      access_user_ids?: string
+    },
+  ): Promise<void> {
+    const res = await fetchWithAuth(`/api/documents/${id}/scope`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(scope),
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+  },
+
   /** Tải file (kèm token) về dạng blob để xem/lưu, vì <a href> không gửi header auth. */
   async fetchBlob(id: string): Promise<Blob> {
     const res = await fetchWithAuth(`/api/documents/${id}/file`)

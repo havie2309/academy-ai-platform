@@ -935,4 +935,55 @@ export class DocumentsService implements OnModuleInit {
     };
     return names[rank] || 'Không xác định';
   }
+
+  async updateScope(
+    docId: string,
+    access: AccessMeta,
+    user: RequestUser,
+  ): Promise<{ updated: true }> {
+    this.ensureReady()
+    const doc = await this.documents.findOne({ docId })
+    if (!doc) throw new NotFoundException('Không tìm thấy tài liệu.')
+
+    const isAdmin = this.isPrivileged(user)
+    if (!isAdmin && doc.uploadedById !== user.userId) {
+      throw new ForbiddenException('Bạn không có quyền sửa quyền truy cập tài liệu này.')
+    }
+    if (!isAdmin && securityRank(access.securityLevel) > (user.maxSecurityLevel ?? 1)) {
+      throw new ForbiddenException('Bạn không thể đặt mức mật cao hơn quyền truy cập của mình.')
+    }
+
+    const sanitized = this.sanitizeAccessMeta(access)
+    const now = new Date()
+    await this.documents.updateOne(
+      { docId },
+      {
+        $set: {
+          securityLevel: sanitized.securityLevel,
+          scopeType: sanitized.scopeType,
+          accessRoleCodes: sanitized.scopeType === 'role' ? sanitized.roleCodes : [],
+          accessDepartmentCodes: sanitized.scopeType === 'department' ? sanitized.departmentCodes : [],
+          accessUserIds: sanitized.scopeType === 'custom' ? sanitized.userIds : [],
+          updatedAt: now,
+        },
+      },
+    )
+
+    const rank = securityRank(sanitized.securityLevel)
+    await this.db.collection('document_chunks').updateMany(
+      { documentId: docId },
+      {
+        $set: {
+          'metadata.securityLevel': sanitized.securityLevel,
+          'metadata.allowedRoles': sanitized.scopeType === 'role' ? sanitized.roleCodes : [],
+          'metadata.allowedDepartments': sanitized.scopeType === 'department' ? sanitized.departmentCodes : [],
+          'metadata.allowedUserIds': sanitized.scopeType === 'custom' ? sanitized.userIds : [],
+          'metadata.scopeType': sanitized.scopeType,
+          'metadata.securityRank': rank,
+        },
+      },
+    )
+
+    return { updated: true }
+  }
 }
