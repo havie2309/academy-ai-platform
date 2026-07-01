@@ -34,6 +34,10 @@
 | DEC-PM2-24 | Dùng Tesseract OCR làm fallback cho scanned PDF thay vì PaddleOCR | PaddleOCR quá nặng (1.5 GB RAM) và khó cài đặt trên Windows; Tesseract nhẹ (~150 MB RAM), hỗ trợ tiếng Việt tốt, ổn định trên CPU | Active |
 | DEC-PM2-25 | Child chunks được làm sạch Markdown; parent chunks giữ raw Markdown | Child chunks dùng để embedding (Markdown là noise), parent chunks dùng cho LLM grounding (Markdown là structural cues) | Active |
 | DEC-PM2-26 | Ưu tiên cut tại sentence boundary (`.!?`) khi chunking, với grace zone 20% | Tránh cut giữa câu, cải thiện chất lượng embedding và RAG, tương thích với Qwen2.5-3B | Active |
+| DEC-PM2-27 | Persistent streaming messages: tạo assistant message ngay khi bắt đầu stream với `status: 'streaming'` | Cho phép phục hồi trạng thái sau reload/navigation; cải thiện UX khi mất kết nối SSE | Active |
+| DEC-PM2-28 | Polling fallback cho SSE bị mất: frontend poll mỗi 3s khi message có `status: 'streaming'` | Đảm bảo câu trả lời vẫn xuất hiện ngay cả khi SSE bị ngắt; tránh over‑engineering với resumable streams | Active |
+| DEC-PM2-29 | Luôn hiển thị citations và thay thế refusal message bằng văn bản giải thích rõ hơn | Tăng tính minh bạch và tin cậy; người dùng hiểu hệ thống đã tìm kiếm dù không tìm thấy câu trả lời trực tiếp | Active |
+| DEC-PM2-30 | Giảm `RAG_CONTEXT_MAX_CHARS` từ 6000 xuống 1800 và điều chỉnh retrieval/rerank config | Cải thiện first-token latency và tổng thời gian generation trên CPU | Active |
 
 ## 3. Hệ quả thực tế
 

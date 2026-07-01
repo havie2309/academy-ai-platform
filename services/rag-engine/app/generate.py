@@ -529,12 +529,27 @@ async def complete_task_assist(history: list[dict]) -> str:
 
 
 async def stream_chat(
-    history: list[dict], citations: list[dict]
+    history: list[dict],
+    citations: list[dict],
+    require_json: bool = False,
+    force_answer_from_context: bool = False,
+    force_expand_answer: bool = False,
 ) -> AsyncIterator[str]:
     """Yield answer token deltas from the LLM (OpenAI-compatible SSE)."""
     url, model, headers = _llm_target()
-    messages = build_messages(history, citations)
-    payload = {"model": model, "messages": messages, "stream": True}
+    messages = build_messages(
+        history,
+        citations,
+        require_json=require_json,
+        force_answer_from_context=force_answer_from_context,
+        force_expand_answer=force_expand_answer,
+    )
+    payload = {
+        "model": model,
+        "messages": messages,
+        "stream": True,
+        "temperature": 0.3,
+    }
     async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
         async with client.stream(
             "POST", url, headers=headers, json=payload

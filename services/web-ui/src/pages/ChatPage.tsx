@@ -28,6 +28,7 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const skipLoadRef = useRef<string | null>(null)
+  const pollingRef = useRef<number | null>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -72,6 +73,50 @@ export default function ChatPage() {
     }
   }, [sessionId])
 
+  useEffect(() => {
+    if (!sessionId) return
+
+    const streamingMsg = messages.find(m => m.status === 'streaming')
+    if (!streamingMsg) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+      return
+    }
+
+    // If already polling, skip creating another interval
+    if (pollingRef.current) return
+
+    pollingRef.current = window.setInterval(async () => {
+      try {
+        const updatedMessages = await chatApi.listMessages(sessionId)
+        const updated = updatedMessages.find(m => m.id === streamingMsg.id)
+        if (updated) {
+          setMessages(prev =>
+            prev.map(m => (m.id === updated.id ? updated : m))
+          )
+          // If the message is no longer streaming, stop polling
+          if (updated.status !== 'streaming') {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current)
+              pollingRef.current = null
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Polling error:', err)
+      }
+    }, 3000) // Poll every 3 seconds
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+    }
+  }, [sessionId, messages])
+
   const send = async (text?: string) => {
     const content = text || input
     if (!content.trim() || loading) return
@@ -91,16 +136,19 @@ export default function ChatPage() {
       created_at: new Date().toISOString(),
     }
 
-    const streamingAssistant: ChatMessage = {
-      id: STREAMING_ID,
+    // Temporary assistant message (shows loading bubble immediately)
+    const tempAssistant: ChatMessage = {
+      id: `temp-assistant-${Date.now()}`,
       session_id: sessionId ?? '',
       role: 'assistant',
       content: '',
       created_at: new Date().toISOString(),
-      citations: [],
+      status: 'loading',
     }
 
-    setMessages((prev) => [...prev, optimisticUser, streamingAssistant])
+    setMessages((prev) => [...prev, optimisticUser, tempAssistant])
+
+    let assistantMessageId: string | null = null
 
     try {
       let activeId = sessionId
@@ -114,29 +162,42 @@ export default function ChatPage() {
         content,
         {
           onMeta: (meta) => {
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.id === optimisticUser.id) return meta.user_message
-                if (m.id === STREAMING_ID) {
-                  return { ...m, session_id: activeId!, citations: meta.citations }
-                }
-                return m
-              }),
-            )
+            // Replace temporary messages with real ones
+            setMessages((prev) => {
+              // Remove temp assistant and optimistic user
+              const filtered = prev.filter(
+                (m) => m.id !== optimisticUser.id && m.id !== tempAssistant.id,
+              )
+              // Add real user message and streaming assistant
+              const streamingAssistant: ChatMessage = {
+                id: meta.assistant_message_id,
+                session_id: activeId!,
+                role: 'assistant',
+                content: '',
+                created_at: new Date().toISOString(),
+                citations: meta.citations,
+                status: 'streaming',
+              }
+              return [...filtered, meta.user_message, streamingAssistant]
+            })
+            assistantMessageId = meta.assistant_message_id
           },
           onToken: (delta) => {
+            // Append token to the streaming message
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === STREAMING_ID ? { ...m, content: m.content + delta } : m,
+                m.id === assistantMessageId && m.status === 'streaming'
+                  ? { ...m, content: m.content + delta }
+                  : m,
               ),
             )
           },
           onDone: (result) => {
-            setMessages((prev) =>
-              prev
-                .filter((m) => m.id !== STREAMING_ID)
-                .concat(result.assistant_message),
-            )
+            // Remove streaming message and add final completed one
+            setMessages((prev) => {
+              const filtered = prev.filter((m) => m.id !== assistantMessageId)
+              return [...filtered, result.assistant_message]
+            })
             upsertSession(result.session)
             if (!sessionId) {
               skipLoadRef.current = activeId!
@@ -144,18 +205,23 @@ export default function ChatPage() {
             }
           },
           onError: (detail) => {
-            setMessages((prev) =>
-              prev
-                .filter((m) => m.id !== STREAMING_ID)
-                .concat({
+            // Remove streaming message (if exists) and add error
+            setMessages((prev) => {
+              const filtered = prev.filter(
+                (m) => m.id !== assistantMessageId && m.id !== tempAssistant.id,
+              )
+              return [
+                ...filtered,
+                {
                   id: `err-${Date.now()}`,
                   session_id: activeId ?? '',
                   role: 'assistant',
                   content: `Không thể gửi tin nhắn.\n\n${detail}`,
                   created_at: new Date().toISOString(),
                   error: true,
-                }),
-            )
+                },
+              ]
+            })
           },
         },
         controller.signal,
@@ -165,7 +231,7 @@ export default function ChatPage() {
       const detail = err instanceof Error ? err.message : 'Lỗi không xác định'
       setMessages((prev) =>
         prev
-          .filter((m) => m.id !== STREAMING_ID)
+          .filter((m) => m.id !== assistantMessageId && m.id !== tempAssistant.id)
           .concat({
             id: `err-${Date.now()}`,
             session_id: sessionId ?? '',
@@ -286,9 +352,7 @@ export default function ChatPage() {
                 className={`flex gap-4 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm ${msg.error ? 'bg-red-500' : 'bg-blue-600'}`}
-                  >
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm bg-blue-600">
                     AI
                   </div>
                 )}
@@ -306,35 +370,23 @@ export default function ChatPage() {
                 ) : (
                   <div className="flex flex-col max-w-[80%] gap-1 min-w-0 flex-1">
                     <div className="rounded-2xl px-4 py-3 shadow-sm bg-white text-slate-800 border border-slate-200/50 rounded-tl-none">
-                      {msg.content ? (
-                        <ChatMarkdown content={msg.content} />
-                      ) : (
+                      {msg.status === 'loading' || (msg.status === 'streaming' && !msg.content) ? (
                         <div className="flex items-center gap-1.5 py-1">
                           <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:0ms]" />
                           <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:150ms]" />
                           <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:300ms]" />
                         </div>
+                      ) : (
+                        <ChatMarkdown content={msg.content} />
                       )}
                     </div>
-                    {msg.citations && msg.citations.length > 0 && (
+                    {!msg.error && msg.citations && msg.citations.length > 0 && (
                       <CitationList citations={msg.citations} />
                     )}
                   </div>
                 )}
               </div>
             ))}
-            {loading && !isStreaming && (
-              <div className="flex gap-4 justify-start">
-                <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm">
-                  AI
-                </div>
-                <div className="flex items-center gap-1.5 px-4 py-3 bg-white border border-slate-200/50 rounded-2xl rounded-tl-none shadow-sm">
-                  <span className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                  <span className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                  <span className="w-2.5 h-2.5 bg-blue-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                </div>
-              </div>
-            )}
             <div ref={bottomRef} />
           </div>
         )}

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from app.cache import RedisCache
 from app.config import SESSION_CONTEXT_MAX_MESSAGES
-from app.generate import LlmError, complete_chat_structured, complete_task_assist
+from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
 from app.router import classify_route
@@ -198,6 +198,17 @@ def _is_no_info_answer(answer: str) -> bool:
         or "khong tim thay thong tin" in text
         or "không có thông tin" in text
     )
+
+
+def _maybe_replace_refusal(answer: str) -> str:
+    """Replace the default refusal message with a more explanatory one."""
+    if _is_no_info_answer(answer):
+        return (
+            "Tôi không tìm thấy câu trả lời trực tiếp cho câu hỏi của bạn trong "
+            "các tài liệu đã tìm kiếm. Tuy nhiên, đây là những phần liên quan "
+            "nhất mà tôi đã xem xét:"
+        )
+    return answer
 
 
 def _fold_text(text: str) -> str:
@@ -503,8 +514,8 @@ async def chat(body: ChatRequest, request: Request):
     selected = _select_used_citations(
         citations, used_chunk_ids, reference_chunk_ids, answer
     )
-    if _is_no_info_answer(answer):
-        selected = []
+    # Keep citations even if answer is "no info" – always show retrieved sources
+    answer = _maybe_replace_refusal(answer)
     _write_session_context(body.sessionId, user, history, answer, "rag")
     return {
         "answer": answer,
@@ -530,9 +541,8 @@ async def chat_stream(body: ChatRequest, request: Request):
             answer = str(refusal.get("answer") or "")
             _write_session_context(body.sessionId, user, history, answer, "refusal")
             yield _sse("meta", {"citations": [], "route": "refusal"})
-            step = 24
-            for i in range(0, len(answer), step):
-                yield _sse("token", {"delta": answer[i : i + step]})
+            for delta in answer:
+                yield _sse("token", {"delta": delta})
             yield _sse("done", {"answer": answer, "route": "refusal"})
             return
 
@@ -545,9 +555,8 @@ async def chat_stream(body: ChatRequest, request: Request):
                     answer = result.get("answer", "")
                     _write_session_context(body.sessionId, user, history, answer, "sql")
                     yield _sse("meta", {"citations": [], "route": "sql"})
-                    step = 24
-                    for i in range(0, len(answer), step):
-                        yield _sse("token", {"delta": answer[i : i + step]})
+                    for delta in answer:
+                        yield _sse("token", {"delta": delta})
                     yield _sse("done", {"answer": answer, "route": "sql"})
                 # row_count = 0 → fallback sang RAG
             except SqlPipelineError as exc:
@@ -562,9 +571,8 @@ async def chat_stream(body: ChatRequest, request: Request):
             answer = REJECT_ANSWER
             _write_session_context(body.sessionId, user, history, answer, "reject")
             yield _sse("meta", {"citations": [], "route": "reject"})
-            step = 24
-            for i in range(0, len(answer), step):
-                yield _sse("token", {"delta": answer[i : i + step]})
+            for delta in answer:
+                yield _sse("token", {"delta": delta})
             yield _sse("done", {"answer": answer, "route": "reject"})
             return
 
@@ -582,17 +590,21 @@ async def chat_stream(body: ChatRequest, request: Request):
                 "task_assist",
             )
             yield _sse("meta", {"citations": [], "route": "task_assist"})
-            step = 24
-            for i in range(0, len(answer), step):
-                yield _sse("token", {"delta": answer[i : i + step]})
+            for delta in answer:
+                yield _sse("token", {"delta": delta})
             yield _sse("done", {"answer": answer, "route": "task_assist"})
             return
 
+        # --- RAG flow ---
         try:
             citations, doc_refusal = await _retrieve_for_rag(body.query, user)
         except Exception as exc:
             yield _sse("error", {"message": f"retrieval failed: {exc}"})
             return
+
+        # Send citations immediately (meta event)
+        client_citations = _client_citations(citations)
+        yield _sse("meta", {"citations": client_citations, "route": "rag"})
 
         if doc_refusal:
             answer = str(doc_refusal.get("answer") or "")
@@ -606,9 +618,8 @@ async def chat_stream(body: ChatRequest, request: Request):
                     "deny_reason": doc_refusal.get("deny_reason"),
                 },
             )
-            step = 24
-            for i in range(0, len(answer), step):
-                yield _sse("token", {"delta": answer[i : i + step]})
+            for delta in answer:
+                yield _sse("token", {"delta": delta})
             yield _sse("done", {"answer": answer, "route": "refusal"})
             return
 
@@ -622,31 +633,29 @@ async def chat_stream(body: ChatRequest, request: Request):
             yield _sse("done", {"answer": no_info, "route": "rag"})
             return
 
+        # Normal RAG: stream answer from LLM (plain text, no JSON)
+        full_answer = ""
         try:
-            answer, used_chunk_ids, reference_chunk_ids = await complete_chat_structured(
-                history, citations
-            )
+            async for delta in stream_chat(
+                history,
+                citations,
+                require_json=False,
+                force_answer_from_context=True,
+                force_expand_answer=True,
+            ):
+                full_answer += delta
+                yield _sse("token", {"delta": delta})
         except LlmError as exc:
             yield _sse("error", {"message": str(exc)})
             return
 
-        if not answer:
-            yield _sse("error", {"message": "LLM trả về rỗng."})
-            return
-        selected = _select_used_citations(
-            citations, used_chunk_ids, reference_chunk_ids, answer
-        )
-        if _is_no_info_answer(answer):
-            selected = []
-        _write_session_context(body.sessionId, user, history, answer, "rag")
-        yield _sse("meta", {"citations": _client_citations(selected), "route": "rag"})
+        if not full_answer:
+            full_answer = "Không nhận được phản hồi từ LLM."
+        # Replace refusal message if needed, but keep citations (already sent in meta)
+        full_answer = _maybe_replace_refusal(full_answer)
 
-        # Keep SSE contract by emitting small deltas while preserving formatting.
-        step = 24
-        for i in range(0, len(answer), step):
-            yield _sse("token", {"delta": answer[i : i + step]})
-
-        yield _sse("done", {"answer": answer, "route": "rag"})
+        _write_session_context(body.sessionId, user, history, full_answer, "rag")
+        yield _sse("done", {"answer": full_answer, "route": "rag"})
 
     return StreamingResponse(
         event_source(),
