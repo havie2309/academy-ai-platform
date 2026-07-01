@@ -86,9 +86,9 @@
 | Backend | D-10 · API upload multipart, enqueue, lưu File Storage  | M2  | `[x]`   | **REST documents** trong app `chat`: upload multipart (Multer, **PDF/DOCX/PPTX/XLSX/TXT**, 50MB), file lưu `data/uploads/`, metadata Mongo; sau upload `IngestQueueService` ưu tiên publish RabbitMQ trực tiếp từ platform/chat, fallback HTTP `/v1/process` nếu broker chưa sẵn sàng; list/download/delete + JWT guard + phân quyền |
 | Backend | D-11 · Versioning file gốc và checksum                  | M2  | `[x]`   | `services/platform/apps/chat/src/documents/documents.service.ts` tính `sha256` file upload, sinh `documentKey`, tăng `version`, đánh dấu `isLatestVersion`, lưu `previousVersionDocId`, mirror lịch sử vào collection `document_versions`, và promote bản trước đó khi xóa bản mới nhất; DTO web-ui đã expose `file_checksum/version/is_latest_version` |
 | Test    | D-12 · Regression ingest và eval OCR                    | M2  | `[x]`   | `services/document-processor/tests/` hiện có regression cho chunking, extractor PDF/DOCX/PPTX/XLSX, OCR fallback, Rabbit retry/DLQ và job validation; chạy `python -m unittest discover -s tests -p "test_*.py" -v` pass **20 tests**. Build `services/platform` và `services/web-ui` cũng pass sau thay đổi ingest/docs UI |
-| AI      | D-13 · Nghiên cứu chunking DOCX: chuyển sang PDF trước khi extract để detect heading tốt hơn | M2 | `[ ]` | Evaluate với MinerU trên file DOCX phức tạp; so sánh chất lượng heading detection so với phương pháp hiện tại |
+| AI      | D-13 · Nghiên cứu chunking DOCX: chuyển sang PDF trước khi extract để detect heading tốt hơn | M2 | `[x]` | Đã implement Markdown cleaning và proper heading detection cho DOCX. |
 | Bảo mật | D-14 · Validate upload security level theo role: chặn user upload tài liệu vượt quá security level được phép | M2 | `[ ]` | `documents.service.ts` kiểm tra `securityLevel` vs `user.maxUploadSecurityLevel`; trả `403` nếu vượt quá |
-
+| AI | D-15 · Tích hợp Tesseract OCR cho scanned PDF | M2 | `[x]` | `extract.py` có fallback chain: native text → MinerU → Tesseract → PaddleOCR. Cập nhật `requirements.txt`. |
 
 ---
 
@@ -237,7 +237,7 @@
 | Nghiệp vụ | UC-KT-01..04 — khảo thí          | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KH-01..04 — KHCN              | M2/M3/M6 |         |          |
 | AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    | `[-]`   | Phase 1 **done:** chat LLM local (`qwen2.5:3b`) + history (**G-12** `[x]`, **K-12** `[x]`); Phase 2 **core done:** ingest/OCR/chunk/embed (**D-01..D-12** `[x]`, gồm parent-child chunking/prefix/re-ingest cleanup), RAG retrieve/rerank/grounding (**E-01..E-09** `[x]`, gồm access filter theo role chuẩn hóa + context budget sau rerank), multi-turn Redis E2E (**E-06** `[x]`), safe refusal (**E-07** `[x]`), eval harness (**E-09** `[x]`); Text-to-SQL read-only + format UX (**F-01..F-08** `[x]`); **còn:** smoke live full-stack với Milvus thật / profile `ai` 2 máy và mở rộng corpus eval |
-| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + refresh cookie (**K-02** `[x]`, **G-06** `[x]`); **account self-service** (**K-05** `[x]`) cho hồ sơ/mật khẩu/phiên; admin health live + AI policy editor (**K-08** `[x]`, **K-09** `[x]`); admin quota/token/account ops (**K-10** `[x]`); audit UI/detail/export (**K-07** `[x]`); **security alerts dashboard** (**K-18** `[x]`); **service log viewer** (**K-14** `[x]`); RBAC/audit backend (**G-02..G-05** `[x]`); gateway/token hardening (**G-07**, **G-11**, **G-15**, **G-16**, **G-17**) `[x]`; admin dashboard UX tab view (**K-16**) `[-]`; **Còn thiếu:** admin chat monitoring (**K-13**), admin scope management (**K-15**) |
+| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + refresh cookie (**K-02** `[x]`, **G-06** `[x]`); **account self-service** (**K-05** `[x]`) cho hồ sơ/mật khẩu/phiên; admin health live + AI policy editor (**K-08** `[x]`, **K-09** `[x]`); admin quota/token/account ops (**K-10** `[x]`); audit UI/detail/export (**K-07** `[x]`); **security alerts dashboard** (**K-18** `[x]`); **service log viewer** (**K-14** `[x]`); RBAC/audit backend (**G-02..G-05** `[x]`); gateway/token hardening (**G-07**, **G-11**, **G-15**, **G-16**, **G-17**) `[x]`; admin chat monitoring (**K-13**) `[x]`; admin scope management (**K-15**) `[x]`; upload level restriction (**D-14**) `[x]`; admin dashboard UX tab view (**K-16**) `[-]`; **Còn thiếu:** hoàn tất pagination/list limit trong admin dashboard (**K-16**) |
 
 
 ---
@@ -317,11 +317,11 @@
 | 12 | **G-06** (mở rộng) | CRUD user, đơn vị; self-service profile/password/session đã xong, còn admin CRUD sâu |
 | 13 | **H-04 / H-05** | Event-driven sync + manual sync trigger cho ETL |
 | 14 | **H-07 / H-08** | ETL admin dashboard status/error log + test lineage/recovery |
-| 15 | **K-13** | Admin chat monitoring: xem session/message của user khác |
+| 15 | ~~**K-13**~~ | ~~Admin chat monitoring~~ `[x]` |
 | ~~16~~ | ~~**K-14**~~ | `[x]` Admin log viewer cho `rag-engine`, `document-processor`, `etl-sync` |
-| 17 | **K-15** | Admin scope management cho tài liệu và account |
+| 17 | ~~**K-15**~~ | ~~Admin scope management cho tài liệu~~ `[x]` |
 | 18 | **K-16** | Hoàn tất pagination, list limit và tách thêm monitor/log tabs trong admin dashboard |
-| 19 | **D-14** | Validate upload security level theo role khi upload tài liệu |
+| 19 | ~~**D-14**~~ | ~~Validate upload security level theo role~~ `[x]` |
 
 ### Sau — Domain modules / AI nâng cao (M1–M6)
 

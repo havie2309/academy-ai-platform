@@ -1,6 +1,7 @@
 import json
 import re
 import unicodedata
+from urllib.parse import unquote
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -74,7 +75,7 @@ def _gateway_user(request: Request) -> RetrieveUser | None:
     raw_scope = request.headers.get("x-gateway-access-scope")
     if raw_scope:
         try:
-            parsed = json.loads(raw_scope)
+            parsed = json.loads(unquote(raw_scope))
             if isinstance(parsed, dict):
                 scope_payload = parsed
         except json.JSONDecodeError:
@@ -488,6 +489,10 @@ async def chat(body: ChatRequest, request: Request):
             "refusal",
         )
         return doc_refusal
+    if not citations:
+        no_info = "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+        _write_session_context(body.sessionId, user, history, no_info, "rag")
+        return {"answer": no_info, "citations": [], "route": "rag"}
     try:
         answer, used_chunk_ids, reference_chunk_ids = await complete_chat_structured(
             history, citations
@@ -605,6 +610,16 @@ async def chat_stream(body: ChatRequest, request: Request):
             for i in range(0, len(answer), step):
                 yield _sse("token", {"delta": answer[i : i + step]})
             yield _sse("done", {"answer": answer, "route": "refusal"})
+            return
+
+        if not citations:
+            no_info = "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
+            _write_session_context(body.sessionId, user, history, no_info, "rag")
+            yield _sse("meta", {"citations": [], "route": "rag"})
+            step = 24
+            for i in range(0, len(no_info), step):
+                yield _sse("token", {"delta": no_info[i : i + step]})
+            yield _sse("done", {"answer": no_info, "route": "rag"})
             return
 
         try:

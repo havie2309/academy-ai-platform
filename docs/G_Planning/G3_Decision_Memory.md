@@ -31,6 +31,9 @@
 | DEC-PM2-21 | RAG priority scoring: Database → Document security level → public | Dữ liệu có cấu trúc từ database tin cậy nhất, tài liệu public có độ tin cậy thấp nhất | Planned |
 | DEC-PM2-22 | Thêm format validation cho access token trước khi truy vấn DB | Tối ưu performance, từ chối token sai format ngay tại gateway | Planned |
 | DEC-PM2-23 | Admin Dashboard chuyển sang tab view | Cải thiện UX, giảm scrolling, dễ điều hướng | Planned |
+| DEC-PM2-24 | Dùng Tesseract OCR làm fallback cho scanned PDF thay vì PaddleOCR | PaddleOCR quá nặng (1.5 GB RAM) và khó cài đặt trên Windows; Tesseract nhẹ (~150 MB RAM), hỗ trợ tiếng Việt tốt, ổn định trên CPU | Active |
+| DEC-PM2-25 | Child chunks được làm sạch Markdown; parent chunks giữ raw Markdown | Child chunks dùng để embedding (Markdown là noise), parent chunks dùng cho LLM grounding (Markdown là structural cues) | Active |
+| DEC-PM2-26 | Ưu tiên cut tại sentence boundary (`.!?`) khi chunking, với grace zone 20% | Tránh cut giữa câu, cải thiện chất lượng embedding và RAG, tương thích với Qwen2.5-3B | Active |
 
 ## 3. Hệ quả thực tế
 

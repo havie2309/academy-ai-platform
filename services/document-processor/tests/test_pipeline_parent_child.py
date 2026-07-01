@@ -179,7 +179,7 @@ class PipelineParentChildTests(unittest.IsolatedAsyncioTestCase):
             return [[0.11, 0.22]]
 
         with (
-            patch.object(pipeline, "_mongo", return_value=mongo_client),
+            patch.object(pipeline, "_get_mongo", return_value=mongo_client),
             patch.object(pipeline, "extract_text", return_value="ignored"),
             patch.object(
                 pipeline,
@@ -244,7 +244,7 @@ class PipelineParentChildTests(unittest.IsolatedAsyncioTestCase):
             return [[0.11, 0.22]]
 
         with (
-            patch.object(pipeline, "_mongo", return_value=mongo_client),
+            patch.object(pipeline, "_get_mongo", return_value=mongo_client),
             patch.object(pipeline, "extract_text", return_value="ignored"),
             patch.object(
                 pipeline,

@@ -95,12 +95,16 @@ export default function AdminOpsSection({
   const [message, setMessage] = useState<string | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
+  const PAGE_SIZE = 20
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
 
-  const buildFilters = () => ({
+  const buildFilters = (currentPage = page) => ({
     search: search.trim() || undefined,
     status: statusFilter === 'all' ? undefined : statusFilter,
     role: roleFilter === 'all' ? undefined : roleFilter,
-    limit: 40,
+    limit: PAGE_SIZE,
+    offset: (currentPage - 1) * PAGE_SIZE,
   })
 
   const loadOverview = async () => {
@@ -112,10 +116,12 @@ export default function AdminOpsSection({
     }
   }
 
-  const loadAccounts = async () => {
+  const loadAccounts = async (currentPage = page) => {
     setAccountsLoading(true)
     try {
-      setAccounts(await adminApi.getManagedAccounts(buildFilters()))
+      const { items, total: t } = await adminApi.getManagedAccounts(buildFilters(currentPage))
+      setAccounts(items)
+      setTotal(t)
     } finally {
       setAccountsLoading(false)
     }
@@ -139,8 +145,9 @@ export default function AdminOpsSection({
   const applyFilters = async () => {
     setError(null)
     setMessage(null)
+    setPage(1)
     try {
-      await loadAccounts()
+      await loadAccounts(1)
     } catch (nextError) {
       setError(
         nextError instanceof Error
@@ -154,12 +161,15 @@ export default function AdminOpsSection({
     setSearch('')
     setStatusFilter('all')
     setRoleFilter('all')
+    setPage(1)
     setError(null)
     setMessage(null)
     setExpandedUserId(null)
     setAccountsLoading(true)
     try {
-      setAccounts(await adminApi.getManagedAccounts({ limit: 40 }))
+      const { items, total: t } = await adminApi.getManagedAccounts({ limit: PAGE_SIZE, offset: 0 })
+      setAccounts(items)
+      setTotal(t)
     } catch (nextError) {
       setError(
         nextError instanceof Error
@@ -822,6 +832,44 @@ export default function AdminOpsSection({
             </tbody>
           </table>
         </div>
+
+        {total > PAGE_SIZE && (
+          <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+            <span>
+              Trang {page} / {Math.ceil(total / PAGE_SIZE)} ({total} tài khoản)
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1 || accountsLoading}
+                onClick={() => {
+                  const prev = page - 1
+                  setPage(prev)
+                  void loadAccounts(prev).catch((err) =>
+                    setError(err instanceof Error ? err.message : 'Không tải được trang trước.'),
+                  )
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                ← Trước
+              </button>
+              <button
+                type="button"
+                disabled={page >= Math.ceil(total / PAGE_SIZE) || accountsLoading}
+                onClick={() => {
+                  const next = page + 1
+                  setPage(next)
+                  void loadAccounts(next).catch((err) =>
+                    setError(err instanceof Error ? err.message : 'Không tải được trang tiếp theo.'),
+                  )
+                }}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Tiếp →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   )

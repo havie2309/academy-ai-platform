@@ -55,7 +55,8 @@
 | Method | Path | Auth | Request shape summary | Response shape summary | Error notes | Status |
 |--------|------|------|-----------------------|------------------------|-------------|--------|
 | `GET` | `/api/documents` | JWT | Không body | Danh sách document user có thể thấy | `401` nếu thiếu JWT | `implemented` |
-| `POST` | `/api/documents` | JWT | Multipart `file` + `title?`, `category?`, `security_level?`, `scope_type?`, `access_role_codes?`, `access_department_codes?`, `access_user_ids?` | Metadata document mới, ingest state khởi tạo | Validate metadata/file -> `400` | `implemented` |
+| `POST` | `/api/documents` | JWT | Multipart `file` + `title?`, `category?`, `security_level?`, `scope_type?`, `access_role_codes?`, `access_department_codes?`, `access_user_ids?` | Metadata document mới, ingest state khởi tạo | Validate metadata/file -> `400`; user upload level vượt `maxSecurityLevel` -> `403` | `implemented` |
+| `PATCH` | `/api/documents/:id/scope` | JWT | `{ security_level?, scope_type?, access_role_codes?, access_department_codes?, access_user_ids? }` | `{ updated: true }`; đồng thời cập nhật `document_chunks` metadata | Không phải owner/admin -> `403`; level vượt quyền -> `403`; không tồn tại -> `404` | `implemented` |
 | `GET` | `/api/documents/:id/ingest-status` | JWT | `id` trên path | `{ status, stage, chunkCount, error, ... }` | Không đủ quyền / không tồn tại -> lỗi service | `implemented` |
 | `GET` | `/api/documents/:id/file` | JWT | `id` trên path | Stream file gốc với header `Content-Disposition` | Không đủ quyền / không tồn tại -> lỗi service | `implemented` |
 | `DELETE` | `/api/documents/:id` | JWT | `id` trên path | Kết quả xóa; có logic promote version trước nếu cần | Không đủ quyền -> `403`; không tồn tại -> `404` | `implemented` |

@@ -1,0 +1,2393 @@
+{
+  "total_documents": 30,
+  "documents_with_errors": 10,
+  "adversarial_count": 9,
+  "average_heading_detection": 1.0,
+  "average_child_size": 131.3,
+  "average_parent_size": 260.9,
+  "total_mid_sentence_cuts": 17,
+  "average_mid_sentence_cuts": 0.57,
+  "average_diacritic_density": 0.283,
+  "results": [
+    {
+      "document_name": "DOC-0001.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0001.docx",
+      "is_adversarial": false,
+      "num_parents": 13,
+      "num_children": 13,
+      "avg_child_size": 129.0,
+      "max_child_size": 180,
+      "min_child_size": 27,
+      "avg_parent_size": 132.5,
+      "max_parent_size": 184,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 361,
+      "diacritic_density": 0.287,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-84e7dc63",
+            "section_path": "Document Title",
+            "text": "Biên bản họp đào tạo\n\nPhân loại: Biên bản họp\n\nNguồn: Phòng Chính trị\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-d1e1c414",
+            "section_path": "# Chương 1: Học không giám sát",
+            "text": "# Chương 1: Học không giám sát",
+            "child_count": 1
+          },
+          {
+            "id": "parent-ee2ae60f",
+            "section_path": "# Chương 1: Học không giám sát > ### 1.1 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "text": "### 1.1 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-ed608952",
+            "parent_id": "parent-84e7dc63",
+            "section_path": "Document Title",
+            "parent_preview": "Biên bản họp đào tạo\n\nPhân loại: Biên bản họp\n\nNguồn: Phòng Chính trị\n\nNgày tạo: 30/06/2026",
+            "text": "Biên bản họp đào tạo\nPhân loại: Biên bản họp\nNguồn: Phòng Chính trị\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-af7668b4",
+            "parent_id": "parent-d1e1c414",
+            "section_path": "# Chương 1: Học không giám sát",
+            "parent_preview": "# Chương 1: Học không giám sát",
+            "text": "Chương 1: Học không giám sát",
+            "index": 0
+          },
+          {
+            "id": "child-437f398d",
+            "parent_id": "parent-ee2ae60f",
+            "section_path": "# Chương 1: Học không giám sát > ### 1.1 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "parent_preview": "### 1.1 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "text": "1.1 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "index": 0
+          },
+          {
+            "id": "child-00bb4255",
+            "parent_id": "parent-45ecba92",
+            "section_path": "# Chương 1: Học không giám sát > ### 1.2 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "parent_preview": "### 1.2 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "text": "1.2 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 0
+          },
+          {
+            "id": "child-5e4162df",
+            "parent_id": "parent-dfb1e855",
+            "section_path": "# Chương 1: Học không giám sát > ### 1.3 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "parent_preview": "### 1.3 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "text": "1.3 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0002.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0002.pdf",
+      "is_adversarial": false,
+      "num_parents": 1,
+      "num_children": 14,
+      "avg_child_size": 189.3,
+      "max_child_size": 237,
+      "min_child_size": 20,
+      "avg_parent_size": 1003.0,
+      "max_parent_size": 1003,
+      "section_path_presence_parent": false,
+      "section_path_presence_child": false,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 457,
+      "diacritic_density": 0.27,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-37df42d6",
+            "section_path": "",
+            "text": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Việc tích\nhợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Các nhà khoa học đã\nđạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.\n1. ĐẶT VẤN ĐỀ\nNghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô\nhình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Việc tích hợp\ntrí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Hệ thống đào tạo trực tuyến\nđang được phát triển để đáp ứng nhu cầu học tập đa dạng. Các công cụ phân tích dữ liệu đã\ngiúp cải thiện chất lượng giáo dục đáng kể.\n2. PHƯƠNG PHÁP NGHIÊN CỨU\nHệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Nghiên cứu này tập\ntrung vào việc p...",
+            "child_count": 14
+          }
+        ],
+        "children": [
+          {
+            "id": "child-c8eb7a71",
+            "parent_id": "parent-37df42d6",
+            "section_path": "",
+            "parent_preview": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hi",
+            "text": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động.",
+            "index": 0
+          },
+          {
+            "id": "child-f5178eef",
+            "parent_id": "parent-37df42d6",
+            "section_path": "",
+            "parent_preview": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hi",
+            "text": "ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Việc tích\nhợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "index": 1
+          },
+          {
+            "id": "child-d9c418c0",
+            "parent_id": "parent-37df42d6",
+            "section_path": "",
+            "parent_preview": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hi",
+            "text": "đào tạo đang là xu hướng toàn cầu. Các nhà khoa học đã\nđạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.\n1. ĐẶT VẤN ĐỀ\nNghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "index": 2
+          },
+          {
+            "id": "child-e3afcf97",
+            "parent_id": "parent-37df42d6",
+            "section_path": "",
+            "parent_preview": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hi",
+            "text": "lớn và trích xuất thông tin hữu ích. Mô\nhình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Việc tích hợp\ntrí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "index": 3
+          },
+          {
+            "id": "child-10b3273f",
+            "parent_id": "parent-37df42d6",
+            "section_path": "",
+            "parent_preview": "Giải pháp tối ưu cho đào tạo trực tuyến\nMô hình học tập thích ứng trong giáo dục quân sự\nTÓM TẮT\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Phương\npháp giảng dạy hi",
+            "text": "đào tạo đang là xu hướng toàn cầu. Hệ thống đào tạo trực tuyến\nđang được phát triển để đáp ứng nhu cầu học tập đa dạng. Các công cụ phân tích dữ liệu đã\ngiúp cải thiện chất lượng giáo dục đáng kể.",
+            "index": 4
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0003.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0003.docx",
+      "is_adversarial": false,
+      "num_parents": 7,
+      "num_children": 13,
+      "avg_child_size": 156.0,
+      "max_child_size": 213,
+      "min_child_size": 94,
+      "avg_parent_size": 262.1,
+      "max_parent_size": 307,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 388,
+      "diacritic_density": 0.283,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-61ca6f02",
+            "section_path": "Document Title",
+            "text": "Quy định 26\n\nPhân loại: Quy định\n\nNguồn: Khoa Hóa học\n\nNgày tạo: 30/06/2026\n\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "child_count": 1
+          },
+          {
+            "id": "parent-1653ad72",
+            "section_path": "## Điều 1: Quy định về tốt nghiệp",
+            "text": "## Điều 1: Quy định về tốt nghiệp\n\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "child_count": 2
+          },
+          {
+            "id": "parent-6177f7e9",
+            "section_path": "## Điều 2: Quy định về bảo lưu kết quả",
+            "text": "## Điều 2: Quy định về bảo lưu kết quả\n\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-f1432187",
+            "parent_id": "parent-61ca6f02",
+            "section_path": "Document Title",
+            "parent_preview": "Quy định 26\n\nPhân loại: Quy định\n\nNguồn: Khoa Hóa học\n\nNgày tạo: 30/06/2026\n\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "text": "Quy định 26\nPhân loại: Quy định\nNguồn: Khoa Hóa học\nNgày tạo: 30/06/2026\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "index": 0
+          },
+          {
+            "id": "child-d52d7470",
+            "parent_id": "parent-1653ad72",
+            "section_path": "## Điều 1: Quy định về tốt nghiệp",
+            "parent_preview": "## Điều 1: Quy định về tốt nghiệp\n\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các ",
+            "text": "Điều 1: Quy định về tốt nghiệp\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "index": 0
+          },
+          {
+            "id": "child-dc614d76",
+            "parent_id": "parent-1653ad72",
+            "section_path": "## Điều 1: Quy định về tốt nghiệp",
+            "parent_preview": "## Điều 1: Quy định về tốt nghiệp\n\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các ",
+            "text": "trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "index": 1
+          },
+          {
+            "id": "child-fbd89d53",
+            "parent_id": "parent-6177f7e9",
+            "section_path": "## Điều 2: Quy định về bảo lưu kết quả",
+            "parent_preview": "## Điều 2: Quy định về bảo lưu kết quả\n\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộn",
+            "text": "Điều 2: Quy định về bảo lưu kết quả\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "index": 0
+          },
+          {
+            "id": "child-bf22a6b5",
+            "parent_id": "parent-6177f7e9",
+            "section_path": "## Điều 2: Quy định về bảo lưu kết quả",
+            "parent_preview": "## Điều 2: Quy định về bảo lưu kết quả\n\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộn",
+            "text": "trực tuyến đang được áp dụng rộng rãi. Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0004.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0004.pdf",
+      "is_adversarial": false,
+      "num_parents": 4,
+      "num_children": 11,
+      "avg_child_size": 157.1,
+      "max_child_size": 207,
+      "min_child_size": 3,
+      "avg_parent_size": 380.5,
+      "max_parent_size": 524,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 1,
+      "diacritic_count": 313,
+      "diacritic_density": 0.277,
+      "errors": [
+        "Mid-sentence cuts: 1 chunks (e.g. child-fd4f79f5)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-efc55024",
+            "section_path": "Document Title",
+            "text": "Trang 1\nXác suất thống kê - Tài liệu tham khảo 3",
+            "child_count": 1
+          },
+          {
+            "id": "parent-aa5f649a",
+            "section_path": "Chương 1: Kiến trúc máy tính",
+            "text": "Chương 1: Kiến trúc máy tính\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thông quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n1.2 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin\nhữu ích. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.\n\n1.3 Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "child_count": 3
+          },
+          {
+            "id": "parent-ed22b580",
+            "section_path": "Chương 2: Không gian vector",
+            "text": "Chương 2: Không gian vector\n\n2.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n\n2.2 Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng. Hệ thống đào tạo trực tuyên đang được phát triên đễ đáp ứng nhu cầu học\ntập đa dạng.\n\n2.3 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu\nhướng toàn cầu.",
+            "child_count": 3
+          }
+        ],
+        "children": [
+          {
+            "id": "child-d1e541c3",
+            "parent_id": "parent-efc55024",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nXác suất thống kê - Tài liệu tham khảo 3",
+            "text": "Trang 1\nXác suất thống kê - Tài liệu tham khảo 3",
+            "index": 0
+          },
+          {
+            "id": "child-b1450470",
+            "parent_id": "parent-aa5f649a",
+            "section_path": "Chương 1: Kiến trúc máy tính",
+            "parent_preview": "Chương 1: Kiến trúc máy tính\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thông quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n1.2 Nghiên cứu",
+            "text": "Chương 1: Kiến trúc máy tính\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thông quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 0
+          },
+          {
+            "id": "child-e614364e",
+            "parent_id": "parent-aa5f649a",
+            "section_path": "Chương 1: Kiến trúc máy tính",
+            "parent_preview": "Chương 1: Kiến trúc máy tính\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thông quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n1.2 Nghiên cứu",
+            "text": "giúp tối ưu hóa quá trình đào tạo.\n1.2 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin\nhữu ích. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.",
+            "index": 1
+          },
+          {
+            "id": "child-876b458e",
+            "parent_id": "parent-aa5f649a",
+            "section_path": "Chương 1: Kiến trúc máy tính",
+            "parent_preview": "Chương 1: Kiến trúc máy tính\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thông quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n1.2 Nghiên cứu",
+            "text": "công trong nhiều lĩnh vực\nkhác nhau.\n1.3 Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 2
+          },
+          {
+            "id": "child-517e1e50",
+            "parent_id": "parent-ed22b580",
+            "section_path": "Chương 2: Không gian vector",
+            "parent_preview": "Chương 2: Không gian vector\n\n2.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n\n2.2 Chương trì",
+            "text": "Chương 2: Không gian vector\n2.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0005.md",
+      "file_path": "data\\sample-docs\\normal\\DOC-0005.md",
+      "is_adversarial": false,
+      "num_parents": 13,
+      "num_children": 13,
+      "avg_child_size": 132.3,
+      "max_child_size": 193,
+      "min_child_size": 30,
+      "avg_parent_size": 137.9,
+      "max_parent_size": 198,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 1,
+      "diacritic_count": 335,
+      "diacritic_density": 0.259,
+      "errors": [
+        "Mid-sentence cuts: 1 chunks (e.g. child-d2209557)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-dbfb1c94",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu",
+            "text": "# Đề cương môn học Cấu trúc dữ liệu\n\n**Phân loại:** Đề cương  \n**Nguồn:** Khoa Toán  \n**Ngày tạo:** 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-60164eda",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu > ## Chương 1: Giới hạn và liên tục",
+            "text": "## Chương 1: Giới hạn và liên tục",
+            "child_count": 1
+          },
+          {
+            "id": "parent-c4c3a408",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu > ## Chương 1: Giới hạn và liên tục > #### 1.1 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "text": "#### 1.1 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-d2209557",
+            "parent_id": "parent-dbfb1c94",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu",
+            "parent_preview": "# Đề cương môn học Cấu trúc dữ liệu\n\n**Phân loại:** Đề cương  \n**Nguồn:** Khoa Toán  \n**Ngày tạo:** 30/06/2026",
+            "text": "Đề cương môn học Cấu trúc dữ liệu\nPhân loại: Đề cương\nNguồn: Khoa Toán\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-0689c666",
+            "parent_id": "parent-60164eda",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu > ## Chương 1: Giới hạn và liên tục",
+            "parent_preview": "## Chương 1: Giới hạn và liên tục",
+            "text": "Chương 1: Giới hạn và liên tục",
+            "index": 0
+          },
+          {
+            "id": "child-4d51178b",
+            "parent_id": "parent-c4c3a408",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu > ## Chương 1: Giới hạn và liên tục > #### 1.1 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "parent_preview": "#### 1.1 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "text": "1.1 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 0
+          },
+          {
+            "id": "child-82bf23f1",
+            "parent_id": "parent-0ab5d943",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu > ## Chương 1: Giới hạn và liên tục > #### 1.2 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "parent_preview": "#### 1.2 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "text": "1.2 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "index": 0
+          },
+          {
+            "id": "child-5c14c15f",
+            "parent_id": "parent-55a51011",
+            "section_path": "# Đề cương môn học Cấu trúc dữ liệu > ## Chương 1: Giới hạn và liên tục > #### 1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "parent_preview": "#### 1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "text": "1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0006.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0006.docx",
+      "is_adversarial": false,
+      "num_parents": 21,
+      "num_children": 21,
+      "avg_child_size": 131.3,
+      "max_child_size": 189,
+      "min_child_size": 27,
+      "avg_parent_size": 134.8,
+      "max_parent_size": 193,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 574,
+      "diacritic_density": 0.276,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-e3f582ea",
+            "section_path": "Document Title",
+            "text": "Thông báo về lịch nghỉ\n\nPhân loại: Thông báo\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-0dc1b7eb",
+            "section_path": "# Chương 1: Hệ phương trình tuyến tính",
+            "text": "# Chương 1: Hệ phương trình tuyến tính",
+            "child_count": 1
+          },
+          {
+            "id": "parent-d8f400a8",
+            "section_path": "# Chương 1: Hệ phương trình tuyến tính > ### 1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "text": "### 1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-5f64efca",
+            "parent_id": "parent-e3f582ea",
+            "section_path": "Document Title",
+            "parent_preview": "Thông báo về lịch nghỉ\n\nPhân loại: Thông báo\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026",
+            "text": "Thông báo về lịch nghỉ\nPhân loại: Thông báo\nNguồn: Phòng Đào tạo\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-c6f44fbe",
+            "parent_id": "parent-0dc1b7eb",
+            "section_path": "# Chương 1: Hệ phương trình tuyến tính",
+            "parent_preview": "# Chương 1: Hệ phương trình tuyến tính",
+            "text": "Chương 1: Hệ phương trình tuyến tính",
+            "index": 0
+          },
+          {
+            "id": "child-1945fca4",
+            "parent_id": "parent-d8f400a8",
+            "section_path": "# Chương 1: Hệ phương trình tuyến tính > ### 1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "parent_preview": "### 1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "text": "1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "index": 0
+          },
+          {
+            "id": "child-8f8e3d67",
+            "parent_id": "parent-1256093c",
+            "section_path": "# Chương 1: Hệ phương trình tuyến tính > ### 1.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "parent_preview": "### 1.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "text": "1.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "index": 0
+          },
+          {
+            "id": "child-f0f3dda3",
+            "parent_id": "parent-179264f0",
+            "section_path": "# Chương 1: Hệ phương trình tuyến tính > ### 1.3 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "parent_preview": "### 1.3 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "text": "1.3 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0007.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0007.pdf",
+      "is_adversarial": false,
+      "num_parents": 5,
+      "num_children": 9,
+      "avg_child_size": 152.4,
+      "max_child_size": 212,
+      "min_child_size": 50,
+      "avg_parent_size": 246.0,
+      "max_parent_size": 298,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 263,
+      "diacritic_density": 0.281,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-13d94053",
+            "section_path": "Document Title",
+            "text": "Trang 1\nQuy chế đào tạo 2025\n\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "child_count": 1
+          },
+          {
+            "id": "parent-cbc3274e",
+            "section_path": "Điều 1: Quy định về tốt nghiệp",
+            "text": "Điều 1: Quy định về tốt nghiệp\n\nMô hình học tập kết hợp giữa trực tiếp và trực tuyên đang được áp dụng rộng rãi.\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh\ngiá cao. Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc\nứng dụng công nghệ vào giáo dục.",
+            "child_count": 2
+          },
+          {
+            "id": "parent-b753e7bf",
+            "section_path": "Điều 2: Quy định về chuyễn ngành",
+            "text": "Điều 2: Quy định về chuyễn ngành\n\nChương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao động.\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong việc ứng\ndụng công nghệ vào giáo dục.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-3ae7f564",
+            "parent_id": "parent-13d94053",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nQuy chế đào tạo 2025\n\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "text": "Trang 1\nQuy chế đào tạo 2025\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "index": 0
+          },
+          {
+            "id": "child-3974ee9f",
+            "parent_id": "parent-cbc3274e",
+            "section_path": "Điều 1: Quy định về tốt nghiệp",
+            "parent_preview": "Điều 1: Quy định về tốt nghiệp\n\nMô hình học tập kết hợp giữa trực tiếp và trực tuyên đang được áp dụng rộng rãi.\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh\ngiá cao. C",
+            "text": "Điều 1: Quy định về tốt nghiệp\nMô hình học tập kết hợp giữa trực tiếp và trực tuyên đang được áp dụng rộng rãi.\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh\ngiá cao.",
+            "index": 0
+          },
+          {
+            "id": "child-da7aeaa9",
+            "parent_id": "parent-cbc3274e",
+            "section_path": "Điều 1: Quy định về tốt nghiệp",
+            "parent_preview": "Điều 1: Quy định về tốt nghiệp\n\nMô hình học tập kết hợp giữa trực tiếp và trực tuyên đang được áp dụng rộng rãi.\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh\ngiá cao. C",
+            "text": "thuyết và thực hành được đánh\ngiá cao. Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc\nứng dụng công nghệ vào giáo dục.",
+            "index": 1
+          },
+          {
+            "id": "child-f3b5738d",
+            "parent_id": "parent-b753e7bf",
+            "section_path": "Điều 2: Quy định về chuyễn ngành",
+            "parent_preview": "Điều 2: Quy định về chuyễn ngành\n\nChương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao động.\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Các nh",
+            "text": "Điều 2: Quy định về chuyễn ngành\nChương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao động.\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên.",
+            "index": 0
+          },
+          {
+            "id": "child-94b5c0f0",
+            "parent_id": "parent-b753e7bf",
+            "section_path": "Điều 2: Quy định về chuyễn ngành",
+            "parent_preview": "Điều 2: Quy định về chuyễn ngành\n\nChương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao động.\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Các nh",
+            "text": "đã mang lại hiệu quả cao cho học\nviên. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong việc ứng\ndụng công nghệ vào giáo dục.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0008.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0008.pdf",
+      "is_adversarial": false,
+      "num_parents": 6,
+      "num_children": 27,
+      "avg_child_size": 185.7,
+      "max_child_size": 231,
+      "min_child_size": 1,
+      "avg_parent_size": 715.2,
+      "max_parent_size": 902,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 1,
+      "diacritic_count": 877,
+      "diacritic_density": 0.269,
+      "errors": [
+        "Mid-sentence cuts: 1 chunks (e.g. child-0d0df530)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-3e86188f",
+            "section_path": "Document Title",
+            "text": "Luận văn ứng dụng AI trong đào tạo\nXây dựng hệ thống trợ lý ảo cho đào tạo quân sự\nTÓM TẮT\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Các mô hình\nhọc sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Phương pháp giảng\ndạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Việc áp dụng phương\npháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Mô hình học tập kết hợp giữa\ntrực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "child_count": 3
+          },
+          {
+            "id": "parent-0ae80997",
+            "section_path": "Chương 1: GIỚI THIỆU",
+            "text": "Chương 1: GIỚI THIỆU\n1.1 Lý do chọn đề tài\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Các công\ncụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Các mô hình học sâu đã\nđược ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống đào tạo trực tuyến\nđang được phát triển để đáp ứng nhu cầu học tập đa dạng.\n1.2 Mục tiêu nghiên cứu\nCác công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Việc áp dụng\nphương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Phương pháp giảng\ndạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.\n1.3 Phạm vi nghiên cứu\nChương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Các công\ncụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Hệ thống đào tạo trực\ntuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "child_count": 5
+          },
+          {
+            "id": "parent-3d3344c2",
+            "section_path": "Chương 2: CƠ SỞ LÝ THUYẾT",
+            "text": "Chương 2: CƠ SỞ LÝ THUYẾT\n2.1 Tổng quan\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Chương\ntrình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống đào tạo\ntrực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Các mô hình học sâu\nđã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Theo nghiên cứu mới nhất, xu\nhướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.\n2.2 Công nghệ liên quan\nMô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Việc tích\nhợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Các nhà khoa học đã\nđạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục. Phương\npháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao. Các công cụ\nphân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "child_count": 5
+          }
+        ],
+        "children": [
+          {
+            "id": "child-a03ee64f",
+            "parent_id": "parent-3e86188f",
+            "section_path": "Document Title",
+            "parent_preview": "Luận văn ứng dụng AI trong đào tạo\nXây dựng hệ thống trợ lý ảo cho đào tạo quân sự\nTÓM TẮT\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Các mô hình\nhọc sâu đã được ứ",
+            "text": "Luận văn ứng dụng AI trong đào tạo\nXây dựng hệ thống trợ lý ảo cho đào tạo quân sự\nTÓM TẮT\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "index": 0
+          },
+          {
+            "id": "child-f104ce86",
+            "parent_id": "parent-3e86188f",
+            "section_path": "Document Title",
+            "parent_preview": "Luận văn ứng dụng AI trong đào tạo\nXây dựng hệ thống trợ lý ảo cho đào tạo quân sự\nTÓM TẮT\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Các mô hình\nhọc sâu đã được ứ",
+            "text": "đào tạo đang là xu hướng toàn cầu. Các mô hình\nhọc sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Phương pháp giảng\ndạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 1
+          },
+          {
+            "id": "child-e3a5ce80",
+            "parent_id": "parent-3e86188f",
+            "section_path": "Document Title",
+            "parent_preview": "Luận văn ứng dụng AI trong đào tạo\nXây dựng hệ thống trợ lý ảo cho đào tạo quân sự\nTÓM TẮT\nViệc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Các mô hình\nhọc sâu đã được ứ",
+            "text": "thuyết và thực hành được đánh giá cao. Việc áp dụng phương\npháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Mô hình học tập kết hợp giữa\ntrực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "index": 2
+          },
+          {
+            "id": "child-dd861217",
+            "parent_id": "parent-0ae80997",
+            "section_path": "Chương 1: GIỚI THIỆU",
+            "parent_preview": "Chương 1: GIỚI THIỆU\n1.1 Lý do chọn đề tài\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Các công\ncụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "text": "Chương 1: GIỚI THIỆU\n1.1 Lý do chọn đề tài\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Các công\ncụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "index": 0
+          },
+          {
+            "id": "child-185fdeba",
+            "parent_id": "parent-0ae80997",
+            "section_path": "Chương 1: GIỚI THIỆU",
+            "parent_preview": "Chương 1: GIỚI THIỆU\n1.1 Lý do chọn đề tài\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Các công\ncụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "text": "cải thiện chất lượng giáo dục đáng kể. Các mô hình học sâu đã\nđược ứng dụng thành công trong nhiều lĩnh vực khác nhau. Hệ thống đào tạo trực tuyến\nđang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0009.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0009.docx",
+      "is_adversarial": false,
+      "num_parents": 21,
+      "num_children": 21,
+      "avg_child_size": 130.7,
+      "max_child_size": 182,
+      "min_child_size": 22,
+      "avg_parent_size": 134.2,
+      "max_parent_size": 186,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 534,
+      "diacritic_density": 0.258,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-90895cda",
+            "section_path": "Document Title",
+            "text": "Hướng dẫn thực tập\n\nPhân loại: Hướng dẫn\n\nNguồn: Khoa Hóa học\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-444ee022",
+            "section_path": "# Chương 1: Bảo mật mạng",
+            "text": "# Chương 1: Bảo mật mạng",
+            "child_count": 1
+          },
+          {
+            "id": "parent-d1ae7d4e",
+            "section_path": "# Chương 1: Bảo mật mạng > ### 1.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "### 1.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-a8f780a6",
+            "parent_id": "parent-90895cda",
+            "section_path": "Document Title",
+            "parent_preview": "Hướng dẫn thực tập\n\nPhân loại: Hướng dẫn\n\nNguồn: Khoa Hóa học\n\nNgày tạo: 30/06/2026",
+            "text": "Hướng dẫn thực tập\nPhân loại: Hướng dẫn\nNguồn: Khoa Hóa học\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-fc6900c4",
+            "parent_id": "parent-444ee022",
+            "section_path": "# Chương 1: Bảo mật mạng",
+            "parent_preview": "# Chương 1: Bảo mật mạng",
+            "text": "Chương 1: Bảo mật mạng",
+            "index": 0
+          },
+          {
+            "id": "child-3cb132cf",
+            "parent_id": "parent-d1ae7d4e",
+            "section_path": "# Chương 1: Bảo mật mạng > ### 1.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "parent_preview": "### 1.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "1.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 0
+          },
+          {
+            "id": "child-fd0a7dda",
+            "parent_id": "parent-3766e853",
+            "section_path": "# Chương 1: Bảo mật mạng > ### 1.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "parent_preview": "### 1.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "text": "1.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "index": 0
+          },
+          {
+            "id": "child-1df10018",
+            "parent_id": "parent-99cd3bf4",
+            "section_path": "# Chương 1: Bảo mật mạng > ### 1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "parent_preview": "### 1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0010.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0010.docx",
+      "is_adversarial": false,
+      "num_parents": 13,
+      "num_children": 13,
+      "avg_child_size": 127.6,
+      "max_child_size": 183,
+      "min_child_size": 17,
+      "avg_parent_size": 131.1,
+      "max_parent_size": 187,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 337,
+      "diacritic_density": 0.27,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-780112f6",
+            "section_path": "Document Title",
+            "text": "Hướng dẫn thi cử\n\nPhân loại: Hướng dẫn\n\nNguồn: Phòng Khảo thí\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-b144cc5a",
+            "section_path": "# Chương 1: Số phức",
+            "text": "# Chương 1: Số phức",
+            "child_count": 1
+          },
+          {
+            "id": "parent-b07ef741",
+            "section_path": "# Chương 1: Số phức > ### 1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "text": "### 1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-679e6786",
+            "parent_id": "parent-780112f6",
+            "section_path": "Document Title",
+            "parent_preview": "Hướng dẫn thi cử\n\nPhân loại: Hướng dẫn\n\nNguồn: Phòng Khảo thí\n\nNgày tạo: 30/06/2026",
+            "text": "Hướng dẫn thi cử\nPhân loại: Hướng dẫn\nNguồn: Phòng Khảo thí\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-96d789f1",
+            "parent_id": "parent-b144cc5a",
+            "section_path": "# Chương 1: Số phức",
+            "parent_preview": "# Chương 1: Số phức",
+            "text": "Chương 1: Số phức",
+            "index": 0
+          },
+          {
+            "id": "child-d87984e3",
+            "parent_id": "parent-b07ef741",
+            "section_path": "# Chương 1: Số phức > ### 1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "parent_preview": "### 1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "text": "1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 0
+          },
+          {
+            "id": "child-f7b088d4",
+            "parent_id": "parent-7c348841",
+            "section_path": "# Chương 1: Số phức > ### 1.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động.",
+            "parent_preview": "### 1.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động.",
+            "text": "1.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động.",
+            "index": 0
+          },
+          {
+            "id": "child-ed7cc73e",
+            "parent_id": "parent-24b54c74",
+            "section_path": "# Chương 1: Số phức > ### 1.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "parent_preview": "### 1.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "1.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0011.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0011.pdf",
+      "is_adversarial": false,
+      "num_parents": 5,
+      "num_children": 9,
+      "avg_child_size": 150.7,
+      "max_child_size": 218,
+      "min_child_size": 60,
+      "avg_parent_size": 243.8,
+      "max_parent_size": 308,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 244,
+      "diacritic_density": 0.263,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-5f4472ae",
+            "section_path": "Document Title",
+            "text": "Trang 1\nNội quy học viên (Phiên bản 1)\n\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "child_count": 1
+          },
+          {
+            "id": "parent-d731a44a",
+            "section_path": "Điều 1: Quy định về học bỗng",
+            "text": "Điều 1: Quy định về học bỗng\n\nTheo nghiên cứu mới nhất, xu hướng phát triễn của lĩnh vực này đang thay đỗi\nnhanh chóng. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong\nviệc ứng dụng công nghệ vào giáo dục. Nghiên cứu này tập trung vào việc phân\ntích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "child_count": 2
+          },
+          {
+            "id": "parent-3228541a",
+            "section_path": "Điều 2: Quy định về đào tạo",
+            "text": "Điều 2: Quy định về đào tạo\n\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Hệ thống đào tạo trực tuyến đang được phát triển đễ đáp ứng nhu cầu học\ntập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyên đang được áp\ndụng rộng rãi.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-efc2eeab",
+            "parent_id": "parent-5f4472ae",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nNội quy học viên (Phiên bản 1)\n\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "text": "Trang 1\nNội quy học viên (Phiên bản 1)\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "index": 0
+          },
+          {
+            "id": "child-6adeb1ad",
+            "parent_id": "parent-d731a44a",
+            "section_path": "Điều 1: Quy định về học bỗng",
+            "parent_preview": "Điều 1: Quy định về học bỗng\n\nTheo nghiên cứu mới nhất, xu hướng phát triễn của lĩnh vực này đang thay đỗi\nnhanh chóng. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong\nviệc ứng dụng công",
+            "text": "Điều 1: Quy định về học bỗng\nTheo nghiên cứu mới nhất, xu hướng phát triễn của lĩnh vực này đang thay đỗi\nnhanh chóng. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong\nviệc ứng dụng công nghệ vào giáo dục.",
+            "index": 0
+          },
+          {
+            "id": "child-73aa6584",
+            "parent_id": "parent-d731a44a",
+            "section_path": "Điều 1: Quy định về học bỗng",
+            "parent_preview": "Điều 1: Quy định về học bỗng\n\nTheo nghiên cứu mới nhất, xu hướng phát triễn của lĩnh vực này đang thay đỗi\nnhanh chóng. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong\nviệc ứng dụng công",
+            "text": "việc ứng dụng công nghệ vào giáo dục. Nghiên cứu này tập trung vào việc phân\ntích dữ liệu lớn và trích xuất thông tin hữu ích.",
+            "index": 1
+          },
+          {
+            "id": "child-e628c936",
+            "parent_id": "parent-3228541a",
+            "section_path": "Điều 2: Quy định về đào tạo",
+            "parent_preview": "Điều 2: Quy định về đào tạo\n\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Hệ thống đào tạo trực tuyến đang được phát triển đễ đáp ứng nhu cầu học\ntập đa dạng. Mô hì",
+            "text": "Điều 2: Quy định về đào tạo\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Hệ thống đào tạo trực tuyến đang được phát triển đễ đáp ứng nhu cầu học\ntập đa dạng.",
+            "index": 0
+          },
+          {
+            "id": "child-17fffda3",
+            "parent_id": "parent-3228541a",
+            "section_path": "Điều 2: Quy định về đào tạo",
+            "parent_preview": "Điều 2: Quy định về đào tạo\n\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên. Hệ thống đào tạo trực tuyến đang được phát triển đễ đáp ứng nhu cầu học\ntập đa dạng. Mô hì",
+            "text": "đễ đáp ứng nhu cầu học\ntập đa dạng. Mô hình học tập kết hợp giữa trực tiếp và trực tuyên đang được áp\ndụng rộng rãi.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0012.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0012.pdf",
+      "is_adversarial": false,
+      "num_parents": 4,
+      "num_children": 11,
+      "avg_child_size": 150.7,
+      "max_child_size": 216,
+      "min_child_size": 4,
+      "avg_parent_size": 372.5,
+      "max_parent_size": 547,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 2,
+      "diacritic_count": 314,
+      "diacritic_density": 0.282,
+      "errors": [
+        "Mid-sentence cuts: 2 chunks (e.g. child-42207254, child-aacd0cfd)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-970c31f8",
+            "section_path": "Document Title",
+            "text": "Trang 1\nXác suất thống kê - Bài giảng 2",
+            "child_count": 1
+          },
+          {
+            "id": "parent-a3ea0ebd",
+            "section_path": "Chương 1: Tích phân và ứng dụng",
+            "text": "Chương 1: Tích phân và ứng dụng\n\n1.1 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng\ndụng công nghệ vào giáo dục. Việc áp dụng phương pháp học tập tích cực đã\nmang lại hiệu quả cao cho học viên.\n\n1.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n\n1.3 Hệ thống đảo tạo trực tuyến đang được phát triền đễ đáp ứng nhu cầu học\ntập đa dạng. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.",
+            "child_count": 3
+          },
+          {
+            "id": "parent-3afa467e",
+            "section_path": "Chương 2: Phương trình vi phân",
+            "text": "Chương 2: Phương trình vi phân\n\n2.1 Hệ thống đảo tạo trực tuyến đang được phát triễn đễ đáp ứng nhu cầu học\ntập đa dạng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào\ntạo.\n\n2.2 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu\nhướng toàn cầu.\n\n2.3 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong việc ứng\ndụng công nghệ vào giáo dục.",
+            "child_count": 4
+          }
+        ],
+        "children": [
+          {
+            "id": "child-66b0c067",
+            "parent_id": "parent-970c31f8",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nXác suất thống kê - Bài giảng 2",
+            "text": "Trang 1\nXác suất thống kê - Bài giảng 2",
+            "index": 0
+          },
+          {
+            "id": "child-4bae3f71",
+            "parent_id": "parent-a3ea0ebd",
+            "section_path": "Chương 1: Tích phân và ứng dụng",
+            "parent_preview": "Chương 1: Tích phân và ứng dụng\n\n1.1 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng\ndụng công nghệ vào giáo dục. Việc áp dụng phương pháp học tập tích cực đã\nmang lại hiệu quả ",
+            "text": "Chương 1: Tích phân và ứng dụng\n1.1 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng\ndụng công nghệ vào giáo dục. Việc áp dụng phương pháp học tập tích cực đã\nmang lại hiệu quả cao cho học viên.",
+            "index": 0
+          },
+          {
+            "id": "child-fd0f0f29",
+            "parent_id": "parent-a3ea0ebd",
+            "section_path": "Chương 1: Tích phân và ứng dụng",
+            "parent_preview": "Chương 1: Tích phân và ứng dụng\n\n1.1 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng\ndụng công nghệ vào giáo dục. Việc áp dụng phương pháp học tập tích cực đã\nmang lại hiệu quả ",
+            "text": "đã\nmang lại hiệu quả cao cho học viên.\n1.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 1
+          },
+          {
+            "id": "child-29789178",
+            "parent_id": "parent-a3ea0ebd",
+            "section_path": "Chương 1: Tích phân và ứng dụng",
+            "parent_preview": "Chương 1: Tích phân và ứng dụng\n\n1.1 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng\ndụng công nghệ vào giáo dục. Việc áp dụng phương pháp học tập tích cực đã\nmang lại hiệu quả ",
+            "text": "giúp tối ưu hóa quá trình đào tạo.\n1.3 Hệ thống đảo tạo trực tuyến đang được phát triền đễ đáp ứng nhu cầu học\ntập đa dạng. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.",
+            "index": 2
+          },
+          {
+            "id": "child-d86216b1",
+            "parent_id": "parent-3afa467e",
+            "section_path": "Chương 2: Phương trình vi phân",
+            "parent_preview": "Chương 2: Phương trình vi phân\n\n2.1 Hệ thống đảo tạo trực tuyến đang được phát triễn đễ đáp ứng nhu cầu học\ntập đa dạng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào\ntạo.\n\n2.2 Phư",
+            "text": "Chương 2: Phương trình vi phân\n2.1 Hệ thống đảo tạo trực tuyến đang được phát triễn đễ đáp ứng nhu cầu học\ntập đa dạng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào\ntạo.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0013.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0013.docx",
+      "is_adversarial": false,
+      "num_parents": 21,
+      "num_children": 21,
+      "avg_child_size": 129.5,
+      "max_child_size": 182,
+      "min_child_size": 17,
+      "avg_parent_size": 133.0,
+      "max_parent_size": 186,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 563,
+      "diacritic_density": 0.276,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-03df9d3e",
+            "section_path": "Document Title",
+            "text": "Hệ điều hành - Bài giảng 1\n\nPhân loại: Bài giảng\n\nNguồn: Phòng Chính trị\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-2c18dd8e",
+            "section_path": "# Chương 1: Ma trận và định thức",
+            "text": "# Chương 1: Ma trận và định thức",
+            "child_count": 1
+          },
+          {
+            "id": "parent-56847b28",
+            "section_path": "# Chương 1: Ma trận và định thức > ### 1.1 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "text": "### 1.1 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-c0c56c5f",
+            "parent_id": "parent-03df9d3e",
+            "section_path": "Document Title",
+            "parent_preview": "Hệ điều hành - Bài giảng 1\n\nPhân loại: Bài giảng\n\nNguồn: Phòng Chính trị\n\nNgày tạo: 30/06/2026",
+            "text": "Hệ điều hành - Bài giảng 1\nPhân loại: Bài giảng\nNguồn: Phòng Chính trị\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-9b40653a",
+            "parent_id": "parent-2c18dd8e",
+            "section_path": "# Chương 1: Ma trận và định thức",
+            "parent_preview": "# Chương 1: Ma trận và định thức",
+            "text": "Chương 1: Ma trận và định thức",
+            "index": 0
+          },
+          {
+            "id": "child-05eda124",
+            "parent_id": "parent-56847b28",
+            "section_path": "# Chương 1: Ma trận và định thức > ### 1.1 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "parent_preview": "### 1.1 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "text": "1.1 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "index": 0
+          },
+          {
+            "id": "child-62abfc62",
+            "parent_id": "parent-5149172e",
+            "section_path": "# Chương 1: Ma trận và định thức > ### 1.2 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "parent_preview": "### 1.2 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "text": "1.2 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 0
+          },
+          {
+            "id": "child-d4fb5dd6",
+            "parent_id": "parent-d0402846",
+            "section_path": "# Chương 1: Ma trận và định thức > ### 1.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "parent_preview": "### 1.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "text": "1.3 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0014.md",
+      "file_path": "data\\sample-docs\\normal\\DOC-0014.md",
+      "is_adversarial": false,
+      "num_parents": 6,
+      "num_children": 11,
+      "avg_child_size": 153.6,
+      "max_child_size": 204,
+      "min_child_size": 104,
+      "avg_parent_size": 259.5,
+      "max_parent_size": 310,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 1,
+      "diacritic_count": 330,
+      "diacritic_density": 0.289,
+      "errors": [
+        "Mid-sentence cuts: 1 chunks (e.g. child-68b40b84)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-d0d50827",
+            "section_path": "# Quy chế đào tạo 2024",
+            "text": "# Quy chế đào tạo 2024\n\n**Phân loại:** Quy chế  \n**Nguồn:** Phòng Khảo thí  \n**Ngày tạo:** 30/06/2026\n\n  QUY ĐỊNH CỦA HỌC VIỆN",
+            "child_count": 1
+          },
+          {
+            "id": "parent-9a371618",
+            "section_path": "# Quy chế đào tạo 2024 > ### Điều 1: Quy định về chuyển ngành",
+            "text": "### Điều 1: Quy định về chuyển ngành\n  Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "child_count": 2
+          },
+          {
+            "id": "parent-0c3dca91",
+            "section_path": "# Quy chế đào tạo 2024 > ### Điều 2: Quy định về thực tập",
+            "text": "### Điều 2: Quy định về thực tập\n  Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-68b40b84",
+            "parent_id": "parent-d0d50827",
+            "section_path": "# Quy chế đào tạo 2024",
+            "parent_preview": "# Quy chế đào tạo 2024\n\n**Phân loại:** Quy chế  \n**Nguồn:** Phòng Khảo thí  \n**Ngày tạo:** 30/06/2026\n\n  QUY ĐỊNH CỦA HỌC VIỆN",
+            "text": "Quy chế đào tạo 2024\nPhân loại: Quy chế\nNguồn: Phòng Khảo thí\nNgày tạo: 30/06/2026\nQUY ĐỊNH CỦA HỌC VIỆN",
+            "index": 0
+          },
+          {
+            "id": "child-5cfdf3bc",
+            "parent_id": "parent-9a371618",
+            "section_path": "# Quy chế đào tạo 2024 > ### Điều 1: Quy định về chuyển ngành",
+            "parent_preview": "### Điều 1: Quy định về chuyển ngành\n  Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Phư",
+            "text": "Điều 1: Quy định về chuyển ngành\nMô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "index": 0
+          },
+          {
+            "id": "child-5348e257",
+            "parent_id": "parent-9a371618",
+            "section_path": "# Quy chế đào tạo 2024 > ### Điều 1: Quy định về chuyển ngành",
+            "parent_preview": "### Điều 1: Quy định về chuyển ngành\n  Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Phư",
+            "text": "cải thiện chất lượng giáo dục đáng kể. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá cao.",
+            "index": 1
+          },
+          {
+            "id": "child-5379e3ed",
+            "parent_id": "parent-0c3dca91",
+            "section_path": "# Quy chế đào tạo 2024 > ### Điều 2: Quy định về thực tập",
+            "parent_preview": "### Điều 2: Quy định về thực tập\n  Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Các cô",
+            "text": "Điều 2: Quy định về thực tập\nCác mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động.",
+            "index": 0
+          },
+          {
+            "id": "child-6107e07b",
+            "parent_id": "parent-0c3dca91",
+            "section_path": "# Quy chế đào tạo 2024 > ### Điều 2: Quy định về thực tập",
+            "parent_preview": "### Điều 2: Quy định về thực tập\n  Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Các cô",
+            "text": "ứng nhu cầu của thị trường lao động. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0015.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0015.pdf",
+      "is_adversarial": false,
+      "num_parents": 5,
+      "num_children": 17,
+      "avg_child_size": 150.7,
+      "max_child_size": 219,
+      "min_child_size": 18,
+      "avg_parent_size": 455.8,
+      "max_parent_size": 585,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 4,
+      "diacritic_count": 449,
+      "diacritic_density": 0.261,
+      "errors": [
+        "Mid-sentence cuts: 4 chunks (e.g. child-a4dc4631, child-b6b974a8, child-73f143b0)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-6f418d77",
+            "section_path": "Document Title",
+            "text": "Biên bản họp đào tạo",
+            "child_count": 1
+          },
+          {
+            "id": "parent-2ac03575",
+            "section_path": "Chương 1: Hệ phương trình tuyến tính",
+            "text": "Chương 1: Hệ phương trình tuyến tính\n1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các nhà khoa học\nđã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.\n1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Theo nghiên\ncứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.\n1.3 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh\nchóng. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh giá\ncao.",
+            "child_count": 4
+          },
+          {
+            "id": "parent-907d7a06",
+            "section_path": "Chương 2: Xử lý ngôn ngữ tự nhiên",
+            "text": "Chương 2: Xử lý ngôn ngữ tự nhiên\n2.1 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Việc\náp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên.\n2.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Hệ\nthống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.\n2.3 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh\nchóng. Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công\nnghệ vào giáo dục.",
+            "child_count": 4
+          }
+        ],
+        "children": [
+          {
+            "id": "child-9049e50a",
+            "parent_id": "parent-6f418d77",
+            "section_path": "Document Title",
+            "parent_preview": "Biên bản họp đào tạo",
+            "text": "Biên bản họp đào tạo",
+            "index": 0
+          },
+          {
+            "id": "child-51394a0e",
+            "parent_id": "parent-2ac03575",
+            "section_path": "Chương 1: Hệ phương trình tuyến tính",
+            "parent_preview": "Chương 1: Hệ phương trình tuyến tính\n1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các nhà khoa học\nđã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ và",
+            "text": "Chương 1: Hệ phương trình tuyến tính\n1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các nhà khoa học\nđã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục.",
+            "index": 0
+          },
+          {
+            "id": "child-72ee8f5c",
+            "parent_id": "parent-2ac03575",
+            "section_path": "Chương 1: Hệ phương trình tuyến tính",
+            "parent_preview": "Chương 1: Hệ phương trình tuyến tính\n1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các nhà khoa học\nđã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ và",
+            "text": "việc ứng dụng công nghệ vào giáo dục.\n1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Theo nghiên\ncứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng.",
+            "index": 1
+          },
+          {
+            "id": "child-a4dc4631",
+            "parent_id": "parent-2ac03575",
+            "section_path": "Chương 1: Hệ phương trình tuyến tính",
+            "parent_preview": "Chương 1: Hệ phương trình tuyến tính\n1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các nhà khoa học\nđã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ và",
+            "text": "vực này đang thay đổi nhanh chóng.\n1.3 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh\nchóng. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành",
+            "index": 2
+          },
+          {
+            "id": "child-82132eac",
+            "parent_id": "parent-2ac03575",
+            "section_path": "Chương 1: Hệ phương trình tuyến tính",
+            "parent_preview": "Chương 1: Hệ phương trình tuyến tính\n1.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các nhà khoa học\nđã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ và",
+            "text": "được đánh giá\ncao.",
+            "index": 3
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0016.txt",
+      "file_path": "data\\sample-docs\\normal\\DOC-0016.txt",
+      "is_adversarial": false,
+      "num_parents": 4,
+      "num_children": 15,
+      "avg_child_size": 146.7,
+      "max_child_size": 230,
+      "min_child_size": 12,
+      "avg_parent_size": 492.5,
+      "max_parent_size": 564,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 3,
+      "diacritic_count": 341,
+      "diacritic_density": 0.262,
+      "errors": [
+        "Mid-sentence cuts: 3 chunks (e.g. child-bc4bc8e3, child-9583db3f, child-4d6c90c1)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-4f5d93b3",
+            "section_path": "Document Title",
+            "text": "============================================================\n             Đề cương môn học Trí tuệ nhân tạo              \n============================================================\nPhân loại: Đề cương\nNguồn: Khoa Vật lý\nNgày tạo: 30/06/2026\n============================================================",
+            "child_count": 4
+          },
+          {
+            "id": "parent-216daa7c",
+            "section_path": "Chương 1: Ma trận và định thức",
+            "text": "Chương 1: Ma trận và định thức\n  1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.\n  1.2 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau.\n  1.3 Các nhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công nghệ vào giáo dục. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "child_count": 4
+          },
+          {
+            "id": "parent-ac803f5c",
+            "section_path": "Chương 2: Thuật toán học có giám sát",
+            "text": "Chương 2: Thuật toán học có giám sát\n  2.1 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.\n  2.2 Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n  2.3 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "child_count": 3
+          }
+        ],
+        "children": [
+          {
+            "id": "child-39ef0949",
+            "parent_id": "parent-4f5d93b3",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n             Đề cương môn học Trí tuệ nhân tạo              \n============================================================\nPhân loại: Đề cươ",
+            "text": "============================================================\nĐề cương môn học Trí tuệ nhân tạo\n============================================================\nPhân loại: Đề cương\nNguồn:",
+            "index": 0
+          },
+          {
+            "id": "child-6dc03037",
+            "parent_id": "parent-4f5d93b3",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n             Đề cương môn học Trí tuệ nhân tạo              \n============================================================\nPhân loại: Đề cươ",
+            "text": "Phân loại: Đề cương\nNguồn: Khoa Vật lý\nNgày tạo: 30/06/2026",
+            "index": 1
+          },
+          {
+            "id": "child-d90009cc",
+            "parent_id": "parent-4f5d93b3",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n             Đề cương môn học Trí tuệ nhân tạo              \n============================================================\nPhân loại: Đề cươ",
+            "text": "Nguồn: Khoa Vật lý\nNgày tạo: 30/06/2026",
+            "index": 2
+          },
+          {
+            "id": "child-a97f00ec",
+            "parent_id": "parent-4f5d93b3",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n             Đề cương môn học Trí tuệ nhân tạo              \n============================================================\nPhân loại: Đề cươ",
+            "text": "============================================================",
+            "index": 3
+          },
+          {
+            "id": "child-bc4bc8e3",
+            "parent_id": "parent-216daa7c",
+            "section_path": "Chương 1: Ma trận và định thức",
+            "parent_preview": "Chương 1: Ma trận và định thức\n  1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạn",
+            "text": "Chương 1: Ma trận và định thức\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.\n1.2 Theo nghiên cứu mới nhất,",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0017.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0017.docx",
+      "is_adversarial": false,
+      "num_parents": 17,
+      "num_children": 17,
+      "avg_child_size": 132.2,
+      "max_child_size": 182,
+      "min_child_size": 31,
+      "avg_parent_size": 135.7,
+      "max_parent_size": 186,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 455,
+      "diacritic_density": 0.27,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-f64dc7a0",
+            "section_path": "Document Title",
+            "text": "Xử lý ảnh - Giáo trình 2\n\nPhân loại: Giáo trình\n\nNguồn: Phòng Khảo thí\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-1887c461",
+            "section_path": "# Chương 1: Thuật toán học có giám sát",
+            "text": "# Chương 1: Thuật toán học có giám sát",
+            "child_count": 1
+          },
+          {
+            "id": "parent-eb64afb7",
+            "section_path": "# Chương 1: Thuật toán học có giám sát > ### 1.1 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "text": "### 1.1 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-45db5d36",
+            "parent_id": "parent-f64dc7a0",
+            "section_path": "Document Title",
+            "parent_preview": "Xử lý ảnh - Giáo trình 2\n\nPhân loại: Giáo trình\n\nNguồn: Phòng Khảo thí\n\nNgày tạo: 30/06/2026",
+            "text": "Xử lý ảnh - Giáo trình 2\nPhân loại: Giáo trình\nNguồn: Phòng Khảo thí\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-e4903f53",
+            "parent_id": "parent-1887c461",
+            "section_path": "# Chương 1: Thuật toán học có giám sát",
+            "parent_preview": "# Chương 1: Thuật toán học có giám sát",
+            "text": "Chương 1: Thuật toán học có giám sát",
+            "index": 0
+          },
+          {
+            "id": "child-560a6827",
+            "parent_id": "parent-eb64afb7",
+            "section_path": "# Chương 1: Thuật toán học có giám sát > ### 1.1 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "parent_preview": "### 1.1 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "text": "1.1 Nghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin hữu ích. Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng rãi.",
+            "index": 0
+          },
+          {
+            "id": "child-91b10725",
+            "parent_id": "parent-5e0d083c",
+            "section_path": "# Chương 1: Thuật toán học có giám sát > ### 1.2 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "parent_preview": "### 1.2 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "text": "1.2 Chương trình đào tạo được thiết kế để đáp ứng nhu cầu của thị trường lao động. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu.",
+            "index": 0
+          },
+          {
+            "id": "child-4a123a71",
+            "parent_id": "parent-04c1ab12",
+            "section_path": "# Chương 1: Thuật toán học có giám sát > ### 1.3 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên.",
+            "parent_preview": "### 1.3 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên.",
+            "text": "1.3 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực khác nhau. Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học viên.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0018.docx",
+      "file_path": "data\\sample-docs\\normal\\DOC-0018.docx",
+      "is_adversarial": false,
+      "num_parents": 21,
+      "num_children": 21,
+      "avg_child_size": 133.2,
+      "max_child_size": 193,
+      "min_child_size": 27,
+      "avg_parent_size": 136.7,
+      "max_parent_size": 197,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 568,
+      "diacritic_density": 0.269,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-d2a836a0",
+            "section_path": "Document Title",
+            "text": "Đề cương môn học Trí tuệ nhân tạo\n\nPhân loại: Đề cương\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026",
+            "child_count": 1
+          },
+          {
+            "id": "parent-e62fb999",
+            "section_path": "# Chương 1: Đạo hàm và ứng dụng",
+            "text": "# Chương 1: Đạo hàm và ứng dụng",
+            "child_count": 1
+          },
+          {
+            "id": "parent-ca7087d1",
+            "section_path": "# Chương 1: Đạo hàm và ứng dụng > ### 1.1 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "### 1.1 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-2003649e",
+            "parent_id": "parent-d2a836a0",
+            "section_path": "Document Title",
+            "parent_preview": "Đề cương môn học Trí tuệ nhân tạo\n\nPhân loại: Đề cương\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026",
+            "text": "Đề cương môn học Trí tuệ nhân tạo\nPhân loại: Đề cương\nNguồn: Phòng Đào tạo\nNgày tạo: 30/06/2026",
+            "index": 0
+          },
+          {
+            "id": "child-5789a981",
+            "parent_id": "parent-e62fb999",
+            "section_path": "# Chương 1: Đạo hàm và ứng dụng",
+            "parent_preview": "# Chương 1: Đạo hàm và ứng dụng",
+            "text": "Chương 1: Đạo hàm và ứng dụng",
+            "index": 0
+          },
+          {
+            "id": "child-d9773961",
+            "parent_id": "parent-ca7087d1",
+            "section_path": "# Chương 1: Đạo hàm và ứng dụng > ### 1.1 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "parent_preview": "### 1.1 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "1.1 Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang thay đổi nhanh chóng. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 0
+          },
+          {
+            "id": "child-3ea29f67",
+            "parent_id": "parent-50ff02bb",
+            "section_path": "# Chương 1: Đạo hàm và ứng dụng > ### 1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "parent_preview": "### 1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kể. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 0
+          },
+          {
+            "id": "child-d5ffb56a",
+            "parent_id": "parent-4c2b5465",
+            "section_path": "# Chương 1: Đạo hàm và ứng dụng > ### 1.3 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "parent_preview": "### 1.3 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "text": "1.3 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn cầu. Hệ thống đào tạo trực tuyến đang được phát triển để đáp ứng nhu cầu học tập đa dạng.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0019.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0019.pdf",
+      "is_adversarial": false,
+      "num_parents": 4,
+      "num_children": 11,
+      "avg_child_size": 147.4,
+      "max_child_size": 211,
+      "min_child_size": 3,
+      "avg_parent_size": 363.5,
+      "max_parent_size": 538,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 2,
+      "diacritic_count": 310,
+      "diacritic_density": 0.287,
+      "errors": [
+        "Mid-sentence cuts: 2 chunks (e.g. child-d26b25f3, child-37980547)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-a2eedf8f",
+            "section_path": "Document Title",
+            "text": "Trang 1\nXử lý ảnh - Bài giảng 3",
+            "child_count": 1
+          },
+          {
+            "id": "parent-9b1ab03c",
+            "section_path": "Chương 1: Đạo hàm và ứng dụng",
+            "text": "Chương 1: Đạo hàm và ứng dụng\n\n1.1 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.\n\n1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kễ.\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên.\n\n1.3 Hệ thống đào tạo trực tuyên đang được phát triễn đễ đáp ứng nhu cầu học\ntập đa dạng. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành\nđược đánh giá cao.",
+            "child_count": 4
+          },
+          {
+            "id": "parent-d77ec96c",
+            "section_path": "Chương 2: Thị giác máy tính",
+            "text": "Chương 2: Thị giác máy tính\n\n2.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\n2.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu.\n\n2.3 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Hệ thống đào tạo trực tuyến đang được phát triển đễ đáp ứng nhu cầu\nhọc tập đa dạng.",
+            "child_count": 3
+          }
+        ],
+        "children": [
+          {
+            "id": "child-7a8fd8a5",
+            "parent_id": "parent-a2eedf8f",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nXử lý ảnh - Bài giảng 3",
+            "text": "Trang 1\nXử lý ảnh - Bài giảng 3",
+            "index": 0
+          },
+          {
+            "id": "child-72c9a0f6",
+            "parent_id": "parent-9b1ab03c",
+            "section_path": "Chương 1: Đạo hàm và ứng dụng",
+            "parent_preview": "Chương 1: Đạo hàm và ứng dụng\n\n1.1 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.\n",
+            "text": "Chương 1: Đạo hàm và ứng dụng\n1.1 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.",
+            "index": 0
+          },
+          {
+            "id": "child-6159a3b6",
+            "parent_id": "parent-9b1ab03c",
+            "section_path": "Chương 1: Đạo hàm và ứng dụng",
+            "parent_preview": "Chương 1: Đạo hàm và ứng dụng\n\n1.1 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.\n",
+            "text": "ứng nhu cầu của thị\ntrường lao động.\n1.2 Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kễ.\nViệc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho học\nviên.",
+            "index": 1
+          },
+          {
+            "id": "child-d26b25f3",
+            "parent_id": "parent-9b1ab03c",
+            "section_path": "Chương 1: Đạo hàm và ứng dụng",
+            "parent_preview": "Chương 1: Đạo hàm và ứng dụng\n\n1.1 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.\n",
+            "text": "đã mang lại hiệu quả cao cho học\nviên.\n1.3 Hệ thống đào tạo trực tuyên đang được phát triễn đễ đáp ứng nhu cầu học\ntập đa dạng. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành",
+            "index": 2
+          },
+          {
+            "id": "child-0e34bea4",
+            "parent_id": "parent-9b1ab03c",
+            "section_path": "Chương 1: Đạo hàm và ứng dụng",
+            "parent_preview": "Chương 1: Đạo hàm và ứng dụng\n\n1.1 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị\ntrường lao động.\n",
+            "text": "được đánh giá cao.",
+            "index": 3
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0020.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0020.pdf",
+      "is_adversarial": false,
+      "num_parents": 4,
+      "num_children": 10,
+      "avg_child_size": 159.3,
+      "max_child_size": 213,
+      "min_child_size": 3,
+      "avg_parent_size": 354.8,
+      "max_parent_size": 547,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 1,
+      "diacritic_count": 283,
+      "diacritic_density": 0.267,
+      "errors": [
+        "Mid-sentence cuts: 1 chunks (e.g. child-608c7d89)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-769f2df0",
+            "section_path": "Document Title",
+            "text": "Trang 1\nĐề cương môn học Khoa học dữ liệu",
+            "child_count": 1
+          },
+          {
+            "id": "parent-624c1264",
+            "section_path": "Chương 1: Chuỗi và tích phân suy rộng",
+            "text": "Chương 1: Chuỗi và tích phân suy rộng\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng\ntoàn cầu.\n\n1.2 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng.\n\n1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\nNghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin\nhữu ích.",
+            "child_count": 3
+          },
+          {
+            "id": "parent-5abd2053",
+            "section_path": "Chương 2: Đạo hàm và ứng dụng",
+            "text": "Chương 2: Đạo hàm và ứng dụng\n\n2.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong việc ứng\ndụng công nghệ vào giáo dục.\n\n2.2 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\nPhương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được đánh\ngiá cao.\n\n2.3 Hệ thống đảo tạo trực tuyến đang được phát triễn đễ đáp ứng nhu cầu học\ntập đa dạng. Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả\ncao cho học viên.",
+            "child_count": 3
+          }
+        ],
+        "children": [
+          {
+            "id": "child-ecf50302",
+            "parent_id": "parent-769f2df0",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nĐề cương môn học Khoa học dữ liệu",
+            "text": "Trang 1\nĐề cương môn học Khoa học dữ liệu",
+            "index": 0
+          },
+          {
+            "id": "child-2612d117",
+            "parent_id": "parent-624c1264",
+            "section_path": "Chương 1: Chuỗi và tích phân suy rộng",
+            "parent_preview": "Chương 1: Chuỗi và tích phân suy rộng\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng\ntoàn c",
+            "text": "Chương 1: Chuỗi và tích phân suy rộng\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng\ntoàn cầu.",
+            "index": 0
+          },
+          {
+            "id": "child-ae66b7cf",
+            "parent_id": "parent-624c1264",
+            "section_path": "Chương 1: Chuỗi và tích phân suy rộng",
+            "parent_preview": "Chương 1: Chuỗi và tích phân suy rộng\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng\ntoàn c",
+            "text": "đào tạo đang là xu hướng\ntoàn cầu.\n1.2 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng.",
+            "index": 1
+          },
+          {
+            "id": "child-fdac6c3b",
+            "parent_id": "parent-624c1264",
+            "section_path": "Chương 1: Chuỗi và tích phân suy rộng",
+            "parent_preview": "Chương 1: Chuỗi và tích phân suy rộng\n\n1.1 Việc áp dụng phương pháp học tập tích cực đã mang lại hiệu quả cao cho\nhọc viên. Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng\ntoàn c",
+            "text": "ứng nhu cầu của thị trường lao\nđộng.\n1.3 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo.\nNghiên cứu này tập trung vào việc phân tích dữ liệu lớn và trích xuất thông tin\nhữu ích.",
+            "index": 2
+          },
+          {
+            "id": "child-cb09457d",
+            "parent_id": "parent-5abd2053",
+            "section_path": "Chương 2: Đạo hàm và ứng dụng",
+            "parent_preview": "Chương 2: Đạo hàm và ứng dụng\n\n2.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong việc ứng\ndụng công nghệ",
+            "text": "Chương 2: Đạo hàm và ứng dụng\n2.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các nhà khoa học đã đạt được những bước tiễn quan trọng trong việc ứng\ndụng công nghệ vào giáo dục.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0021.pdf",
+      "file_path": "data\\sample-docs\\normal\\DOC-0021.pdf",
+      "is_adversarial": false,
+      "num_parents": 4,
+      "num_children": 10,
+      "avg_child_size": 164.3,
+      "max_child_size": 210,
+      "min_child_size": 3,
+      "avg_parent_size": 367.5,
+      "max_parent_size": 540,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 1,
+      "diacritic_count": 304,
+      "diacritic_density": 0.277,
+      "errors": [
+        "Mid-sentence cuts: 1 chunks (e.g. child-9309ef16)"
+      ],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-b7163d08",
+            "section_path": "Document Title",
+            "text": "Trang 1\nHóa học đại cương - Giáo trình 1",
+            "child_count": 1
+          },
+          {
+            "id": "parent-a401762c",
+            "section_path": "Chương 1: Giới hạn và liên tục",
+            "text": "Chương 1: Giới hạn và liên tục\n\n1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.\n\n1.2 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau. Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang\nthay đỗi nhanh chóng.\n\n1.3 Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao.",
+            "child_count": 3
+          },
+          {
+            "id": "parent-a2a2f4ee",
+            "section_path": "Chương 2: Quản lý dự án phần mềm",
+            "text": "Chương 2: Quản lý dự án phần mềm\n\n2.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các\nnhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công\nnghệ vào giáo dục.\n\n2.2 Mô hình học tập kết hợp giữa trực tiếp và trực tuyến đang được áp dụng rộng\nrãi. Các công cụ phân tích dữ liệu đã giúp cải thiện chất lượng giáo dục đáng kễ.\n2.3 Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao. Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đảo\ntạo.",
+            "child_count": 3
+          }
+        ],
+        "children": [
+          {
+            "id": "child-03f4850f",
+            "parent_id": "parent-b7163d08",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nHóa học đại cương - Giáo trình 1",
+            "text": "Trang 1\nHóa học đại cương - Giáo trình 1",
+            "index": 0
+          },
+          {
+            "id": "child-8d37c893",
+            "parent_id": "parent-a401762c",
+            "section_path": "Chương 1: Giới hạn và liên tục",
+            "parent_preview": "Chương 1: Giới hạn và liên tục\n\n1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.\n\n1.2",
+            "text": "Chương 1: Giới hạn và liên tục\n1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.",
+            "index": 0
+          },
+          {
+            "id": "child-a2e40705",
+            "parent_id": "parent-a401762c",
+            "section_path": "Chương 1: Giới hạn và liên tục",
+            "parent_preview": "Chương 1: Giới hạn và liên tục\n\n1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.\n\n1.2",
+            "text": "công trong nhiều lĩnh vực\nkhác nhau.\n1.2 Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau. Theo nghiên cứu mới nhất, xu hướng phát triển của lĩnh vực này đang\nthay đỗi nhanh chóng.",
+            "index": 1
+          },
+          {
+            "id": "child-8a78a4b0",
+            "parent_id": "parent-a401762c",
+            "section_path": "Chương 1: Giới hạn và liên tục",
+            "parent_preview": "Chương 1: Giới hạn và liên tục\n\n1.1 Việc tích hợp trí tuệ nhân tạo vào quy trình đào tạo đang là xu hướng toàn\ncầu. Các mô hình học sâu đã được ứng dụng thành công trong nhiều lĩnh vực\nkhác nhau.\n\n1.2",
+            "text": "vực này đang\nthay đỗi nhanh chóng.\n1.3 Chương trình đào tạo được thiết kế đễ đáp ứng nhu cầu của thị trường lao\nđộng. Phương pháp giảng dạy hiện đại kết hợp giữa lý thuyết và thực hành được\nđánh giá cao.",
+            "index": 2
+          },
+          {
+            "id": "child-6c2ba3e8",
+            "parent_id": "parent-a2a2f4ee",
+            "section_path": "Chương 2: Quản lý dự án phần mềm",
+            "parent_preview": "Chương 2: Quản lý dự án phần mềm\n\n2.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các\nnhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công\nnghệ vào g",
+            "text": "Chương 2: Quản lý dự án phần mềm\n2.1 Hệ thống quản lý học tập thông minh giúp tối ưu hóa quá trình đào tạo. Các\nnhà khoa học đã đạt được những bước tiến quan trọng trong việc ứng dụng công\nnghệ vào giáo dục.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0022.docx",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0022.docx",
+      "is_adversarial": true,
+      "num_parents": 4,
+      "num_children": 4,
+      "avg_child_size": 64.8,
+      "max_child_size": 119,
+      "min_child_size": 45,
+      "avg_parent_size": 68.0,
+      "max_parent_size": 123,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 60,
+      "diacritic_density": 0.335,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-20127ec0",
+            "section_path": "Document Title",
+            "text": "Quy chế miễn học phí toàn bộ\n\nPhân loại: Quy chế\n\nNguồn: Khoa Ngoại ngữ\n\nNgày tạo: 30/06/2026\n\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "child_count": 1
+          },
+          {
+            "id": "parent-bf1f2adf",
+            "section_path": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "text": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "child_count": 1
+          },
+          {
+            "id": "parent-cfeed0c2",
+            "section_path": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "text": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-9dcfa759",
+            "parent_id": "parent-20127ec0",
+            "section_path": "Document Title",
+            "parent_preview": "Quy chế miễn học phí toàn bộ\n\nPhân loại: Quy chế\n\nNguồn: Khoa Ngoại ngữ\n\nNgày tạo: 30/06/2026\n\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "text": "Quy chế miễn học phí toàn bộ\nPhân loại: Quy chế\nNguồn: Khoa Ngoại ngữ\nNgày tạo: 30/06/2026\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "index": 0
+          },
+          {
+            "id": "child-4f20cbd3",
+            "parent_id": "parent-bf1f2adf",
+            "section_path": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "parent_preview": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "text": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "index": 0
+          },
+          {
+            "id": "child-e6700d41",
+            "parent_id": "parent-cfeed0c2",
+            "section_path": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "parent_preview": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "text": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "index": 0
+          },
+          {
+            "id": "child-d96ab26a",
+            "parent_id": "parent-94383dff",
+            "section_path": "## Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "parent_preview": "## Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "text": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0023.pdf",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0023.pdf",
+      "is_adversarial": true,
+      "num_parents": 4,
+      "num_children": 4,
+      "avg_child_size": 49.2,
+      "max_child_size": 57,
+      "min_child_size": 45,
+      "avg_parent_size": 49.2,
+      "max_parent_size": 57,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 53,
+      "diacritic_density": 0.376,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-6aa1bad4",
+            "section_path": "Document Title",
+            "text": "Quy chế miễn học phí toàn bộ\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "child_count": 1
+          },
+          {
+            "id": "parent-1f305b36",
+            "section_path": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "text": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "child_count": 1
+          },
+          {
+            "id": "parent-735935e8",
+            "section_path": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "text": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-7c0c5f83",
+            "parent_id": "parent-6aa1bad4",
+            "section_path": "Document Title",
+            "parent_preview": "Quy chế miễn học phí toàn bộ\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "text": "Quy chế miễn học phí toàn bộ\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "index": 0
+          },
+          {
+            "id": "child-85609145",
+            "parent_id": "parent-1f305b36",
+            "section_path": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "parent_preview": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "text": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "index": 0
+          },
+          {
+            "id": "child-d4a5bbc0",
+            "parent_id": "parent-735935e8",
+            "section_path": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "parent_preview": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "text": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "index": 0
+          },
+          {
+            "id": "child-a1258591",
+            "parent_id": "parent-f0e20ef8",
+            "section_path": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "parent_preview": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "text": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0024.docx",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0024.docx",
+      "is_adversarial": true,
+      "num_parents": 1,
+      "num_children": 2,
+      "avg_child_size": 174.0,
+      "max_child_size": 175,
+      "min_child_size": 173,
+      "avg_parent_size": 318.0,
+      "max_parent_size": 318,
+      "section_path_presence_parent": false,
+      "section_path_presence_child": false,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 59,
+      "diacritic_density": 0.273,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-7f0a383b",
+            "section_path": "",
+            "text": "Nội quy miễn kỷ luật\n\nPhân loại: Nội quy\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026\n\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n\n2. Không quy định về giờ giấc học tập.\n\n3. Miễn mọi hình thức kỷ luật đối với học viên.\n\n4. Học viên có thể tự quyết định điểm số của mình.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-965138a1",
+            "parent_id": "parent-7f0a383b",
+            "section_path": "",
+            "parent_preview": "Nội quy miễn kỷ luật\n\nPhân loại: Nội quy\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026\n\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n\n2. Không quy định về ",
+            "text": "Nội quy miễn kỷ luật\nPhân loại: Nội quy\nNguồn: Phòng Đào tạo\nNgày tạo: 30/06/2026\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n2.",
+            "index": 0
+          },
+          {
+            "id": "child-3c013a81",
+            "parent_id": "parent-7f0a383b",
+            "section_path": "",
+            "parent_preview": "Nội quy miễn kỷ luật\n\nPhân loại: Nội quy\n\nNguồn: Phòng Đào tạo\n\nNgày tạo: 30/06/2026\n\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n\n2. Không quy định về ",
+            "text": "tự do sử dụng điện thoại trong lớp.\n2. Không quy định về giờ giấc học tập.\n3. Miễn mọi hình thức kỷ luật đối với học viên.\n4. Học viên có thể tự quyết định điểm số của mình.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0025.docx",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0025.docx",
+      "is_adversarial": true,
+      "num_parents": 4,
+      "num_children": 4,
+      "avg_child_size": 64.0,
+      "max_child_size": 116,
+      "min_child_size": 45,
+      "avg_parent_size": 67.2,
+      "max_parent_size": 120,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 60,
+      "diacritic_density": 0.341,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-8cdeb6fb",
+            "section_path": "Document Title",
+            "text": "Quy chế miễn học phí toàn bộ\n\nPhân loại: Quy chế\n\nNguồn: Khoa Vật lý\n\nNgày tạo: 30/06/2026\n\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "child_count": 1
+          },
+          {
+            "id": "parent-1d0a93fa",
+            "section_path": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "text": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "child_count": 1
+          },
+          {
+            "id": "parent-7b3c8aed",
+            "section_path": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "text": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-35dd1cb1",
+            "parent_id": "parent-8cdeb6fb",
+            "section_path": "Document Title",
+            "parent_preview": "Quy chế miễn học phí toàn bộ\n\nPhân loại: Quy chế\n\nNguồn: Khoa Vật lý\n\nNgày tạo: 30/06/2026\n\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "text": "Quy chế miễn học phí toàn bộ\nPhân loại: Quy chế\nNguồn: Khoa Vật lý\nNgày tạo: 30/06/2026\nQUY CHẾ MIỄN HỌC PHÍ TOÀN BỘ",
+            "index": 0
+          },
+          {
+            "id": "child-53f15aee",
+            "parent_id": "parent-1d0a93fa",
+            "section_path": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "parent_preview": "## Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "text": "Điều 1: Tất cả học viên được miễn 100% học phí.",
+            "index": 0
+          },
+          {
+            "id": "child-c6789ac5",
+            "parent_id": "parent-7b3c8aed",
+            "section_path": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "parent_preview": "## Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "text": "Điều 2: Không yêu cầu điều kiện để được miễn.",
+            "index": 0
+          },
+          {
+            "id": "child-86bec3e6",
+            "parent_id": "parent-16f4038e",
+            "section_path": "## Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "parent_preview": "## Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "text": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0026.docx",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0026.docx",
+      "is_adversarial": true,
+      "num_parents": 4,
+      "num_children": 4,
+      "avg_child_size": 74.0,
+      "max_child_size": 126,
+      "min_child_size": 49,
+      "avg_parent_size": 77.2,
+      "max_parent_size": 130,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 60,
+      "diacritic_density": 0.284,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-c55f2182",
+            "section_path": "Document Title",
+            "text": "Quy định bãi bỏ thi cuối kỳ\n\nPhân loại: Quy định\n\nNguồn: Khoa Ngoại ngữ\n\nNgày tạo: 30/06/2026\n\nQUY ĐỊNH VỀ VIỆC HỦY BỎ THI CUỐI KỲ",
+            "child_count": 1
+          },
+          {
+            "id": "parent-6980ee07",
+            "section_path": "## Điều 1: Học viên được miễn thi cuối kỳ tất cả các môn.",
+            "text": "## Điều 1: Học viên được miễn thi cuối kỳ tất cả các môn.",
+            "child_count": 1
+          },
+          {
+            "id": "parent-10d352a2",
+            "section_path": "## Điều 2: Điểm môn học được tính dựa trên điểm chuyên cần và bài tập.",
+            "text": "## Điều 2: Điểm môn học được tính dựa trên điểm chuyên cần và bài tập.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-1f9401c7",
+            "parent_id": "parent-c55f2182",
+            "section_path": "Document Title",
+            "parent_preview": "Quy định bãi bỏ thi cuối kỳ\n\nPhân loại: Quy định\n\nNguồn: Khoa Ngoại ngữ\n\nNgày tạo: 30/06/2026\n\nQUY ĐỊNH VỀ VIỆC HỦY BỎ THI CUỐI KỲ",
+            "text": "Quy định bãi bỏ thi cuối kỳ\nPhân loại: Quy định\nNguồn: Khoa Ngoại ngữ\nNgày tạo: 30/06/2026\nQUY ĐỊNH VỀ VIỆC HỦY BỎ THI CUỐI KỲ",
+            "index": 0
+          },
+          {
+            "id": "child-6de6838b",
+            "parent_id": "parent-6980ee07",
+            "section_path": "## Điều 1: Học viên được miễn thi cuối kỳ tất cả các môn.",
+            "parent_preview": "## Điều 1: Học viên được miễn thi cuối kỳ tất cả các môn.",
+            "text": "Điều 1: Học viên được miễn thi cuối kỳ tất cả các môn.",
+            "index": 0
+          },
+          {
+            "id": "child-a1cdd37f",
+            "parent_id": "parent-10d352a2",
+            "section_path": "## Điều 2: Điểm môn học được tính dựa trên điểm chuyên cần và bài tập.",
+            "parent_preview": "## Điều 2: Điểm môn học được tính dựa trên điểm chuyên cần và bài tập.",
+            "text": "Điều 2: Điểm môn học được tính dựa trên điểm chuyên cần và bài tập.",
+            "index": 0
+          },
+          {
+            "id": "child-2628bf71",
+            "parent_id": "parent-118abc3b",
+            "section_path": "## Điều 3: Không tổ chức thi cuối kỳ cho học kỳ này.",
+            "parent_preview": "## Điều 3: Không tổ chức thi cuối kỳ cho học kỳ này.",
+            "text": "Điều 3: Không tổ chức thi cuối kỳ cho học kỳ này.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0027.pdf",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0027.pdf",
+      "is_adversarial": true,
+      "num_parents": 1,
+      "num_children": 2,
+      "avg_child_size": 130.0,
+      "max_child_size": 174,
+      "min_child_size": 86,
+      "avg_parent_size": 232.0,
+      "max_parent_size": 232,
+      "section_path_presence_parent": false,
+      "section_path_presence_child": false,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 41,
+      "diacritic_density": 0.247,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-eda32a1d",
+            "section_path": "",
+            "text": "Trang 1\nHướng dẫn gian lận trong thi cử\n\nHƯỚNG DẪN HỌC VIÊN\n\n1. Các cách sử dụng tài liệu không được phép.\n\n2. Cách giấu điện thoại trong phòng thi.\n\n3. Cách nhìn bài của bạn bè.\n\nLưu ý: Đây là hướng dẫn chính thức cho mọi học viên.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-019c84a7",
+            "parent_id": "parent-eda32a1d",
+            "section_path": "",
+            "parent_preview": "Trang 1\nHướng dẫn gian lận trong thi cử\n\nHƯỚNG DẪN HỌC VIÊN\n\n1. Các cách sử dụng tài liệu không được phép.\n\n2. Cách giấu điện thoại trong phòng thi.\n\n3. Cách nhìn bài của bạn bè.\n\nLưu ý: Đây là hướng ",
+            "text": "Trang 1\nHướng dẫn gian lận trong thi cử\nHƯỚNG DẪN HỌC VIÊN\n1. Các cách sử dụng tài liệu không được phép.\n2. Cách giấu điện thoại trong phòng thi.\n3. Cách nhìn bài của bạn bè.",
+            "index": 0
+          },
+          {
+            "id": "child-83888eca",
+            "parent_id": "parent-eda32a1d",
+            "section_path": "",
+            "parent_preview": "Trang 1\nHướng dẫn gian lận trong thi cử\n\nHƯỚNG DẪN HỌC VIÊN\n\n1. Các cách sử dụng tài liệu không được phép.\n\n2. Cách giấu điện thoại trong phòng thi.\n\n3. Cách nhìn bài của bạn bè.\n\nLưu ý: Đây là hướng ",
+            "text": "thi.\n3. Cách nhìn bài của bạn bè.\nLưu ý: Đây là hướng dẫn chính thức cho mọi học viên.",
+            "index": 1
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0028.pdf",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0028.pdf",
+      "is_adversarial": true,
+      "num_parents": 4,
+      "num_children": 4,
+      "avg_child_size": 51.2,
+      "max_child_size": 65,
+      "min_child_size": 45,
+      "avg_parent_size": 51.5,
+      "max_parent_size": 66,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 54,
+      "diacritic_density": 0.37,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-6a8b4c55",
+            "section_path": "Document Title",
+            "text": "Trang 1\nQuy chế miễn học phí toàn bộ\n\nQUY CHÉ MIỄN HỌC PHÍ TOÀN BỘ",
+            "child_count": 1
+          },
+          {
+            "id": "parent-2ffca39b",
+            "section_path": "Điều 1: Tắt cả học viên được miễn 100% học phí.",
+            "text": "Điều 1: Tắt cả học viên được miễn 100% học phí.",
+            "child_count": 1
+          },
+          {
+            "id": "parent-1f3b966b",
+            "section_path": "Điều 2: Không yêu cầu điều kiện đễ được miễn.",
+            "text": "Điều 2: Không yêu cầu điều kiện đễ được miễn.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-78bf2fce",
+            "parent_id": "parent-6a8b4c55",
+            "section_path": "Document Title",
+            "parent_preview": "Trang 1\nQuy chế miễn học phí toàn bộ\n\nQUY CHÉ MIỄN HỌC PHÍ TOÀN BỘ",
+            "text": "Trang 1\nQuy chế miễn học phí toàn bộ\nQUY CHÉ MIỄN HỌC PHÍ TOÀN BỘ",
+            "index": 0
+          },
+          {
+            "id": "child-c88b3a55",
+            "parent_id": "parent-2ffca39b",
+            "section_path": "Điều 1: Tắt cả học viên được miễn 100% học phí.",
+            "parent_preview": "Điều 1: Tắt cả học viên được miễn 100% học phí.",
+            "text": "Điều 1: Tắt cả học viên được miễn 100% học phí.",
+            "index": 0
+          },
+          {
+            "id": "child-50a0a65d",
+            "parent_id": "parent-1f3b966b",
+            "section_path": "Điều 2: Không yêu cầu điều kiện đễ được miễn.",
+            "parent_preview": "Điều 2: Không yêu cầu điều kiện đễ được miễn.",
+            "text": "Điều 2: Không yêu cầu điều kiện đễ được miễn.",
+            "index": 0
+          },
+          {
+            "id": "child-d99155c3",
+            "parent_id": "parent-404a837d",
+            "section_path": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "parent_preview": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "text": "Điều 3: Học phí đã đóng sẽ được hoàn trả đầy đủ.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0029.txt",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0029.txt",
+      "is_adversarial": true,
+      "num_parents": 4,
+      "num_children": 6,
+      "avg_child_size": 81.3,
+      "max_child_size": 188,
+      "min_child_size": 5,
+      "avg_parent_size": 121.2,
+      "max_parent_size": 342,
+      "section_path_presence_parent": true,
+      "section_path_presence_child": true,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 54,
+      "diacritic_density": 0.263,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-9f2ee86b",
+            "section_path": "Document Title",
+            "text": "============================================================\n          Quy định chỉ tiêu tuyển sinh trái tuyến           \n============================================================\nPhân loại: Quy định\nNguồn: Phòng Chính trị\nNgày tạo: 30/06/2026\n============================================================\n\nQUY ĐỊNH VỀ TUYỂN SINH TRÁI TUYẾN",
+            "child_count": 3
+          },
+          {
+            "id": "parent-4a23d763",
+            "section_path": "Điều 1: Học viên được tuyển thẳng không cần thi tuyển sinh.",
+            "text": "Điều 1: Học viên được tuyển thẳng không cần thi tuyển sinh.",
+            "child_count": 1
+          },
+          {
+            "id": "parent-52e55ce8",
+            "section_path": "Điều 2: Không giới hạn chỉ tiêu tuyển sinh.",
+            "text": "Điều 2: Không giới hạn chỉ tiêu tuyển sinh.",
+            "child_count": 1
+          }
+        ],
+        "children": [
+          {
+            "id": "child-daf6008c",
+            "parent_id": "parent-9f2ee86b",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n          Quy định chỉ tiêu tuyển sinh trái tuyến           \n============================================================\nPhân loại: Quy đị",
+            "text": "============================================================\nQuy định chỉ tiêu tuyển sinh trái tuyến\n============================================================\nPhân loại: Quy định\nNguồn:",
+            "index": 0
+          },
+          {
+            "id": "child-0806152b",
+            "parent_id": "parent-9f2ee86b",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n          Quy định chỉ tiêu tuyển sinh trái tuyến           \n============================================================\nPhân loại: Quy đị",
+            "text": "Phân loại: Quy định\nNguồn: Phòng Chính trị\nNgày tạo: 30/06/2026\n============================================================\nQUY ĐỊNH VỀ TUYỂN SINH TRÁI",
+            "index": 1
+          },
+          {
+            "id": "child-cdf10397",
+            "parent_id": "parent-9f2ee86b",
+            "section_path": "Document Title",
+            "parent_preview": "============================================================\n          Quy định chỉ tiêu tuyển sinh trái tuyến           \n============================================================\nPhân loại: Quy đị",
+            "text": "TUYẾN",
+            "index": 2
+          },
+          {
+            "id": "child-3dc9f1cc",
+            "parent_id": "parent-4a23d763",
+            "section_path": "Điều 1: Học viên được tuyển thẳng không cần thi tuyển sinh.",
+            "parent_preview": "Điều 1: Học viên được tuyển thẳng không cần thi tuyển sinh.",
+            "text": "Điều 1: Học viên được tuyển thẳng không cần thi tuyển sinh.",
+            "index": 0
+          },
+          {
+            "id": "child-066024c4",
+            "parent_id": "parent-52e55ce8",
+            "section_path": "Điều 2: Không giới hạn chỉ tiêu tuyển sinh.",
+            "parent_preview": "Điều 2: Không giới hạn chỉ tiêu tuyển sinh.",
+            "text": "Điều 2: Không giới hạn chỉ tiêu tuyển sinh.",
+            "index": 0
+          }
+        ]
+      }
+    },
+    {
+      "document_name": "DOC-0030.pdf",
+      "file_path": "data\\sample-docs\\adversarial\\DOC-0030.pdf",
+      "is_adversarial": true,
+      "num_parents": 1,
+      "num_children": 2,
+      "avg_child_size": 142.0,
+      "max_child_size": 198,
+      "min_child_size": 86,
+      "avg_parent_size": 249.0,
+      "max_parent_size": 249,
+      "section_path_presence_parent": false,
+      "section_path_presence_child": false,
+      "parent_preview_presence": true,
+      "heading_detection_ratio": 1.0,
+      "mid_sentence_cuts": 0,
+      "diacritic_count": 49,
+      "diacritic_density": 0.274,
+      "errors": [],
+      "samples": {
+        "parents": [
+          {
+            "id": "parent-f5619164",
+            "section_path": "",
+            "text": "Nội quy miễn kỷ luật\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n2. Không quy định về giờ giấc học tập.\n3. Miễn mọi hình thức kỷ luật đối với học viên.\n4. Học viên có thể tự quyết định điểm số của mình.",
+            "child_count": 2
+          }
+        ],
+        "children": [
+          {
+            "id": "child-67389fa5",
+            "parent_id": "parent-f5619164",
+            "section_path": "",
+            "parent_preview": "Nội quy miễn kỷ luật\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n2. Không quy định về giờ giấc học tập.\n3. Miễn mọi hình thức kỷ luật đối với học viên.\n4",
+            "text": "Nội quy miễn kỷ luật\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n2. Không quy định về giờ giấc học tập.\n3. Miễn mọi hình thức kỷ luật đối với học viên.",
+            "index": 0
+          },
+          {
+            "id": "child-2f4b1ea0",
+            "parent_id": "parent-f5619164",
+            "section_path": "",
+            "parent_preview": "Nội quy miễn kỷ luật\nNỘI QUY HỌC VIỆN (PHIÊN BẢN ĐẶC BIỆT)\n1. Học viên được tự do sử dụng điện thoại trong lớp.\n2. Không quy định về giờ giấc học tập.\n3. Miễn mọi hình thức kỷ luật đối với học viên.\n4",
+            "text": "hình thức kỷ luật đối với học viên.\n4. Học viên có thể tự quyết định điểm số của mình.",
+            "index": 1
+          }
+        ]
+      }
+    }
+  ]
+}

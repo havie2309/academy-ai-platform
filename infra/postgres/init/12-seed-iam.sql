@@ -85,7 +85,11 @@ INSERT INTO users (user_id, username, email, password_hash, hash_algorithm, full
     ('USR071', 'GV3885', 'phamhaiquan@pm2.edu.vn', '$argon2id$v=19$m=65536,t=3,p=4$T1WAo5cnnx+WcEejriBOjQ$kTWKmBJZ0yzSM99kz8eLNgdTp82xD3hgwcnZxop+l1U', 'argon2id', 'Phạm Hải Quân', 'Bộ môn Công nghệ phần mềm', 2, 'active'),
     ('USR072', 'GV9915', 'lytuanbinh@pm2.edu.vn', '$argon2id$v=19$m=65536,t=3,p=4$T1WAo5cnnx+WcEejriBOjQ$kTWKmBJZ0yzSM99kz8eLNgdTp82xD3hgwcnZxop+l1U', 'argon2id', 'Lý Tuấn Bình', 'Bộ môn Viễn thông', 2, 'active'),
     ('USR073', 'GV3055', 'phamvanxuan@pm2.edu.vn', '$argon2id$v=19$m=65536,t=3,p=4$T1WAo5cnnx+WcEejriBOjQ$kTWKmBJZ0yzSM99kz8eLNgdTp82xD3hgwcnZxop+l1U', 'argon2id', 'Phạm Văn Xuân', 'Bộ môn Tin học cơ bản', 2, 'active'),
-    ('USR074', 'GV3704', 'phamquanghoa@pm2.edu.vn', '$argon2id$v=19$m=65536,t=3,p=4$T1WAo5cnnx+WcEejriBOjQ$kTWKmBJZ0yzSM99kz8eLNgdTp82xD3hgwcnZxop+l1U', 'argon2id', 'Phạm Quang Hoa', 'Bộ môn Công nghệ phần mềm', 2, 'active');
+    ('USR074', 'GV3704', 'phamquanghoa@pm2.edu.vn', '$argon2id$v=19$m=65536,t=3,p=4$T1WAo5cnnx+WcEejriBOjQ$kTWKmBJZ0yzSM99kz8eLNgdTp82xD3hgwcnZxop+l1U', 'argon2id', 'Phạm Quang Hoa', 'Bộ môn Công nghệ phần mềm', 2, 'active')
+ON CONFLICT (user_id) DO UPDATE SET
+  password_hash = EXCLUDED.password_hash,
+  hash_algorithm = EXCLUDED.hash_algorithm,
+  status = EXCLUDED.status;
 
 INSERT INTO permissions (id, code, resource, action, description) VALUES
     ('PM001', 'users:read', 'users', 'read', 'Xem tài khoản người dùng'),
