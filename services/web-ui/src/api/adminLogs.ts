@@ -91,16 +91,16 @@ const MAX_FETCH_LIMIT = 200
 
 function inferEnvLabel(filePath: string): string {
   const normalized = filePath.trim().toLowerCase()
-  if (!normalized) return 'Unknown'
+  if (!normalized) return 'Không xác định'
   if (
     normalized.includes('runtime-logs') ||
     normalized.includes('.tmp-startlogs')
   ) {
     return 'Dev'
   }
-  if (normalized.includes('.codex')) return 'Local'
+  if (normalized.includes('.codex')) return 'Cục bộ'
   if (normalized.includes('docker')) return 'Docker'
-  return 'Runtime'
+  return 'Vận hành'
 }
 
 function toIsoFromLocalInput(value: string | undefined): string | undefined {
@@ -142,7 +142,7 @@ function normalizeEntry(entry: ApiServiceLogEntry): ServiceLogEntry {
 }
 
 function pickSourceEnv(entries: ServiceLogEntry[]): string {
-  if (entries.length === 0) return 'No logs'
+  if (entries.length === 0) return 'Chưa có log'
 
   const counts = new Map<string, number>()
   for (const entry of entries) {
@@ -151,10 +151,10 @@ function pickSourceEnv(entries: ServiceLogEntry[]): string {
 
   const sorted = [...counts.entries()].sort((left, right) => right[1] - left[1])
   if (sorted.length > 1 && sorted[0][1] === sorted[1][1]) {
-    return 'Mixed'
+    return 'Hỗn hợp'
   }
 
-  return sorted[0]?.[0] ?? 'Unknown'
+  return sorted[0]?.[0] ?? 'Không xác định'
 }
 
 function buildSources(

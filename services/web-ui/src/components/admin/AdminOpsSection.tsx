@@ -564,6 +564,9 @@ export default function AdminOpsSection({
                         <td className="rounded-l-2xl px-3 py-4 align-top">
                           <div className="space-y-1">
                             <p className="font-semibold text-slate-800">{displayName}</p>
+                            {account.full_name && (
+                              <p className="text-xs text-slate-400 font-mono">{account.username}</p>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-4 align-top">

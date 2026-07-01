@@ -49,29 +49,29 @@ const DEFAULT_FILTER_DRAFT: FilterDraft = {
 }
 
 function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return 'No timestamp'
+  if (!value) return 'Không có thời gian'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('vi-VN')
 }
 
 function formatCountLabel(count: number): string {
-  if (count === 1) return '1 row'
-  return `${count} rows`
+  if (count === 1) return '1 dòng'
+  return `${count} dòng`
 }
 
 function levelLabel(level: ServiceLogLevel): string {
   switch (level) {
     case 'debug':
-      return 'Debug'
+      return 'Gỡ lỗi'
     case 'info':
-      return 'Info'
+      return 'Thông tin'
     case 'warn':
-      return 'Warning'
+      return 'Cảnh báo'
     case 'error':
-      return 'Error'
+      return 'Lỗi'
     default:
-      return 'Other'
+      return 'Khác'
   }
 }
 
@@ -90,16 +90,32 @@ function levelTone(level: ServiceLogLevel): string {
   }
 }
 
-function summaryTone(level: Exclude<ServiceLogLevel, 'unknown'>): string {
+function summaryCardStyles(level: Exclude<ServiceLogLevel, 'unknown'>) {
   switch (level) {
     case 'debug':
-      return 'border-slate-200 bg-slate-50'
+      return {
+        card: 'border-slate-200 bg-slate-50/40 hover:bg-slate-50/80 transition-all duration-300 hover:shadow-sm',
+        number: 'text-slate-800',
+        iconContainer: 'border-slate-200 bg-slate-100 text-slate-600',
+      }
     case 'info':
-      return 'border-blue-200 bg-blue-50/80'
+      return {
+        card: 'border-blue-100 bg-blue-50/30 hover:bg-blue-50/60 transition-all duration-300 hover:shadow-[0_8px_30px_-15px_rgba(59,130,246,0.15)]',
+        number: 'text-blue-600',
+        iconContainer: 'border-blue-200 bg-blue-100/80 text-blue-600',
+      }
     case 'warn':
-      return 'border-amber-200 bg-amber-50/90'
+      return {
+        card: 'border-amber-100 bg-amber-50/30 hover:bg-amber-50/60 transition-all duration-300 hover:shadow-[0_8px_30px_-15px_rgba(245,158,11,0.15)]',
+        number: 'text-amber-600',
+        iconContainer: 'border-amber-200 bg-amber-100/80 text-amber-600',
+      }
     case 'error':
-      return 'border-red-200 bg-red-50/95 shadow-[0_18px_40px_-28px_rgba(220,38,38,0.55)]'
+      return {
+        card: 'border-red-100 bg-red-50/30 hover:bg-red-50/60 transition-all duration-300 hover:shadow-[0_12px_40px_-20px_rgba(239,68,68,0.25)]',
+        number: 'text-red-600',
+        iconContainer: 'border-red-200 bg-red-100/80 text-red-600',
+      }
   }
 }
 
@@ -116,45 +132,34 @@ function summaryIcon(level: Exclude<ServiceLogLevel, 'unknown'>) {
   }
 }
 
-function streamLabel(stream: ServiceLogEntry['stream']): string {
-  switch (stream) {
-    case 'stderr':
-      return 'stderr'
-    case 'stdout':
-      return 'stdout'
-    default:
-      return 'combined'
-  }
-}
-
 function humanizeError(message: string): {
   title: string
   summary: string
 } {
   if (message.includes('401')) {
     return {
-      title: 'Session expired',
-      summary: 'Please sign in again before opening the logs viewer.',
+      title: 'Phiên đăng nhập đã hết hạn',
+      summary: 'Vui lòng đăng nhập lại trước khi mở màn hình xem log.',
     }
   }
 
   if (message.includes('403')) {
     return {
-      title: 'Access blocked',
-      summary: 'This account does not have permission to read service logs.',
+      title: 'Truy cập bị chặn',
+      summary: 'Tài khoản này không có quyền xem log dịch vụ.',
     }
   }
 
   if (message.includes('504')) {
     return {
-      title: 'Logs service is slow to respond',
-      summary: 'Try refreshing in a moment. The backend may still be collecting logs.',
+      title: 'Dịch vụ log đang phản hồi chậm',
+      summary: 'Hãy thử tải lại sau ít phút. Hệ thống có thể vẫn đang thu thập log.',
     }
   }
 
   return {
-    title: 'Could not load service logs',
-    summary: 'The logs viewer is temporarily unavailable. Please try again.',
+    title: 'Không tải được log dịch vụ',
+    summary: 'Màn hình xem log đang tạm thời không khả dụng. Vui lòng thử lại.',
   }
 }
 
@@ -187,7 +192,7 @@ function downloadTextFile(fileName: string, content: string) {
 
 function buildExportFileName(): string {
   const now = new Date().toISOString().replace(/[:.]/g, '-')
-  return `service-logs-${now}.json`
+  return `nhat-ky-dich-vu-${now}.json`
 }
 
 export default function AdminServiceLogsSection() {
@@ -222,7 +227,7 @@ export default function AdminServiceLogsSection() {
         setError(
           loadError instanceof Error
             ? loadError.message
-            : 'Could not load service logs.',
+            : 'Không tải được log dịch vụ.',
         )
       } finally {
         if (!cancelled) setLoading(false)
@@ -247,7 +252,7 @@ export default function AdminServiceLogsSection() {
       fileCount: 0,
       entryCount: 0,
       lastUpdatedAt: null,
-      env: 'No logs',
+      env: 'Chưa có log',
     }))
   }, [data])
 
@@ -321,38 +326,25 @@ export default function AdminServiceLogsSection() {
       data-testid="admin-service-logs-section"
       className="overflow-hidden rounded-[2rem] border border-slate-200/70 bg-white/95 shadow-[0_22px_70px_-42px_rgba(15,23,42,0.38)]"
     >
-      <div className="border-b border-slate-200/80 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.12),_transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.96))] px-6 py-6">
+      <div className="border-b border-slate-200/80 bg-slate-50/80 px-6 py-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
               <Server size={14} />
-              Service Logs Viewer
+              Trình xem log dịch vụ
             </div>
             <h2 className="mt-3 text-2xl font-bold text-slate-900">
-              Inspect internal service logs in one place
+              Xem log các dịch vụ nội bộ tại một nơi
             </h2>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600">
-              A cleaner admin debugging panel for gateway, RAG, ETL, and support
-              services. Filter fast, inspect stack traces, and export the current
-              result set without leaving the dashboard.
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-sm text-slate-600">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Last updated
+                Cập nhật lần cuối
               </p>
               <p className="mt-1 font-semibold text-slate-800">
                 {formatTimestamp(lastUpdated)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white/85 px-4 py-3 text-sm text-slate-600">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                Visible logs
-              </p>
-              <p className="mt-1 font-semibold text-slate-800">
-                {totalVisibleLogs} total
               </p>
             </div>
           </div>
@@ -368,21 +360,22 @@ export default function AdminServiceLogsSection() {
             ] as Array<[Exclude<ServiceLogLevel, 'unknown'>, number]>
           ).map(([level, count]) => {
             const Icon = summaryIcon(level)
+            const styles = summaryCardStyles(level)
             return (
               <div
                 key={level}
-                className={`rounded-2xl border px-4 py-4 ${summaryTone(level)}`}
+                className={`rounded-2xl border px-4 py-3.5 ${styles.card}`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       {levelLabel(level)}
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">
+                    <p className={`mt-1.5 text-2xl font-extrabold ${styles.number}`}>
                       {count}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/70 bg-white/80 p-2 text-slate-600 shadow-sm">
+                  <div className={`rounded-xl border p-2 shadow-sm ${styles.iconContainer}`}>
                     <Icon size={18} />
                   </div>
                 </div>
@@ -396,10 +389,7 @@ export default function AdminServiceLogsSection() {
         <aside className="border-b border-slate-200/80 bg-slate-50/80 p-4 xl:border-b-0 xl:border-r">
           <div className="mb-3">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-              Log Sources
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              Pick one service to focus the table instantly.
+              Nguồn log
             </p>
           </div>
 
@@ -415,13 +405,13 @@ export default function AdminServiceLogsSection() {
             >
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold">All services</p>
+                  <p className="text-sm font-semibold">Tất cả dịch vụ</p>
                   <p
                     className={`mt-1 text-xs ${
                       draft.service === 'all' ? 'text-slate-200' : 'text-slate-500'
                     }`}
                   >
-                    {totalSourceCount} configured sources
+                    {totalSourceCount} nguồn đã cấu hình
                   </p>
                 </div>
                 <span
@@ -462,7 +452,7 @@ export default function AdminServiceLogsSection() {
                         </p>
                       </div>
                       <p className="mt-1 truncate text-xs text-slate-500">
-                        {source.env} / {source.fileCount} files
+                        {source.env} / {source.fileCount} file
                       </p>
                     </div>
                     <span
@@ -491,7 +481,7 @@ export default function AdminServiceLogsSection() {
           >
             <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-6">
               <label className="space-y-2 text-sm text-slate-600 xl:col-span-2">
-                <span className="font-semibold text-slate-700">Search message</span>
+                <span className="font-semibold text-slate-700">Tìm trong nội dung</span>
                 <div className="flex rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                   <Search size={16} className="mt-0.5 shrink-0 text-slate-400" />
                   <input
@@ -503,7 +493,8 @@ export default function AdminServiceLogsSection() {
                         search: event.target.value,
                       }))
                     }
-                    placeholder="timeout, revoke, denied, stacktrace..."
+                    placeholder="Ví dụ: timeout, revoke, denied, stacktrace..."
+                    
                     className="ml-2 w-full border-none bg-transparent text-sm text-slate-700 outline-none"
                     data-testid="service-logs-search-filter"
                   />
@@ -511,7 +502,7 @@ export default function AdminServiceLogsSection() {
               </label>
 
               <label className="space-y-2 text-sm text-slate-600">
-                <span className="font-semibold text-slate-700">Level</span>
+                <span className="font-semibold text-slate-700">Mức độ</span>
                 <select
                   value={draft.level}
                   onChange={(event) =>
@@ -523,16 +514,16 @@ export default function AdminServiceLogsSection() {
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                   data-testid="service-logs-level-filter"
                 >
-                  <option value="all">All</option>
-                  <option value="debug">Debug</option>
-                  <option value="info">Info</option>
-                  <option value="warn">Warning</option>
-                  <option value="error">Error</option>
+                  <option value="all">Tất cả</option>
+                  <option value="debug">Gỡ lỗi</option>
+                  <option value="info">Thông tin</option>
+                  <option value="warn">Cảnh báo</option>
+                  <option value="error">Lỗi</option>
                 </select>
               </label>
 
               <label className="space-y-2 text-sm text-slate-600">
-                <span className="font-semibold text-slate-700">From</span>
+                <span className="font-semibold text-slate-700">Từ thời điểm</span>
                 <input
                   type="datetime-local"
                   value={draft.from}
@@ -548,7 +539,7 @@ export default function AdminServiceLogsSection() {
               </label>
 
               <label className="space-y-2 text-sm text-slate-600">
-                <span className="font-semibold text-slate-700">To</span>
+                <span className="font-semibold text-slate-700">Đến thời điểm</span>
                 <input
                   type="datetime-local"
                   value={draft.to}
@@ -564,7 +555,7 @@ export default function AdminServiceLogsSection() {
               </label>
 
               <label className="space-y-2 text-sm text-slate-600">
-                <span className="font-semibold text-slate-700">Sort</span>
+                <span className="font-semibold text-slate-700">Sắp xếp</span>
                 <select
                   value={draft.sort}
                   onChange={(event) =>
@@ -575,8 +566,8 @@ export default function AdminServiceLogsSection() {
                   }
                   className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                 >
-                  <option value="newest">Newest first</option>
-                  <option value="oldest">Oldest first</option>
+                  <option value="newest">Mới nhất trước</option>
+                  <option value="oldest">Cũ nhất trước</option>
                 </select>
               </label>
             </div>
@@ -584,7 +575,7 @@ export default function AdminServiceLogsSection() {
             <div className="mt-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600">
                 <label className="flex items-center gap-2">
-                  <span className="font-semibold text-slate-700">Items per page</span>
+                  <span className="font-semibold text-slate-700">Số dòng mỗi trang</span>
                   <select
                     value={draft.pageSize}
                     onChange={(event) =>
@@ -614,7 +605,7 @@ export default function AdminServiceLogsSection() {
                   data-testid="service-logs-refresh"
                 >
                   <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-                  Refresh
+                  Tải lại
                 </button>
                 <button
                   type="button"
@@ -623,7 +614,7 @@ export default function AdminServiceLogsSection() {
                   disabled={!data || data.totalVisible === 0}
                 >
                   <Download size={16} />
-                  Export JSON
+                  Xuất JSON
                 </button>
                 <button
                   type="submit"
@@ -631,7 +622,7 @@ export default function AdminServiceLogsSection() {
                   disabled={loading}
                   data-testid="service-logs-apply"
                 >
-                  Apply filters
+                  Áp dụng bộ lọc
                 </button>
               </div>
             </div>
@@ -645,7 +636,7 @@ export default function AdminServiceLogsSection() {
               </p>
               <details className="mt-3 rounded-xl border border-red-100 bg-white/75">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-semibold uppercase tracking-wide text-red-500">
-                  Technical details
+                  Chi tiết kỹ thuật
                 </summary>
                 <div className="border-t border-red-100 px-3 py-3">
                   <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700">
@@ -677,10 +668,10 @@ export default function AdminServiceLogsSection() {
 
           {!error && !loading && data && data.totalVisible === 0 && (
             <div className="mt-4 rounded-[1.5rem] border border-amber-200 bg-amber-50/80 p-5 text-sm leading-relaxed text-amber-900">
-              <p className="font-semibold">No logs match the current filters.</p>
+              <p className="font-semibold">Không có log nào khớp với bộ lọc hiện tại.</p>
               <p className="mt-1">
-                Try widening the time range, clearing the keyword filter, or
-                start the local services again so new logs are written.
+                Hãy mở rộng khoảng thời gian, xóa từ khóa tìm kiếm hoặc khởi
+                động lại các service cục bộ để tạo log mới.
               </p>
             </div>
           )}
@@ -689,28 +680,27 @@ export default function AdminServiceLogsSection() {
             <>
               <div className="mt-4 flex flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Log rows</p>
+                  <p className="text-sm font-semibold text-slate-800">Danh sách log</p>
                   <p className="mt-1 text-sm text-slate-500">
-                    Click a row or the action button to inspect raw log lines and
-                    stack traces.
+                    Bấm vào từng dòng hoặc nút thao tác để xem log thô và stack
+                    trace.
                   </p>
                 </div>
                 <div className="text-sm text-slate-500">
-                  Showing {visiblePageCount} / {data.totalVisible} rows
+                  Đang hiển thị {visiblePageCount} / {data.totalVisible} dòng
                 </div>
               </div>
 
               <div className="mt-4 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white">
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto pr-1">
                   <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50/85">
                       <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                        <th className="px-4 py-4">Level</th>
-                        <th className="px-4 py-4">Service</th>
-                        <th className="px-4 py-4">Env</th>
-                        <th className="px-4 py-4">Time</th>
-                        <th className="px-4 py-4">Message</th>
-                        <th className="px-4 py-4 text-right">Action</th>
+                        <th className="px-3 py-2">Mức độ</th>
+                        <th className="px-3 py-2">Dịch vụ</th>
+                        <th className="px-3 py-2">Thời gian</th>
+                        <th className="px-3 py-2">Nội dung</th>
+                        <th className="px-3 py-2 text-right">Thao tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
@@ -729,35 +719,27 @@ export default function AdminServiceLogsSection() {
                               }`}
                               onClick={() => toggleDetail(entry.id)}
                             >
-                              <td className="px-4 py-4 align-top">
+                              <td className="px-3 py-2 align-top">
                                 <span
                                   className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${levelTone(entry.level)}`}
                                 >
                                   {levelLabel(entry.level)}
                                 </span>
                               </td>
-                              <td className="px-4 py-4 align-top">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-800">
-                                    {entry.serviceLabel}
-                                  </p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    {streamLabel(entry.stream)}
-                                  </p>
-                                </div>
+                              <td className="px-3 py-2 align-top">
+                                <p className="text-sm font-semibold text-slate-800">
+                                  {entry.serviceLabel}
+                                </p>
                               </td>
-                              <td className="px-4 py-4 align-top text-sm text-slate-600">
-                                {entry.env}
-                              </td>
-                              <td className="px-4 py-4 align-top text-sm text-slate-600">
+                              <td className="px-3 py-2 align-top text-sm text-slate-600">
                                 {formatTimestamp(entry.timestamp)}
                               </td>
-                              <td className="px-4 py-4 align-top">
-                                <p className="max-w-[560px] truncate text-sm text-slate-700">
+                              <td className="px-3 py-2 align-top">
+                                <p className="max-w-[320px] truncate text-sm text-slate-700">
                                   {entry.message}
                                 </p>
                               </td>
-                              <td className="px-4 py-4 align-top text-right">
+                              <td className="px-3 py-2 align-top text-right">
                                 <button
                                   type="button"
                                   onClick={(event) => {
@@ -766,7 +748,7 @@ export default function AdminServiceLogsSection() {
                                   }}
                                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                                 >
-                                  {entry.level === 'error' ? 'Exception' : 'View detail'}
+                                  {entry.level === 'error' ? 'Ngoại lệ' : 'Xem chi tiết'}
                                   <ChevronDown
                                     size={14}
                                     className={expanded ? 'rotate-180 transition' : 'transition'}
@@ -777,12 +759,12 @@ export default function AdminServiceLogsSection() {
 
                             {expanded && (
                               <tr data-testid={`service-log-detail-${entry.id}`}>
-                                <td colSpan={6} className="bg-slate-50/70 px-4 py-4">
+                                <td colSpan={5} className="bg-slate-50/70 px-4 py-4">
                                   <div className="space-y-4 rounded-[1.25rem] border border-slate-200 bg-white p-4">
-                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                          Service
+                                          Dịch vụ
                                         </p>
                                         <p className="mt-2 text-sm font-semibold text-slate-800">
                                           {entry.serviceLabel}
@@ -790,23 +772,15 @@ export default function AdminServiceLogsSection() {
                                       </div>
                                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                          Level / stream
+                                          Mức độ
                                         </p>
                                         <p className="mt-2 text-sm font-semibold text-slate-800">
-                                          {levelLabel(entry.level)} / {streamLabel(entry.stream)}
+                                          {levelLabel(entry.level)}
                                         </p>
                                       </div>
                                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
                                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                          Environment
-                                        </p>
-                                        <p className="mt-2 text-sm font-semibold text-slate-800">
-                                          {entry.env}
-                                        </p>
-                                      </div>
-                                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                                          File
+                                          Tệp
                                         </p>
                                         <p className="mt-2 truncate text-sm font-semibold text-slate-800">
                                           {entry.fileName}
@@ -818,7 +792,7 @@ export default function AdminServiceLogsSection() {
                                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                         <div>
                                           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                                            Raw log / stacktrace
+                                            Log thô / stack trace
                                           </p>
                                           <p className="mt-1 text-xs text-slate-500">
                                             {entry.filePath}
@@ -830,7 +804,7 @@ export default function AdminServiceLogsSection() {
                                           className="inline-flex items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-800"
                                         >
                                           <Copy size={14} />
-                                          {copiedRowId === entry.id ? 'Copied' : 'Copy raw'}
+                                          {copiedRowId === entry.id ? 'Đã sao chép' : 'Sao chép log'}
                                         </button>
                                       </div>
                                       <pre className="mt-4 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
@@ -851,7 +825,7 @@ export default function AdminServiceLogsSection() {
 
               <div className="mt-4 flex flex-col gap-3 rounded-[1.5rem] border border-slate-200 bg-slate-50/80 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="text-sm text-slate-600">
-                  Page {appliedPage} of {totalPages} / {formatCountLabel(totalVisibleLogs)} visible
+                  Trang {appliedPage} / {totalPages} - đang hiển thị {formatCountLabel(totalVisibleLogs)}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -861,7 +835,7 @@ export default function AdminServiceLogsSection() {
                     className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <ChevronLeft size={16} />
-                    Previous
+                    Trước
                   </button>
                   <button
                     type="button"
@@ -869,7 +843,7 @@ export default function AdminServiceLogsSection() {
                     disabled={appliedPage >= totalPages}
                     className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Next
+                    Sau
                     <ChevronRight size={16} />
                   </button>
                 </div>

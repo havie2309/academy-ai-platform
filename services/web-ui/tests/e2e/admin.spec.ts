@@ -218,7 +218,12 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
       }
 
       if (url.pathname === '/api/users/admin/accounts' && request.method() === 'GET') {
-        await route.fulfill({ json: accounts })
+        await route.fulfill({
+          json: {
+            items: accounts,
+            total: accounts.length,
+          },
+        })
         return
       }
 
@@ -274,13 +279,24 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
   await expect(page.getByTestId('admin-page')).toBeVisible()
   await expect(page.getByTestId('health-card-userManagement')).toBeVisible()
   await expect(page.getByTestId('health-card-rag')).toBeVisible()
+  // Click technical tab first to render and assert technical details
+  await page.getByTestId('admin-tab-technical').click()
+  await page.getByTestId('technical-subtab-system-configs').click()
   await expect(page.getByTestId('admin-system-technical')).not.toHaveAttribute('open', '')
   await expect(page.getByTestId('admin-policy-technical')).not.toHaveAttribute('open', '')
+
+  // Switch to policy tab as expected by subsequent test assertions
   await page.getByTestId('admin-tab-policy').click()
   await expect(page.getByTestId('policy-rule-list')).toBeVisible()
-  await expect(page.getByTestId('policy-keywords')).toHaveValue('de thi\ndap an')
+  await expect(page.getByTestId('policy-keywords')).toHaveValue('đề thi\nđáp án')
+
+  // Switch to users tab to verify user accounts list
+  await page.getByTestId('admin-tab-users').click()
   await expect(page.getByTestId('admin-ops-section')).toBeVisible()
   await expect(page.getByTestId('account-row-USR005')).toContainText('676156')
+
+  // Switch back to policy tab to update policy rules
+  await page.getByTestId('admin-tab-policy').click()
 
   await page
     .getByTestId('policy-keywords')
@@ -316,10 +332,15 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
 
   await expect(page.getByTestId('policy-save-message')).toBeVisible()
   await expect(page.getByText('v4').first()).toBeVisible()
+  // Switch to technical tab to check policy technical details
+  await page.getByTestId('admin-tab-technical').click()
+  await page.getByTestId('technical-subtab-system-configs').click()
   await page.getByTestId('admin-policy-technical').locator('summary').click()
   await expect(page.getByTestId('admin-policy-technical')).toHaveAttribute('open', '')
   await expect(page.getByTestId('admin-policy-technical')).toContainText('rag_policy')
 
+  // Switch to users tab to click account details
+  await page.getByTestId('admin-tab-users').click()
   await page.getByTestId('account-detail-USR005').click()
   await expect(page.getByText('Số phiên trò chuyện')).toBeVisible()
   await expect(page.getByText('Tin nhắn trong 30 ngày')).toBeVisible()
@@ -335,12 +356,16 @@ test('admin can review health, update AI policy, manage accounts, and inspect au
           resolve()
         })
       })
-      await page.getByTestId('account-lock-USR005').click()
+      await page.getByTestId('account-inactivate-USR005').click()
       await dialogPromise
     },
   )
 
-  expect(statusPayload).toMatchObject({ status: 'locked' })
+  expect(statusPayload).toMatchObject({ status: 'inactive' })
+
+  // Switch to technical tab and audit sub-tab to inspect audit logs
+  await page.getByTestId('admin-tab-technical').click()
+  await page.getByTestId('technical-subtab-audit-logs').click()
 
   const auditSection = page.getByTestId('admin-audit-section')
   const auditDetailPanel = page.getByTestId('audit-detail-panel')
