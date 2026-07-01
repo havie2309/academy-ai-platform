@@ -44,17 +44,22 @@ function Start-RagService {
         "& $venvPy -m pip install --upgrade pip; " +
         "& $venvPy -m pip install -r requirements.txt; " +
         "& $venvPy -m uvicorn main:app --host 0.0.0.0 --port $Port"
+    $encodedServiceCommand = [Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($serviceCommand)
+    )
     Start-Process powershell -ArgumentList @(
         "-NoExit",
+        "-ExecutionPolicy",
+        "Bypass",
         "-File",
         $runner,
         "-Name",
         $Name,
         "-WorkingDirectory",
         $Dir,
-        "-Command",
-        $serviceCommand,
-        "-KeepOpen"
+        "-KeepOpen",
+        "-EncodedCommand",
+        $encodedServiceCommand
     )
 }
 

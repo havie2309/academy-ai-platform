@@ -9,16 +9,22 @@ function Start-NestDevApp {
         [string]$Name
     )
 
+    $command = "npx nest start $Name --watch"
+    $encodedCommand = [Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($command)
+    )
     Start-Process powershell -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
         '-File',
         $runner,
         '-Name',
         $Name,
         '-WorkingDirectory',
         "$root\services\platform",
-        '-Command',
-        "npx nest start $Name --watch"
+        '-EncodedCommand',
+        $encodedCommand
     )
 }
 
@@ -28,16 +34,21 @@ function Start-PythonService {
         [string]$Command
     )
 
+    $encodedCommand = [Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($Command)
+    )
     Start-Process powershell -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
         '-File',
         $runner,
         '-Name',
         (Split-Path $Path -Leaf),
         '-WorkingDirectory',
         (Join-Path $root $Path),
-        '-Command',
-        $Command
+        '-EncodedCommand',
+        $encodedCommand
     )
 }
 
@@ -92,14 +103,19 @@ if (-not $ready) {
 Start-PythonService -Path 'services/document-processor' -Command 'py -m uvicorn main:app --host 0.0.0.0 --port 8003 --reload'
 
 # Start Web UI
+$webUiCommand = [Convert]::ToBase64String(
+    [System.Text.Encoding]::Unicode.GetBytes('npm run dev')
+)
 Start-Process powershell -WindowStyle Hidden -ArgumentList @(
     '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
     '-File',
     $runner,
     '-Name',
     'web-ui-dev',
     '-WorkingDirectory',
     "$root\services\web-ui",
-    '-Command',
-    'npm run dev'
+    '-EncodedCommand',
+    $webUiCommand
 )
