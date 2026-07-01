@@ -7,7 +7,6 @@ import { useChatSessions } from '../contexts/ChatSessionContext'
 import ChatMarkdown from '../components/ChatMarkdown'
 import CitationList from '../components/CitationList'
 
-const STREAMING_ID = 'streaming-assistant'
 
 const suggestions = [
   { icon: Calendar, text: 'Lịch thi học kỳ 2 khi nào?', category: 'Khảo thí' },
@@ -249,6 +248,10 @@ export default function ChatPage() {
 
   const handleDeleteSession = async () => {
     if (!sessionId) return
+    const confirmed = window.confirm(
+      'Bạn có chắc muốn xóa hội thoại này không?\n\nToàn bộ tin nhắn sẽ bị xóa vĩnh viễn và không thể khôi phục.',
+    )
+    if (!confirmed) return
     await removeSession(sessionId)
     navigate('/chat')
   }
@@ -262,8 +265,6 @@ export default function ChatPage() {
 
   const isEmpty = messages.length === 0 && !loadingHistory
   const displayName = user?.full_name?.split(' ').slice(-1)[0] ?? user?.username ?? 'bạn'
-  const isStreaming = messages.some((m) => m.id === STREAMING_ID)
-
   return (
     <div className="flex flex-col h-full bg-slate-50/50" data-testid="chat-page">
       <div className="h-15 border-b border-slate-200/60 bg-white/85 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">

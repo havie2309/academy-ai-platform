@@ -61,6 +61,10 @@ export default function Sidebar() {
 
   const handleDeleteSession = async (event: MouseEvent, id: string) => {
     event.stopPropagation()
+    const confirmed = window.confirm(
+      'Bạn có chắc muốn xóa hội thoại này không?\n\nToàn bộ tin nhắn sẽ bị xóa vĩnh viễn và không thể khôi phục.',
+    )
+    if (!confirmed) return
     await removeSession(id)
     if (activeSessionId === id) navigate('/chat')
   }
