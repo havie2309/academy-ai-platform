@@ -459,6 +459,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
     status?: UserStatus
     role?: string
     limit?: number
+    offset?: number
   }) {
     const params: unknown[] = []
     const where: string[] = []
@@ -491,7 +492,21 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
     }
 
     const limit = Math.min(Math.max(filters.limit ?? 25, 1), 100)
+    const offset = Math.max(filters.offset ?? 0, 0)
+
+    const whereClause = where.length > 0 ? where.join(' AND ') : 'TRUE'
+
     params.push(limit)
+    const limitIdx = params.length
+    params.push(offset)
+    const offsetIdx = params.length
+
+    const countParams = params.slice(0, limitIdx - 1)
+    const { rows: countRows } = await this.pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM users u WHERE ${whereClause}`,
+      countParams,
+    )
+    const total = parseInt(countRows[0]?.total ?? '0', 10)
 
     const { rows } = await this.pool.query<AccountRow>(
       `SELECT
@@ -539,7 +554,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
          FROM login_logs l
          WHERE l.user_id = u.user_id
        ) log_stats ON TRUE
-       WHERE ${where.length > 0 ? where.join(' AND ') : 'TRUE'}
+       WHERE ${whereClause}
        ORDER BY
          CASE u.status
            WHEN 'locked' THEN 0
@@ -548,7 +563,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
          END,
          u.last_login_at DESC NULLS LAST,
          u.username ASC
-       LIMIT $${params.length}`,
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       params,
     )
 
@@ -556,7 +571,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
     const userIds = rows.map((row) => row.user_id)
     const chatUsage = await this.getChatUsageByUserIds(userIds)
 
-    return rows.map((row) => {
+    const items = rows.map((row) => {
       const usage = chatUsage.get(row.user_id) ?? {
         chatSessionsTotal: 0,
         chatMessages30d: 0,
@@ -583,6 +598,8 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
         last_chat_at: usage.lastChatAt?.toISOString() ?? null,
       }
     })
+
+    return { items, total }
   }
 
   async updateManagedAccountStatus(
@@ -619,7 +636,7 @@ export class UsersService implements OnModuleInit, OnModuleDestroy {
       await this.redis.resetFailedAttempts(updated.username)
     }
 
-    const [account] = await this.listManagedAccounts({ search: updated.username, limit: 1 })
+    const { items: [account] } = await this.listManagedAccounts({ search: updated.username, limit: 1 })
 
     return {
       message:

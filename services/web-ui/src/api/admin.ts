@@ -221,6 +221,12 @@ export interface ManagedAccountFilters {
   status?: 'active' | 'inactive' | 'locked'
   role?: string
   limit?: number
+  offset?: number
+}
+
+export interface ManagedAccountsPage {
+  items: ManagedAccount[]
+  total: number
 }
 
 export interface ManagedAccountMutationResult {
@@ -267,6 +273,7 @@ function toAccountSearchParams(filters: ManagedAccountFilters): URLSearchParams 
   if (filters.status?.trim()) params.set('status', filters.status.trim())
   if (filters.role?.trim()) params.set('role', filters.role.trim())
   if (filters.limit) params.set('limit', String(filters.limit))
+  if (filters.offset) params.set('offset', String(filters.offset))
   return params
 }
 
@@ -401,7 +408,7 @@ export const adminApi = {
 
   async getManagedAccounts(
     filters: ManagedAccountFilters = {},
-  ): Promise<ManagedAccount[]> {
+  ): Promise<ManagedAccountsPage> {
     const params = toAccountSearchParams(filters)
     const suffix = params.toString() ? `?${params.toString()}` : ''
     const res = await fetchWithAuth(`/api/users/admin/accounts${suffix}`, {
