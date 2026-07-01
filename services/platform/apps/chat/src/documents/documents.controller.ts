@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -44,6 +45,14 @@ const SECURITY_LEVELS: SecurityLevel[] = [
   'confidential',
 ]
 const SCOPE_TYPES: AccessScopeType[] = ['all', 'role', 'department', 'custom']
+
+const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2']
+const SECURITY_RANK: Record<SecurityLevel, number> = {
+  public: 1,
+  internal: 2,
+  restricted: 3,
+  confidential: 4,
+}
 
 /** Form gửi mảng dưới dạng chuỗi phân tách bằng dấu phẩy hoặc JSON. */
 function parseList(raw?: string): string[] {
@@ -185,6 +194,13 @@ export class DocumentsController {
       throw new BadRequestException(`Phạm vi truy cập không hợp lệ: ${body.scope_type}`)
     }
 
+    const isAdmin = user.roles.some((r) => ADMIN_ROLES.includes(r))
+    if (!isAdmin && SECURITY_RANK[securityLevel] > (user.maxSecurityLevel ?? 1)) {
+      throw new ForbiddenException(
+        `Vai trò của bạn chỉ được upload tài liệu tối đa mức "${SECURITY_LEVELS[user.maxSecurityLevel - 1]}".`,
+      )
+    }
+
     return this.docs.create(
       file,
       {
@@ -259,6 +275,48 @@ export class DocumentsController {
   remove(@Req() req: Request, @Param('id') id: string) {
     const user = extractUserFromRequest(req)
     return this.docs.remove(id, toRequestUser(user))
+  }
+
+  @Patch(':id/scope')
+  @UseGuards(AuthGuard('jwt'))
+  updateScope(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      security_level?: string
+      scope_type?: string
+      access_role_codes?: string
+      access_department_codes?: string
+      access_user_ids?: string
+    },
+  ) {
+    const user = extractUserFromRequest(req)
+    const securityLevel = (body.security_level ?? 'internal') as SecurityLevel
+    if (!SECURITY_LEVELS.includes(securityLevel)) {
+      throw new BadRequestException(`Mức mật không hợp lệ: ${body.security_level}`)
+    }
+    const scopeType = (body.scope_type ?? 'all') as AccessScopeType
+    if (!SCOPE_TYPES.includes(scopeType)) {
+      throw new BadRequestException(`Phạm vi truy cập không hợp lệ: ${body.scope_type}`)
+    }
+    const isAdmin = user.roles.some((r) => ADMIN_ROLES.includes(r))
+    if (!isAdmin && SECURITY_RANK[securityLevel] > (user.maxSecurityLevel ?? 1)) {
+      throw new ForbiddenException(
+        `Vai trò của bạn chỉ được đặt mức mật tối đa "${SECURITY_LEVELS[user.maxSecurityLevel - 1]}".`,
+      )
+    }
+    return this.docs.updateScope(
+      id,
+      {
+        securityLevel,
+        scopeType,
+        roleCodes: parseList(body.access_role_codes),
+        departmentCodes: parseList(body.access_department_codes),
+        userIds: parseList(body.access_user_ids),
+      },
+      toRequestUser(user),
+    )
   }
 
   @Get('vung-du-lieu')
