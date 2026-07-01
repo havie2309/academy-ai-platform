@@ -36,6 +36,7 @@ export interface ChatMessage {
   citations?: ChatCitation[]
   route?: string
   error?: boolean
+  status?: 'loading' | 'streaming' | 'completed' | 'error'
 }
 
 export interface StreamDonePayload {
@@ -49,6 +50,7 @@ export interface StreamMetaPayload {
   user_message: ChatMessage
   citations: ChatCitation[]
   route: string
+  assistant_message_id: string
 }
 
 export interface StreamHandlers {

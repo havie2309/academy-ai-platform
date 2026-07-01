@@ -46,17 +46,43 @@
 | `POST` | `/api/chat/sessions` | JWT | `{ title? }` | Session mới | `401` nếu thiếu JWT | `implemented` |
 | `GET` | `/api/chat/sessions/:sessionId` | JWT | `sessionId` trên path | Chi tiết session | Session không thuộc user hoặc không tồn tại -> `404`/`403` tùy service layer | `implemented` |
 | `DELETE` | `/api/chat/sessions/:sessionId` | JWT | `sessionId` trên path | Kết quả xóa session | Không tìm thấy hoặc không thuộc user -> lỗi từ service | `implemented` |
-| `GET` | `/api/chat/sessions/:sessionId/messages` | JWT | `sessionId` trên path | Danh sách message của session | Session không hợp lệ -> lỗi từ service | `implemented` |
+| `GET` | `/api/chat/sessions/:sessionId/messages` | JWT | `sessionId` trên path | Danh sách message của session. **Trả về `status` field:** `'loading' | 'streaming' | 'completed' | 'error'` | Session không hợp lệ -> lỗi từ service | `implemented` |
 | `POST` | `/api/chat/sessions/:sessionId/messages` | JWT | `{ content }` | `{ answer, citations, route? }` và message persistence | `503` nếu downstream AI lỗi; service có thể fallback một phần tùy flow | `implemented` |
-| `POST` | `/api/chat/sessions/:sessionId/messages/stream` | JWT | `{ content }` | SSE `meta`, `token`, `done`, `error` | SSE/downstream lỗi -> event `error` hoặc HTTP lỗi trước khi stream | `implemented` |
+| `POST` | `/api/chat/sessions/:sessionId/messages/stream` | JWT | `{ content }` | SSE `meta` (có `assistant_message_id`), `token`, `done`, `error` | SSE/downstream lỗi -> event `error` hoặc HTTP lỗi trước khi stream | `implemented` |
+
+**Chat Message DTO:**
+
+```typescript
+interface ChatMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  created_at: string
+  citations?: ChatCitation[]
+  route?: string
+  error?: boolean
+  status?: 'loading' | 'streaming' | 'completed' | 'error'
+}
+```
+
+**Stream Meta Event Payload:**
+
+```typescript
+interface StreamMetaPayload {
+  user_message: ChatMessage
+  citations: ChatCitation[]
+  route: string
+  assistant_message_id: string  // ID của assistant message đã được tạo trên server
+}
+```
 
 ### 4.4. Documents
 
 | Method | Path | Auth | Request shape summary | Response shape summary | Error notes | Status |
 |--------|------|------|-----------------------|------------------------|-------------|--------|
 | `GET` | `/api/documents` | JWT | Không body | Danh sách document user có thể thấy | `401` nếu thiếu JWT | `implemented` |
-| `POST` | `/api/documents` | JWT | Multipart `file` + `title?`, `category?`, `security_level?`, `scope_type?`, `access_role_codes?`, `access_department_codes?`, `access_user_ids?` | Metadata document mới, ingest state khởi tạo | Validate metadata/file -> `400`; user upload level vượt `maxSecurityLevel` -> `403` | `implemented` |
-| `PATCH` | `/api/documents/:id/scope` | JWT | `{ security_level?, scope_type?, access_role_codes?, access_department_codes?, access_user_ids? }` | `{ updated: true }`; đồng thời cập nhật `document_chunks` metadata | Không phải owner/admin -> `403`; level vượt quyền -> `403`; không tồn tại -> `404` | `implemented` |
+| `POST` | `/api/documents` | JWT | Multipart `file` + `title?`, `category?`, `security_level?`, `scope_type?`, `access_role_codes?`, `access_department_codes?`, `access_user_ids?` | Metadata document mới, ingest state khởi tạo | Validate metadata/file -> `400` | `implemented` |
 | `GET` | `/api/documents/:id/ingest-status` | JWT | `id` trên path | `{ status, stage, chunkCount, error, ... }` | Không đủ quyền / không tồn tại -> lỗi service | `implemented` |
 | `GET` | `/api/documents/:id/file` | JWT | `id` trên path | Stream file gốc với header `Content-Disposition` | Không đủ quyền / không tồn tại -> lỗi service | `implemented` |
 | `DELETE` | `/api/documents/:id` | JWT | `id` trên path | Kết quả xóa; có logic promote version trước nếu cần | Không đủ quyền -> `403`; không tồn tại -> `404` | `implemented` |
@@ -106,12 +132,14 @@ Các route này tồn tại ở `rag-engine` và hiện được `chat` gọi tr
 | `GET` | `/health` | Không có JWT tại service layer | Không body | `{ status, service, ... }` | Dùng cho health nội bộ | `implemented` |
 | `POST` | `/v1/retrieve` | User context trong body hoặc header gateway | `{ query, user? }` | Thành công: `{ citations: [...], route: "rag" }`; nếu bị safe-refusal: `{ citations: [], route: "refusal", message, blocked_keyword? }` | Thiếu user context -> `401`; retrieval lỗi -> `503` | `implemented` |
 | `POST` | `/v1/sql` | User context trong body hoặc header gateway | `{ query, sessionId?, messages?, user? }` | Thành công: `{ answer, route: "sql", row_count }`; nếu bị safe-refusal: `{ answer, citations: [], route: "refusal", blocked_keyword? }` | Thiếu user context -> `401`; guardrail/scope deny -> `403`; pipeline/LLM lỗi -> `502` | `implemented` |
-| `POST` | `/v1/chat` | User context trong body hoặc header gateway | `{ query, sessionId?, messages, user }` | `{ answer, citations, route }` | Thiếu user context -> `401`; AI/downstream lỗi -> `5xx` | `implemented` |
-| `POST` | `/v1/chat/stream` | User context trong body hoặc header gateway | `{ query, sessionId?, messages, user }` | SSE `meta`, `token`, `done`, `error` | Stream error -> event `error` hoặc HTTP lỗi | `implemented` |
+| `POST` | `/v1/chat` | User context trong body hoặc header gateway | `{ query, sessionId?, messages, user }` | `{ answer, citations, route }` - **Citations luôn được trả về, kể cả khi answer là refusal** | Thiếu user context -> `401`; AI/downstream lỗi -> `5xx` | `implemented` |
+| `POST` | `/v1/chat/stream` | User context trong body hoặc header gateway | `{ query, sessionId?, messages, user }` | SSE `meta` (citations gửi ngay sau retrieval), `token` (real token streaming), `done`, `error` | Stream error -> event `error` hoặc HTTP lỗi | `implemented` |
 
 Ghi chú:
 
 - Gateway có proxy `/api/rag/*` sang `rag-engine`, nhưng current UI path chính vẫn là `web-ui -> api-gateway -> chat -> rag-engine`.
+- **Real streaming**: `/v1/chat/stream` sử dụng `stream_chat` để yield token-by-token từ LLM, không buffer toàn bộ response.
+- **Citations persistence**: Citations được gửi trong sự kiện `meta` ngay sau retrieval và **không bị xóa** dù câu trả lời là refusal.
 
 ### 5.2. Admin-config internal route
 
@@ -167,6 +195,12 @@ Các route dưới đây hiện là **service-level API** ở `etl-sync`. Chúng
 - `implemented`: route đã tồn tại và đang là contract dùng được ở current repo
 - `partial`: route đã có nhưng chưa đi vào product flow hoàn chỉnh, hoặc còn thiếu auth/gateway/web-ui integration
 - `planned`: chưa có route thật trong repo hiện tại
+
+### 6.3. Ghi chú về refusal và citations
+
+- Khi LLM trả lời "không tìm thấy thông tin", câu trả lời được thay thế bằng một thông báo giải thích rõ ràng hơn, và **các citations luôn được giữ lại** (không bị xóa).
+- Trong streaming endpoint (`/v1/chat/stream`), citations được gửi ngay trong sự kiện `meta` (sau retrieval, trước khi generation bắt đầu) và không bị xóa dù nội dung câu trả lời là refusal.
+- Frontend sử dụng `status` field để hiển thị loading/streaming/completed states và duy trì UI consistency sau reload/navigation.
 
 ## 7. Quy tắc cập nhật file này
 

@@ -43,9 +43,11 @@
 
 - cache TTL
 - session context TTL
-- `RETRIEVAL_TOP_K`, `RERANK_TOP_K`, `MAX_CHUNKS_PER_DOC`
-- `RERANK_DOC_MAX_CHARS`: gioi han do dai moi candidate truoc khi goi rerank
-- `RAG_CONTEXT_MAX_CHARS`: budget tong context dua vao grounding/LLM sau khi rerank
+- `RETRIEVAL_TOP_K=10` (mặc định trước đây 30)
+- `RERANK_TOP_K=4` (trước đây 8)
+- `MAX_CHUNKS_PER_DOC=2` (trước đây 3)
+- `RERANK_DOC_MAX_CHARS=1800`: giới hạn độ dài mỗi candidate trước khi gọi rerank
+- `RAG_CONTEXT_MAX_CHARS=1800` (trước đây 6000) – giảm để tăng tốc generation và cải thiện first-token latency
 - refusal policy fetch key
 
 ### SQL route

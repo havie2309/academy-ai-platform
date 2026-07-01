@@ -41,6 +41,9 @@
 - Mỗi câu trả lời RAG phải ưu tiên trích dẫn tài liệu cụ thể.
 - Citation tối thiểu gồm tên tài liệu, section/path hoặc page, snippet.
 - Nếu model không trả `used_chunk_ids`, hệ thống được phép fallback chọn citation theo overlap nhưng phải giữ nguồn hợp lệ.
+- **Khi LLM kết luận không tìm thấy thông tin, citations vẫn được hiển thị** kèm thông báo giải thích:
+  *"Tôi không tìm thấy câu trả lời trực tiếp cho câu hỏi của bạn trong các tài liệu đã tìm kiếm. Tuy nhiên, đây là những phần liên quan nhất mà tôi đã xem xét:"*
+  Điều này giúp người dùng hiểu hệ thống đã tìm kiếm và minh bạch về những gì đã được xem xét.
 
 ## 6. Versioning và vòng đời tài liệu
 

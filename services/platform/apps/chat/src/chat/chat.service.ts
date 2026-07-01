@@ -84,6 +84,7 @@ interface ChatMessageDoc {
   content: string
   citations?: ChatCitationDto[]
   route?: string
+  status?: 'streaming' | 'completed' | 'error'
   createdAt: Date
 }
 
@@ -234,9 +235,7 @@ export class ChatService implements OnModuleInit {
       answer = await this.callLlm(history, citations)
       clientCitations = this.toClientCitations(citations)
     }
-    if (this.isNoInfoAnswer(answer)) {
-      clientCitations = []
-    }
+    answer = this.maybeReplaceRefusal(answer);
 
     const assistantMsg = await this.persistAssistantMessage(
       userId,
@@ -287,12 +286,20 @@ export class ChatService implements OnModuleInit {
         sessionId,
         content,
       )
+
+      // Create the streaming assistant message immediately
+      const { messageId: assistantMsgId } = await this.createStreamingAssistantMessage(
+        userId,
+        sessionId,
+      )
+
       let answer = ''
       let clientCitations: ChatCitationDto[] = []
       let route = 'rag'
       let streamed = false
+
       try {
-        // Primary: rag-engine streams the grounded answer (meta -> tokens).
+        // Primary: rag-engine streams the grounded answer.
         const result = await this.rag.chatStream(
           text,
           this.toRagMessages(history),
@@ -301,55 +308,72 @@ export class ChatService implements OnModuleInit {
           (citations, metaRoute) => {
             streamed = true
             if (metaRoute) route = metaRoute
+            // Update the message with citations as soon as they arrive
+            clientCitations = citations
+            this.updateAssistantMessage(assistantMsgId, {
+              citations: clientCitations,
+              route,
+              status: 'streaming',
+            }).catch((err) => this.logger.warn('Failed to update citations', err))
+
+            // Send meta event including the assistant message ID
             writeSseEvent(res, 'meta', {
               user_message: this.toMessageDto(userMsg),
-              citations,
+              citations: clientCitations,
               route,
+              assistant_message_id: assistantMsgId, // new field
             })
           },
           (delta) => {
             streamed = true
+            // Accumulate answer in memory; we'll store final content at the end.
+            answer += delta
             writeSseEvent(res, 'token', { delta })
           },
         )
+        // After stream finishes, we have final answer and citations.
         answer = result.answer
         clientCitations = result.citations
         route = result.route ?? 'rag'
       } catch (err) {
-        // If anything was already streamed to the client we cannot fall back
-        // cleanly (meta/tokens already sent) — surface the error instead.
+        // If anything was streamed, we cannot fallback cleanly.
         if (streamed) throw err
         this.logger.warn(
           `rag-engine /v1/chat/stream lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
         )
         const citations = await this.rag.retrieveCitations(text, ragUser)
         clientCitations = this.toClientCitations(citations)
+        // Send meta with assistant ID
         writeSseEvent(res, 'meta', {
           user_message: this.toMessageDto(userMsg),
           citations: clientCitations,
           route: 'rag',
+          assistant_message_id: assistantMsgId,
         })
         answer = await this.streamLlm(history, citations, (delta) => {
+          answer += delta
           writeSseEvent(res, 'token', { delta })
         })
       }
-      if (this.isNoInfoAnswer(answer)) {
-        clientCitations = []
-      }
 
-      const assistantMsg = await this.persistAssistantMessage(
-        userId,
-        sessionId,
-        answer,
-        clientCitations,
+      answer = this.maybeReplaceRefusal(answer)
+
+      // Update the assistant message with final content and status
+      await this.updateAssistantMessage(assistantMsgId, {
+        content: answer,
+        citations: clientCitations,
         route,
-      )
+        status: 'completed',
+      })
+
+      // Also update session context (cache)
       await this.writeSessionContext(
         sessionId,
         userId,
         [...history, { role: 'assistant', content: answer }],
         route,
       )
+
       const titleUpdate = await this.maybeUpdateSessionTitle(
         session,
         userId,
@@ -358,13 +382,25 @@ export class ChatService implements OnModuleInit {
         answer,
       )
 
+      // Build the final assistant message DTO for the done event
+      const finalAssistantDto = {
+        id: assistantMsgId,
+        session_id: sessionId,
+        role: 'assistant' as const,
+        content: answer,
+        created_at: new Date().toISOString(),
+        citations: clientCitations,
+        route,
+        status: 'completed',
+      }
+
       writeSseEvent(res, 'done', {
         session: {
           ...this.toSessionDto(session),
           title: titleUpdate,
-          updated_at: assistantMsg.createdAt.toISOString(),
+          updated_at: new Date().toISOString(),
         },
-        assistant_message: this.toMessageDto(assistantMsg),
+        assistant_message: finalAssistantDto,
         citations: clientCitations,
         route,
       })
@@ -486,6 +522,35 @@ export class ChatService implements OnModuleInit {
     } catch {
       return this.fallbackTitle(userText)
     }
+  }
+
+  private async createStreamingAssistantMessage(
+    userId: string,
+    sessionId: string,
+  ): Promise<{ messageId: string }> {
+    const messageId = uuidv4()
+    const doc: ChatMessageDoc = {
+      messageId,
+      sessionId,
+      userId,
+      role: 'assistant',
+      content: '',
+      citations: [],
+      status: 'streaming',
+      createdAt: new Date(),
+    }
+    await this.messages.insertOne(doc)
+    return { messageId }
+  }
+
+  private async updateAssistantMessage(
+    messageId: string,
+    update: Partial<Pick<ChatMessageDoc, 'content' | 'citations' | 'status' | 'route'>>,
+  ): Promise<void> {
+    await this.messages.updateOne(
+      { messageId },
+      { $set: { ...update, updatedAt: new Date() } },
+    )
   }
 
   private fallbackTitle(userText: string): string {
@@ -805,6 +870,13 @@ export class ChatService implements OnModuleInit {
     )
   }
 
+  private maybeReplaceRefusal(answer: string): string {
+    if (this.isNoInfoAnswer(answer)) {
+      return "Tôi không tìm thấy câu trả lời trực tiếp cho câu hỏi của bạn trong các tài liệu đã tìm kiếm. Tuy nhiên, đây là những phần liên quan nhất mà tôi đã xem xét:";
+    }
+    return answer;
+  }
+
   private toSessionDto(s: ChatSessionDoc) {
     return {
       id: s.sessionId,
@@ -823,6 +895,7 @@ export class ChatService implements OnModuleInit {
       created_at: m.createdAt.toISOString(),
       ...(m.citations?.length ? { citations: m.citations } : {}),
       ...(m.route ? { route: m.route } : {}),
+      ...(m.status ? { status: m.status } : {}), // new
     }
   }
 }

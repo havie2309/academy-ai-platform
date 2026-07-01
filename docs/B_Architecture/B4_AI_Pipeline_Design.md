@@ -28,8 +28,9 @@
 3. Nếu route `rag`: embed query, retrieve top-k child chunks.
 4. Filter theo quyền truy cập tài liệu.
 5. Rerank, chọn context.
-6. Generate answer và `used_chunk_ids`.
+6. **Streaming generation**: Gọi `stream_chat` (yield token-by-token) thay vì chờ full response. Đầu ra là plain text, không yêu cầu JSON.
 7. Resolve citations từ chunk sang document/section/page.
+8. Citations được gửi trong sự kiện `meta` ngay sau retrieval và **không bị xóa** nếu câu trả lời là refusal.
 
 ## 4. Multi-turn session context
 
@@ -43,6 +44,7 @@
 - Chặn sớm ở `rag-engine` trước retrieval/SQL/generation.
 - Từ chối phải trả về route rõ ràng để UI phân biệt với lỗi hệ thống.
 - Blacklist keyword chỉ là lớp ngoài; cần kết hợp scope và business rule.
+- **Refusal message replacement**: Khi LLM kết luận "không tìm thấy thông tin", câu trả lời được thay thế bằng thông báo giải thích rõ ràng hơn và **các citations được giữ lại** để minh bạch với người dùng.
 
 ## 6. Text-to-SQL
 
@@ -68,12 +70,14 @@
 | Extract/OCR | PDF native, scan, DOCX, PPTX, XLSX |
 | Chunking | Parent-child, section path, overlap |
 | Retrieval | Citation đúng nguồn, access filter hoạt động |
-| Refusal | Query bị chặn trả route `refusal` |
+| Refusal | Query bị chặn trả route `refusal`; citations không bị xóa khi refusal |
 | SQL | Validator chặn câu nguy hiểm, format bảng đúng |
 | ETL | Mapping, load, lineage, retry/error log |
+| Streaming | Real token streaming hoạt động, UI cập nhật từng token |
 
 ## 9. Điểm đang chuyển trạng thái
 
 - Parent-child retrieval là hướng mới và cần được xem là chuẩn đích.
 - Metadata push-down cho vector search chưa hoàn toàn hoàn tất.
 - Các tính năng AI nâng cao như quiz/summary/report phải tái sử dụng cùng guardrail và audit chain này.
+- Persistent streaming messages và polling fallback đã được triển khai để đảm bảo UI consistency sau reload/navigation.

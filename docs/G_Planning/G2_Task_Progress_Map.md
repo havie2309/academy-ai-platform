@@ -10,9 +10,9 @@
 | Nhom | Noi dung |
 |------|----------|
 | Auth | Login, refresh cookie flow, logout, seed IAM, hash + salt + iterations |
-| Chat | Session history, SSE, markdown, citation UI, RAG bridge |
+| Chat | Session history, SSE, markdown, citation UI, RAG bridge, **real token streaming, persistent streaming messages, polling fallback** |
 | Documents | Upload, metadata validation, versioning, ingest status poll, **scope edit sau upload (K-15)**, **upload level restriction theo role (D-14)** |
-| AI | Grounding, access filter truoc retrieval, rerank/context budget, safe refusal, eval harness, SQL format/safety nen |
+| AI | Grounding, access filter truoc retrieval, rerank/context budget, safe refusal, eval harness, SQL format/safety nen, **real token streaming, persistent streaming messages, refusal message replacement** |
 | Admin | Health view, policy editor, quota/token ops, account management, audit viewer/export, gateway hardening regression, **chat monitoring (K-13)**, security alerts dashboard (K-18) |
 | ETL | Source/job/run schema, scheduler, transform/load, lineage/error log |
 
@@ -26,6 +26,7 @@
 | Admin hardening | health, policy, quota/token usage, account status/session management, audit panel/detail/export trong `/admin`; admin API helper + Playwright coverage; gateway role-based rate-limit, refresh-cookie hardening va admin-route guard regression da verify 2026-06-24; chat monitoring tab (K-13); scope management docs (K-15, D-14) | production hardening polish; admin log viewer (K-14) chua co |
 | ETL integration | SQL Server connector co API | smoke nguon that, UI ETL |
 | Self-service | co khung web-ui | chua co module nghiep vu day du |
+| Chat streaming & persistence | Real token streaming, persistent streaming messages (`status` field), polling fallback, immediate loading feedback, citation retention on refusal | Live stream resumption after full page reload (accepted trade-off – polling provides good fallback) |
 
 ## 4. Uu tien tiep theo nen lam
 
