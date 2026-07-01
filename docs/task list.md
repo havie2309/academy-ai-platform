@@ -86,9 +86,9 @@
 | Backend | D-10 · API upload multipart, enqueue, lưu File Storage  | M2  | `[x]`   | **REST documents** trong app `chat`: upload multipart (Multer, **PDF/DOCX/PPTX/XLSX/TXT**, 50MB), file lưu `data/uploads/`, metadata Mongo; sau upload `IngestQueueService` ưu tiên publish RabbitMQ trực tiếp từ platform/chat, fallback HTTP `/v1/process` nếu broker chưa sẵn sàng; list/download/delete + JWT guard + phân quyền |
 | Backend | D-11 · Versioning file gốc và checksum                  | M2  | `[x]`   | `services/platform/apps/chat/src/documents/documents.service.ts` tính `sha256` file upload, sinh `documentKey`, tăng `version`, đánh dấu `isLatestVersion`, lưu `previousVersionDocId`, mirror lịch sử vào collection `document_versions`, và promote bản trước đó khi xóa bản mới nhất; DTO web-ui đã expose `file_checksum/version/is_latest_version` |
 | Test    | D-12 · Regression ingest và eval OCR                    | M2  | `[x]`   | `services/document-processor/tests/` hiện có regression cho chunking, extractor PDF/DOCX/PPTX/XLSX, OCR fallback, Rabbit retry/DLQ và job validation; chạy `python -m unittest discover -s tests -p "test_*.py" -v` pass **20 tests**. Build `services/platform` và `services/web-ui` cũng pass sau thay đổi ingest/docs UI |
-| AI      | D-13 · Nghiên cứu chunking DOCX: chuyển sang PDF trước khi extract để detect heading tốt hơn | M2 | `[ ]` | Evaluate với MinerU trên file DOCX phức tạp; so sánh chất lượng heading detection so với phương pháp hiện tại |
-| Bảo mật | D-14 · Validate upload security level theo role: chặn user upload tài liệu vượt quá security level được phép | M2 | `[x]` | `documents.controller.ts` kiểm tra `SECURITY_RANK[securityLevel] > user.maxSecurityLevel` trước khi gọi service; admin/BGD/P2 bypass; trả `403` kèm message tiếng Việt; frontend lọc dropdown security level theo `maxSecurityLevel` từ `/api/documents/vung-du-lieu`; PR #73 (2026-06-30) |
-
+| AI      | D-13 · Nghiên cứu chunking DOCX: chuyển sang PDF trước khi extract để detect heading tốt hơn | M2 | `[x]` | Đã implement Markdown cleaning và proper heading detection cho DOCX. |
+| Bảo mật | D-14 · Validate upload security level theo role: chặn user upload tài liệu vượt quá security level được phép | M2 | `[ ]` | `documents.service.ts` kiểm tra `securityLevel` vs `user.maxUploadSecurityLevel`; trả `403` nếu vượt quá |
+| AI | D-15 · Tích hợp Tesseract OCR cho scanned PDF | M2 | `[x]` | `extract.py` có fallback chain: native text → MinerU → Tesseract → PaddleOCR. Cập nhật `requirements.txt`. |
 
 ---
 
