@@ -18,6 +18,7 @@ import {
   Lock,
   EyeOff,
   LogIn,
+  Settings2,
 } from 'lucide-react'
 import {
   docsApi,
@@ -566,6 +567,15 @@ export default function DocsPage() {
   const [previewTotal, setPreviewTotal] = useState(0)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [userMaxSecurityLevel, setUserMaxSecurityLevel] = useState<number>(isAdmin ? 4 : 2)
+
+  const [scopeEditDoc, setScopeEditDoc] = useState<DocItem | null>(null)
+  const [scopeEditLevel, setScopeEditLevel] = useState<SecurityLevel>('internal')
+  const [scopeEditType, setScopeEditType] = useState<AccessScopeType>('all')
+  const [scopeEditRoles, setScopeEditRoles] = useState<string[]>([])
+  const [scopeEditDepartments, setScopeEditDepartments] = useState('')
+  const [scopeEditUserIds, setScopeEditUserIds] = useState('')
+  const [scopeEditSaving, setScopeEditSaving] = useState(false)
   const visiblePollWarning = pollWarning
     ? formatIngestPollWarning(new Error(pollWarning))
     : null
@@ -585,6 +595,9 @@ export default function DocsPage() {
 
   useEffect(() => {
     loadDocs()
+    if (!isAnonymous) {
+      docsApi.getVungDuLieu().then((d) => setUserMaxSecurityLevel(d.user.maxSecurityLevel)).catch(() => {})
+    }
   }, [])
 
   const pendingIngestIds = useMemo(
@@ -818,6 +831,38 @@ export default function DocsPage() {
 
   const canDelete = (doc: DocItem) =>
     isAdmin || doc.uploaded_by_id === currentUser?.id
+
+  const canEditScope = (doc: DocItem) =>
+    isAdmin || doc.uploaded_by_id === currentUser?.id
+
+  const openScopeEdit = (doc: DocItem) => {
+    setScopeEditDoc(doc)
+    setScopeEditLevel(doc.security_level as SecurityLevel)
+    setScopeEditType((doc.scope_type as AccessScopeType) ?? 'all')
+    setScopeEditRoles(doc.access_role_codes ?? [])
+    setScopeEditDepartments((doc.access_department_codes ?? []).join(', '))
+    setScopeEditUserIds((doc.access_user_ids ?? []).join(', '))
+  }
+
+  const saveScopeEdit = async () => {
+    if (!scopeEditDoc) return
+    setScopeEditSaving(true)
+    try {
+      await docsApi.updateScope(scopeEditDoc.id, {
+        security_level: scopeEditLevel,
+        scope_type: scopeEditType,
+        access_role_codes: scopeEditRoles.join(','),
+        access_department_codes: scopeEditDepartments,
+        access_user_ids: scopeEditUserIds,
+      })
+      setScopeEditDoc(null)
+      await loadDocs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lưu thất bại.')
+    } finally {
+      setScopeEditSaving(false)
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-6 md:p-8 overflow-y-auto">
@@ -1131,6 +1176,17 @@ export default function DocsPage() {
                     >
                       <Download size={13} />
                     </button>
+                    {canEditScope(doc) && (
+                      <button
+                        type="button"
+                        onClick={() => openScopeEdit(doc)}
+                        disabled={busyId === doc.id}
+                        title="Sửa quyền truy cập"
+                        className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <Settings2 size={13} />
+                      </button>
+                    )}
                     {canDelete(doc) && (
                       <button
                         type="button"
@@ -1218,7 +1274,9 @@ export default function DocsPage() {
                   onChange={(e) => setUploadSecurity(e.target.value as SecurityLevel)}
                   className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all text-slate-800 cursor-pointer"
                 >
-                  {SECURITY_LEVELS.map((s) => (
+                  {SECURITY_LEVELS.filter((s) =>
+                    ({ public: 1, internal: 2, restricted: 3, confidential: 4 } as Record<string, number>)[s.value] <= userMaxSecurityLevel
+                  ).map((s) => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </select>
@@ -1309,6 +1367,105 @@ export default function DocsPage() {
           </div>
         </div>
       )}
+      {/* Scope Edit Modal */}
+      {scopeEditDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-200 p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">Sửa quyền truy cập</h3>
+              <button type="button" onClick={() => setScopeEditDoc(null)} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-sm text-slate-500 -mt-2 truncate">{scopeEditDoc.title}</p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Mức mật</label>
+              <select
+                value={scopeEditLevel}
+                onChange={(e) => setScopeEditLevel(e.target.value as SecurityLevel)}
+                className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all"
+              >
+                {SECURITY_LEVELS.filter((s) =>
+                  ({ public: 1, internal: 2, restricted: 3, confidential: 4 } as Record<string, number>)[s.value] <= userMaxSecurityLevel
+                ).map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Đối tượng được xem</label>
+              <select
+                value={scopeEditType}
+                onChange={(e) => setScopeEditType(e.target.value as AccessScopeType)}
+                className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all"
+              >
+                {SCOPE_TYPES.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {scopeEditType === 'role' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Vai trò (phân cách bằng dấu phẩy)</label>
+                <input
+                  type="text"
+                  value={scopeEditRoles.join(', ')}
+                  onChange={(e) => setScopeEditRoles(e.target.value.split(',').map((r) => r.trim()).filter(Boolean))}
+                  placeholder="VD: GIANG_VIEN, ADMIN"
+                  className="w-full border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+            )}
+            {scopeEditType === 'department' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">Khoa/Phòng ban (phân cách bằng dấu phẩy)</label>
+                <input
+                  type="text"
+                  value={scopeEditDepartments}
+                  onChange={(e) => setScopeEditDepartments(e.target.value)}
+                  placeholder="VD: Khoa CNTT, Phòng Đào tạo"
+                  className="w-full border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+            )}
+            {scopeEditType === 'custom' && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1">User ID (phân cách bằng dấu phẩy)</label>
+                <input
+                  type="text"
+                  value={scopeEditUserIds}
+                  onChange={(e) => setScopeEditUserIds(e.target.value)}
+                  placeholder="VD: USR001, USR002"
+                  className="w-full border border-slate-200 rounded-xl py-2.5 px-3 text-sm outline-none focus:border-blue-500 transition-all"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setScopeEditDoc(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={saveScopeEdit}
+                disabled={scopeEditSaving}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center gap-2"
+              >
+                {scopeEditSaving && <Loader2 size={14} className="animate-spin" />}
+                Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview Chunks Modal */}
       {previewDocId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">

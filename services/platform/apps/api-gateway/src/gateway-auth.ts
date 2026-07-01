@@ -244,10 +244,10 @@ export function attachGatewayUserHeaders(
   setHeader('x-gateway-username', user.username)
   setHeader('x-gateway-roles', user.roles.join(','))
   setHeader('x-gateway-normalized-roles', user.normalizedRoles.join(','))
-  setHeader('x-gateway-department', user.department ?? '')
+  setHeader('x-gateway-department', encodeURIComponent(user.department ?? ''))
   setHeader('x-gateway-max-security-level', String(user.maxSecurityLevel))
   setHeader('x-gateway-scope-ma-hv', user.scopeMaHv ?? '')
   setHeader('x-gateway-scope-ma-gv', user.scopeMaGv ?? '')
   setHeader('x-gateway-session-id', user.sessionId ?? '')
-  setHeader('x-gateway-access-scope', JSON.stringify(user))
+  setHeader('x-gateway-access-scope', encodeURIComponent(JSON.stringify(user)))
 }

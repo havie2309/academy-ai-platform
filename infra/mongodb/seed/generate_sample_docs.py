@@ -4,11 +4,11 @@ Generate sample documents for PM2 RAG pipeline (M0)
 AND generate MongoDB seed data (tai_lieu collection)
 
 Features:
-- Generates PDF, DOCX, TXT files
+- Generates PDF, DOCX, TXT, MD, and scanned PDF (image-based) files
 - Realistic Vietnamese content
 - 30% adversarial/conflicting documents to test RAG robustness
-- Generates MongoDB seed data matching documents.service.ts schema
-- Configurable number of documents
+- DOCX uses proper heading styles (Heading 1, 2, 3)
+- Configurable number of documents with weighted file type distribution
 
 Run: python scripts/generate_sample_docs.py
 Output:
@@ -18,19 +18,30 @@ Output:
 
 import os
 import random
+import re
 import json
 from datetime import datetime
 from pathlib import Path
 
 from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_PARAGRAPH_ALIGNMENT
+from docx.enum.style import WD_STYLE_TYPE
 
 from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+
+# For scanned PDF generation
+try:
+    from PIL import Image as PILImage, ImageDraw, ImageFont
+    from io import BytesIO
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("Warning: Pillow not installed. Scanned PDF generation will be disabled.")
 
 
 # ============================================================
@@ -39,6 +50,17 @@ from reportlab.pdfbase.ttfonts import TTFont
 
 NUM_DOCUMENTS = 30  # Total documents to generate
 ADVERSARIAL_RATIO = 0.30  # 30% adversarial/conflicting
+
+# File type weights: scanned_pdf, docx, pdf (normal), txt, md
+FILE_TYPE_WEIGHTS = {
+    'scanned_pdf': 0.30,
+    'docx': 0.30,
+    'pdf': 0.25,
+    'txt': 0.10,
+    'md': 0.05,
+}
+FILE_TYPES = list(FILE_TYPE_WEIGHTS.keys())
+FILE_TYPE_PROBS = list(FILE_TYPE_WEIGHTS.values())
 
 OUTPUT_DIR = "data/sample-docs"
 MONGODB_SEED_DIR = "infra/mongodb/init"
@@ -51,8 +73,6 @@ random.seed(2024)  # Fixed seed for reproducibility
 # ============================================================
 # CATEGORIES & TYPES (Generalized)
 # ============================================================
-
-DOCUMENT_TYPES = ['pdf', 'docx', 'txt']
 
 CATEGORIES = [
     "Giáo trình",
@@ -358,7 +378,7 @@ QUY_DINH_TOPICS = [
 # ============================================================
 
 def generate_pdf_text(doc_info, output_dir):
-    """Generate PDF using reportlab"""
+    """Generate normal PDF using reportlab"""
     try:
         pdfmetrics.registerFont(TTFont('Arial', 'C:/Windows/Fonts/arial.ttf'))
         font_name = 'Arial'
@@ -407,10 +427,114 @@ def generate_pdf_text(doc_info, output_dir):
     doc.build(story)
     return pdf_path, pdf_filename
 
+
+def generate_scanned_pdf(doc_info, output_dir):
+    """
+    Generate a scanned PDF (image-based) using PIL and reportlab canvas.
+    This creates a PDF where the text is rendered as an image, simulating a scanned document.
+    """
+    if not PIL_AVAILABLE:
+        print(f"  Warning: PIL not available, falling back to normal PDF for {doc_info['doc_id']}")
+        return generate_pdf_text(doc_info, output_dir)
+
+    subdir = 'normal'
+    if doc_info.get('is_adversarial', False):
+        subdir = 'adversarial'
+    
+    pdf_filename = f"{doc_info['doc_id']}.pdf"
+    pdf_path = os.path.join(output_dir, subdir, pdf_filename)
+    
+    # Prepare content
+    content = doc_info.get('content', generate_chapter_content(random.randint(3, 5)))
+    full_text = f"{doc_info['title']}\n\n{content}"
+    
+    # Create an image with the text
+    img_width = 600
+    img_height = 800
+    img = PILImage.new('RGB', (img_width, img_height), color='white')
+    draw = ImageDraw.Draw(img)
+    
+    # Try to use a TrueType font
+    try:
+        font_paths = [
+            'C:/Windows/Fonts/arial.ttf',
+            '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+            '/System/Library/Fonts/Helvetica.ttc',
+        ]
+        font_path = None
+        for path in font_paths:
+            if os.path.exists(path):
+                font_path = path
+                break
+        if font_path:
+            font = ImageFont.truetype(font_path, 14)
+        else:
+            font = ImageFont.load_default()
+    except:
+        font = ImageFont.load_default()
+    
+    margin = 40
+    y = margin
+    lines = full_text.split('\n')
+    for line in lines:
+        if line.strip() == '':
+            y += 20
+            continue
+        words = line.split()
+        current_line = []
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            bbox = draw.textbbox((0,0), test_line, font=font)
+            if bbox[2] < img_width - 2*margin:
+                current_line.append(word)
+            else:
+                draw.text((margin, y), ' '.join(current_line), fill='black', font=font)
+                y += 25
+                current_line = [word]
+        if current_line:
+            draw.text((margin, y), ' '.join(current_line), fill='black', font=font)
+            y += 25
+        y += 8
+    
+    # Save image to bytes
+    img_byte_arr = BytesIO()
+    img.save(img_byte_arr, format='PNG')
+    img_byte_arr.seek(0)
+    
+    # Create PDF using canvas directly
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.units import inch
+    from reportlab.lib.utils import ImageReader
+    
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    page_width, page_height = letter
+    margin_pt = 0.75 * inch  # 54 points
+    usable_width = page_width - 2 * margin_pt
+    usable_height = page_height - 2 * margin_pt
+    
+    # Wrap BytesIO with ImageReader
+    img_reader = ImageReader(img_byte_arr)
+    
+    # Get original image dimensions (in pixels)
+    img_pil = PILImage.open(img_byte_arr)
+    orig_w, orig_h = img_pil.size
+    scale = min(usable_width / orig_w, usable_height / orig_h)
+    scaled_w = orig_w * scale
+    scaled_h = orig_h * scale
+    
+    # Draw the image using ImageReader
+    c.drawImage(img_reader, margin_pt, margin_pt, width=scaled_w, height=scaled_h, preserveAspectRatio=True)
+    c.save()
+    
+    return pdf_path, pdf_filename
+
+
 def generate_docx(doc_info, output_dir):
-    """Generate a DOCX file"""
+    """Generate a DOCX file with proper heading styles"""
     doc = Document()
     
+    # Title as Heading 0
     title = doc.add_heading(doc_info['title'], 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
@@ -420,7 +544,33 @@ def generate_docx(doc_info, output_dir):
     doc.add_paragraph("")
     
     content = doc_info.get('content', generate_chapter_content(random.randint(2, 4)))
-    doc.add_paragraph(content)
+    
+    # Parse content line by line and apply styles
+    lines = content.split('\n')
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            doc.add_paragraph()  # empty paragraph for spacing
+            continue
+        
+        # Detect structure and apply heading levels
+        # Heading 1: Chương / Phần
+        if stripped.startswith(('Chương', 'Chuong', 'Phần', 'Phan', 'Part', 'Chapter')):
+            # Check if it's a heading (not a reference like "Chương trình")
+            if not re.search(r'(Chương|Chuong|Phần|Phan|Part|Chapter)\s+\d+', stripped, re.IGNORECASE):
+                # Might be a paragraph containing these words, not a heading
+                doc.add_paragraph(stripped)
+            else:
+                doc.add_heading(stripped, level=1)
+        # Heading 2: Điều / Section
+        elif stripped.startswith(('Điều', 'Dieu', 'Section', 'Mục', 'Muc')):
+            doc.add_heading(stripped, level=2)
+        # Heading 3: Sub-sections like 1.1, 2.1, etc.
+        elif re.match(r'^\d+\.\d+\.?\s+', stripped):
+            doc.add_heading(stripped, level=3)
+        # Numbered list items (like "1. Nội dung") as normal text
+        else:
+            doc.add_paragraph(stripped)
 
     subdir = 'normal'
     if doc_info.get('is_adversarial', False):
@@ -430,6 +580,7 @@ def generate_docx(doc_info, output_dir):
     filepath = os.path.join(output_dir, subdir, filename)
     doc.save(filepath)
     return filepath, filename
+
 
 def generate_txt(doc_info, output_dir):
     """Generate a TXT file"""
@@ -456,13 +607,55 @@ def generate_txt(doc_info, output_dir):
         f.write("\n".join(lines))
     return filepath, filename
 
+
+def generate_md(doc_info, output_dir):
+    """Generate a Markdown (.md) file with proper Markdown formatting"""
+    lines = []
+    lines.append(f"# {doc_info['title']}\n")
+    lines.append(f"**Phân loại:** {doc_info['category']}  ")
+    lines.append(f"**Nguồn:** {doc_info['department_name']}  ")
+    lines.append(f"**Ngày tạo:** {datetime.now().strftime('%d/%m/%Y')}\n")
+    
+    content = doc_info.get('content', generate_chapter_content(random.randint(2, 4)))
+    # Convert plain text structure to Markdown
+    for line in content.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            lines.append('')
+            continue
+        # Detect headings: Chương, Điều, etc.
+        if stripped.startswith(('Chương', 'Chuong', 'Phần', 'Phan', 'Part', 'Chapter')):
+            if re.search(r'(Chương|Chuong|Phần|Phan|Part|Chapter)\s+\d+', stripped, re.IGNORECASE):
+                lines.append(f'## {stripped}')
+            else:
+                lines.append(stripped)
+        elif stripped.startswith(('Điều', 'Dieu', 'Section', 'Mục', 'Muc')):
+            lines.append(f'### {stripped}')
+        elif re.match(r'^\d+\.\d+\.?\s+', stripped):
+            lines.append(f'#### {stripped}')
+        else:
+            # Indent content with 2 spaces to preserve structure
+            lines.append(f'  {stripped}')
+    
+    subdir = 'normal'
+    if doc_info.get('is_adversarial', False):
+        subdir = 'adversarial'
+    
+    filename = f"{doc_info['doc_id']}.md"
+    filepath = os.path.join(output_dir, subdir, filename)
+    with open(filepath, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    return filepath, filename
+
+
 # ============================================================
 # GENERATE DOCUMENT INFO
 # ============================================================
 
 def generate_doc_info(doc_id, is_adversarial=False):
     """Generate document metadata and content."""
-    doc_type = random.choice(DOCUMENT_TYPES)
+    # Choose file type based on weights
+    file_type = random.choices(FILE_TYPES, weights=FILE_TYPE_PROBS, k=1)[0]
     category = random.choice(CATEGORIES)
     dept = random.choice(DEPARTMENTS)
     
@@ -503,7 +696,7 @@ def generate_doc_info(doc_id, is_adversarial=False):
         "category": category,
         "department_code": dept["code"],
         "department_name": dept["name"],
-        "file_type": doc_type,
+        "file_type": file_type,
     }
     
     if is_adversarial:
@@ -575,22 +768,31 @@ if (db.documents.countDocuments() === 0) {
         else:
             security_level = random.choice(['public', 'internal'])
         
-        # Get file extension
-        file_ext = doc_info['file_type']
-        if file_ext == 'pdf':
+        # Get file extension based on file_type
+        file_type = doc_info['file_type']
+        if file_type in ['pdf', 'scanned_pdf']:
+            ext = 'pdf'
             mime_type = 'application/pdf'
-        elif file_ext == 'txt':
-            mime_type = 'text/plain'
-        else:
+        elif file_type == 'docx':
+            ext = 'docx'
             mime_type = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        elif file_type == 'txt':
+            ext = 'txt'
+            mime_type = 'text/plain'
+        elif file_type == 'md':
+            ext = 'md'
+            mime_type = 'text/markdown'
+        else:
+            ext = 'pdf'
+            mime_type = 'application/pdf'
         
         doc_str = f"""      {{
         "docId": "{doc_info['doc_id']}",
         "title": "{doc_info['title']}",
         "category": "{doc_info['category']}",
-        "originalName": "{doc_info['title'].replace(' ', '_')}.{file_ext}",
-        "storedName": "{doc_info['doc_id']}.{file_ext}",
-        "storagePath": "../../data/sample-docs/{subdir}/{doc_info['doc_id']}.{file_ext}",
+        "originalName": "{doc_info['title'].replace(' ', '_')}.{ext}",
+        "storedName": "{doc_info['doc_id']}.{ext}",
+        "storagePath": "../../data/sample-docs/{subdir}/{doc_info['doc_id']}.{ext}",
         "mimeType": "{mime_type}",
         "size": {random.randint(100000, 5000000)},
         "securityLevel": "{security_level}",
@@ -607,7 +809,8 @@ if (db.documents.countDocuments() === 0) {
         "isSample": true,
         "isAdversarial": {str(doc_info.get('is_adversarial', False)).lower()},
         "adversarialType": "{doc_info.get('adversarial_type', 'none')}",
-        "sourceSystem": "sample_offline"
+        "sourceSystem": "sample_offline",
+        "isScanned": {str(file_type == 'scanned_pdf').lower()}
       }}"""
         
         if i < len(documents) - 1:
@@ -624,6 +827,7 @@ db.documents.createIndex({ isSample: 1 });
 db.documents.createIndex({ ingestStatus: 1 });
 db.documents.createIndex({ isAdversarial: 1 });
 db.documents.createIndex({ adversarialType: 1 });
+db.documents.createIndex({ isScanned: 1 });
 """
     
     seed_path = os.path.join(MONGODB_SEED_DIR, "03-seed-tai-lieu.js")
@@ -658,34 +862,46 @@ def main():
         doc_info = generate_doc_info(doc_id, is_adversarial=False)
         doc_id += 1
         
-        # Generate the actual file
-        if doc_info['file_type'] == 'pdf':
+        # Generate the actual file based on file_type
+        if doc_info['file_type'] == 'scanned_pdf':
+            filepath, filename = generate_scanned_pdf(doc_info, OUTPUT_DIR)
+        elif doc_info['file_type'] == 'pdf':
             filepath, filename = generate_pdf_text(doc_info, OUTPUT_DIR)
         elif doc_info['file_type'] == 'docx':
             filepath, filename = generate_docx(doc_info, OUTPUT_DIR)
-        else:
+        elif doc_info['file_type'] == 'txt':
             filepath, filename = generate_txt(doc_info, OUTPUT_DIR)
+        elif doc_info['file_type'] == 'md':
+            filepath, filename = generate_md(doc_info, OUTPUT_DIR)
+        else:
+            continue
         
         documents_meta.append(doc_info)
         status = "ADVERSARIAL" if doc_info.get('is_adversarial') else "Normal"
-        print(f"  {doc_info['doc_id']}: {filename} ({status})")
+        print(f"  {doc_info['doc_id']}: {filename} ({status}, {doc_info['file_type']})")
     
     # Generate adversarial documents
     for i in range(num_adversarial):
         doc_info = generate_doc_info(doc_id, is_adversarial=True)
         doc_id += 1
         
-        # Generate the actual file
-        if doc_info['file_type'] == 'pdf':
+        # Generate the actual file based on file_type
+        if doc_info['file_type'] == 'scanned_pdf':
+            filepath, filename = generate_scanned_pdf(doc_info, OUTPUT_DIR)
+        elif doc_info['file_type'] == 'pdf':
             filepath, filename = generate_pdf_text(doc_info, OUTPUT_DIR)
         elif doc_info['file_type'] == 'docx':
             filepath, filename = generate_docx(doc_info, OUTPUT_DIR)
-        else:
+        elif doc_info['file_type'] == 'txt':
             filepath, filename = generate_txt(doc_info, OUTPUT_DIR)
+        elif doc_info['file_type'] == 'md':
+            filepath, filename = generate_md(doc_info, OUTPUT_DIR)
+        else:
+            continue
         
         documents_meta.append(doc_info)
         status = "ADVERSARIAL" if doc_info.get('is_adversarial') else "Normal"
-        print(f"  {doc_info['doc_id']}: {filename} ({status})")
+        print(f"  {doc_info['doc_id']}: {filename} ({status}, {doc_info['file_type']})")
     
     # Generate MongoDB seed file
     seed_path = generate_mongodb_seed(documents_meta)
@@ -699,6 +915,7 @@ def main():
     print("\n Note: Adversarial documents have `isAdversarial: true` in MongoDB")
     print("   These are for testing RAG engine's robustness against conflicting/nonsensical content.")
     print("   Use `ENABLE_ADVERSARIAL_DOCS=false` to exclude them in production.")
+    print("\n File types distribution (approx): scanned_pdf, docx, pdf, txt, md")
 
 if __name__ == "__main__":
     main()

@@ -51,11 +51,11 @@ class ExtractTests(unittest.TestCase):
                 mock_open.return_value = mock_doc
                 # Patch OCR functions to return dummy texts
                 with patch("app.extract._pdf_text_mineru", return_value=""):
-                    with patch("app.extract._pdf_text_paddleocr", return_value="OCR text"):
+                    with patch("app.extract._pdf_text_tesseract", return_value="OCR text"):
                         text = extract_text(str(path), "application/pdf")
         self.assertEqual(text, "OCR text")
 
-    def test_extract_pdf_prefers_mineru_before_paddleocr(self):
+    def test_extract_pdf_prefers_mineru_before_tesseract(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "scan.pdf"
             path.write_bytes(b"%PDF-1.4\n")
@@ -64,7 +64,7 @@ class ExtractTests(unittest.TestCase):
                 mock_doc.__iter__.return_value = [MagicMock(get_text=MagicMock(return_value=""))]
                 mock_open.return_value = mock_doc
                 with patch("app.extract._pdf_text_mineru", return_value="MinerU OCR text"):
-                    with patch("app.extract._pdf_text_paddleocr", return_value="Paddle text"):
+                    with patch("app.extract._pdf_text_tesseract", return_value="OCR text"):
                         text = extract_text(str(path), "application/pdf")
         self.assertEqual(text, "MinerU OCR text")
 
