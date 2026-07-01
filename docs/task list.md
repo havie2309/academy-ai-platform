@@ -219,9 +219,9 @@
 | UI   | K-09 · Admin AI config editor                              | M6  | `[x]`   | `AdminPage.tsx` load/save `admin-config/rag-policy`: bật/tắt safe refusal, sửa blacklist keyword, refusal message, reason cập nhật, preview metadata/version/updated-at; route guard/menu admin dùng role code normalize để hoạt động với backend thật |
 | UI   | K-10 · Quota/token usage và quản lý tài khoản              | M6  | `[x]`   | `services/platform/apps/user-management/src/user/users.controller.ts` + `users.service.ts`: `GET /api/users/admin/overview`, `GET /api/users/admin/accounts`, `PATCH /api/users/admin/accounts/:userId/status`, `POST /api/users/admin/accounts/:userId/revoke-sessions`; `services/web-ui/src/components/admin/AdminOpsSection.tsx` render overview/account actions trong `/admin`; build `services/platform` + `services/web-ui` pass, Playwright `services/web-ui/tests/e2e/admin.spec.ts` pass (2026-06-24) |
 | Test | K-11 · E2E UI và accessibility checklist                   | M6  | `[x]`   | `scripts/smoke-app.ps1` cover API smoke; `docs/accessibility-checklist.md` có checklist manual; thêm browser automation `services/web-ui/tests/e2e/admin.spec.ts` và `chat.spec.ts` cho login mock auth, admin health/config editor, chat stream/citation/session delete; verify pass `2 passed` (2026-06-18) |
-| UI | K-13 · Admin Chat Monitoring: xem chat history/session của các user khác | M6 | `[ ]` | Admin có thể filter theo user, date range, xem chi tiết session và messages; có phân quyền và audit |
+| UI | K-13 · Admin Chat Monitoring: xem chat history/session của các user khác | M6 | `[x]` | Tab `monitoring` trong `AdminPage.tsx` gọi `GET /api/chat/admin/sessions` + `/messages`; filter theo user/date range, xem chi tiết session và messages; phân quyền admin-only |
 | UI | K-14 · Admin Log Viewer: xem logs của các service (rag-engine, document-processor, etl-sync) | M6 | `[ ]` | Admin UI để xem service logs với filter theo service, level (info/error), thời gian |
-| UI | K-15 · Admin Scope Management: gán/sửa vùng dữ liệu (access scope) cho tài liệu và tài khoản | M6 | `[ ]` | Admin có thể chỉnh sửa `securityLevel`, `scopeType`, danh sách được phép của tài liệu sau upload; API `PATCH /api/documents/:id/scope` |
+| UI | K-15 · Admin Scope Management: gán/sửa vùng dữ liệu (access scope) cho tài liệu | M6 | `[x]` | Nút ⚙ trong DocsPage.tsx (admin + document owner); modal scope edit pre-filled với `securityLevel`/`scopeType`/role/dept/user; backend `PATCH /api/documents/:id/scope` cập nhật cả `documents` collection và toàn bộ `document_chunks` metadata; PR #73 (2026-06-30) |
 | UI | K-16 · Admin Dashboard UX: chuyển sang tab view, pagination, giới hạn hiển thị | M6 | `[-]` | `AdminPage.tsx` đã chuyển sang tab view `operations / security / users / policy / technical`, giảm scrolling ở dashboard quản trị; **còn thiếu** pagination/list limit đồng nhất, tách thêm monitor/log tabs chuyên biệt và polish UX khi danh sách dài |
 | UI | K-17 · K-04 phase 2: timeline chi tiết, chunk preview (đã có) | M6 | `[x]` | `DocsPage.tsx` đã có timeline hiển thị các giai đoạn `queued → extract → chunk → embed → index → done` và modal xem preview 5 chunks đầu tiên qua API `GET /api/documents/:id/chunks` |
 | UI | K-18 · Admin Security Alerts dashboard | M6 | `[x]` | `services/web-ui/src/components/admin/AdminSecurityAlertsSection.tsx` + `services/web-ui/src/pages/AdminPage.tsx` thêm tab `Security Alerts`; gọi `adminApi.getSecurityAlerts/getSecurityAlert/updateSecurityAlertStatus`, cho phép xem severity/status/event count/auto action/payload và thao tác `acknowledge / resolve / reopen`. Build `services/web-ui` pass (2026-06-29) |
@@ -237,7 +237,7 @@
 | Nghiệp vụ | UC-KT-01..04 — khảo thí          | M3/M4/M6 |         |          |
 | Nghiệp vụ | UC-KH-01..04 — KHCN              | M2/M3/M6 |         |          |
 | AI        | UC-AI-01..05 — GenAI/RAG         | M2–M4    | `[-]`   | Phase 1 **done:** chat LLM local (`qwen2.5:3b`) + history (**G-12** `[x]`, **K-12** `[x]`); Phase 2 **core done:** ingest/OCR/chunk/embed (**D-01..D-12** `[x]`, gồm parent-child chunking/prefix/re-ingest cleanup), RAG retrieve/rerank/grounding (**E-01..E-09** `[x]`, gồm access filter theo role chuẩn hóa + context budget sau rerank), multi-turn Redis E2E (**E-06** `[x]`), safe refusal (**E-07** `[x]`), eval harness (**E-09** `[x]`); Text-to-SQL read-only + format UX (**F-01..F-08** `[x]`); **còn:** smoke live full-stack với Milvus thật / profile `ai` 2 máy và mở rộng corpus eval |
-| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + refresh cookie (**K-02** `[x]`, **G-06** `[x]`); admin health live + AI policy editor (**K-08** `[x]`, **K-09** `[x]`); admin quota/token/account ops (**K-10** `[x]`); audit UI/detail/export (**K-07** `[x]`); **security alerts dashboard** (**K-18** `[x]`); RBAC/audit backend (**G-02..G-05** `[x]`); gateway/token hardening (**G-07**, **G-11**, **G-15**, **G-16**, **G-17**) `[x]`; admin dashboard UX tab view (**K-16**) `[-]`; **Còn thiếu:** admin chat monitoring (**K-13**), admin log viewer (**K-14**), admin scope management (**K-15**) |
+| Quản trị  | UC-QT-01..04 — quản trị hệ thống | M0/M5/M6 | `[-]`   | JWT login + refresh cookie (**K-02** `[x]`, **G-06** `[x]`); admin health live + AI policy editor (**K-08** `[x]`, **K-09** `[x]`); admin quota/token/account ops (**K-10** `[x]`); audit UI/detail/export (**K-07** `[x]`); **security alerts dashboard** (**K-18** `[x]`); RBAC/audit backend (**G-02..G-05** `[x]`); gateway/token hardening (**G-07**, **G-11**, **G-15**, **G-16**, **G-17**) `[x]`; admin dashboard UX tab view (**K-16**) `[-]`; admin chat monitoring (**K-13**) `[x]`; admin scope management (**K-15**) `[x]`; upload level restriction (**D-14**) `[x]`; **Còn thiếu:** admin log viewer (**K-14**) |
 
 
 ---
@@ -317,11 +317,11 @@
 | 12 | **G-06** (mở rộng) | CRUD user, profile, đơn vị; flow refresh token đã xong |
 | 13 | **H-04 / H-05** | Event-driven sync + manual sync trigger cho ETL |
 | 14 | **H-07 / H-08** | ETL admin dashboard status/error log + test lineage/recovery |
-| 15 | **K-13** | Admin chat monitoring: xem session/message của user khác |
+| 15 | ~~**K-13**~~ | ~~Admin chat monitoring~~ `[x]` |
 | 16 | **K-14** | Admin log viewer cho `rag-engine`, `document-processor`, `etl-sync` |
-| 17 | **K-15** | Admin scope management cho tài liệu và account |
+| 17 | ~~**K-15**~~ | ~~Admin scope management cho tài liệu~~ `[x]` |
 | 18 | **K-16** | Hoàn tất pagination, list limit và tách thêm monitor/log tabs trong admin dashboard |
-| 19 | **D-14** | Validate upload security level theo role khi upload tài liệu |
+| 19 | ~~**D-14**~~ | ~~Validate upload security level theo role~~ `[x]` |
 
 ### Sau — Domain modules / AI nâng cao (M1–M6)
 

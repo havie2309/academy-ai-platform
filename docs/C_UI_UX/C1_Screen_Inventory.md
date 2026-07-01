@@ -13,8 +13,9 @@
 | UI-01 | Login | `/login` | Mọi user | idle, submitting, error | auth login/refresh/logout | `implemented` |
 | UI-02 | Chat | `/chat`, `/chat/:sessionId` | User thường, giảng viên, admin | empty, streaming, answered, refusal, error | chat session/message, RAG, SQL | `implemented` |
 | UI-03 | Sidebar lịch sử chat | trong layout chat | User | loading, optimistic update, delete confirm | chat sessions | `implemented` |
-| UI-04 | Docs workspace | `/docs` | User có quyền tài liệu | list, upload, ingest polling, download, delete, **chunk preview** | documents, ingest-status, **chunks** | `implemented` |
-| UI-05 | Upload document modal | trong `/docs` | User có quyền upload | form, validating, uploading, queued | documents upload | `implemented` |
+| UI-04 | Docs workspace | `/docs` | User có quyền tài liệu | list, upload, ingest polling, download, delete, **chunk preview**, **scope edit** | documents, ingest-status, **chunks** | `implemented` |
+| UI-05 | Upload document modal | trong `/docs` | User có quyền upload | form, validating, uploading, queued; dropdown level lọc theo `maxSecurityLevel` | documents upload | `implemented` |
+| UI-05b | Scope edit modal | trong `/docs` | Admin hoặc document owner | pre-filled form, saving | `PATCH /api/documents/:id/scope` | `implemented` |
 | UI-06 | Admin health | `/admin` | admin | loading, partial-down, refreshed | gateway health | `implemented` |
 | UI-07 | Admin policy editor | `/admin` | admin | loading, dirty, saved, conflict | admin-config | `implemented` |
 | UI-08 | Admin audit panel | dự kiến trong `/admin` | admin-like | filtered list, detail panel, export | audit logs | `planned` |
@@ -22,7 +23,7 @@
 | UI-10 | ETL console | dự kiến `/admin/etl` hoặc tab ETL trong `/admin` | admin/operator | empty, loading, configured, running, success, failed | `etl-sync` `/v1/etl/*` | `planned` |
 | UI-11 | Self-service học viên/sinh viên | dự kiến `/portal`, `/self-service` hoặc cụm route tương đương | hoc_vien / user cuối | loading, empty, partial-data, permission-denied, success | domain APIs đào tạo/khảo thí/thông báo | `planned` |
 | UI-12 | Quota / token / account ops | dự kiến `/admin/accounts`, `/admin/ops` hoặc tab quản trị tương đương | admin | loading, filter, save, disabled, error | quota/token/account APIs | `planned` |
-| UI-13 | Admin Chat Monitoring | `/admin/monitoring` hoặc tab trong `/admin` | admin | loading, filter by user/date, view session detail, view messages | chat sessions API | `planned` |
+| UI-13 | Admin Chat Monitoring | tab trong `/admin` | admin | loading, filter by user/date, view session detail, view messages | `GET /api/chat/admin/sessions` + messages | `implemented` |
 
 ## 3. Quy tắc trải nghiệm chính
 
