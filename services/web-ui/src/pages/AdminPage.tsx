@@ -173,7 +173,7 @@ function serviceStatusLabel(status: 'up' | 'down'): string {
 
 function systemStatusLabel(status: string | undefined): string {
   return status === 'ok'
-    ? 'Hệ thống hoạt động bình thường'
+    ? 'Bình thường'
     : 'Cần kiểm tra'
 }
 
@@ -456,6 +456,7 @@ export default function AdminPage() {
     )
 
   const [activeTab, setActiveTab] = useState<AdminTab>('operations')
+  const [technicalSubTab, setTechnicalSubTab] = useState<'service_logs' | 'audit_logs' | 'system_configs'>('service_logs')
 
   const [health, setHealth] = useState<GatewayHealth | null>(null)
   const [healthLoading, setHealthLoading] = useState(true)
@@ -681,7 +682,6 @@ export default function AdminPage() {
   const healthyServices = SERVICE_META.filter(
     (service) => health?.upstream[service.key] === 'up',
   ).length
-  const degradedServices = SERVICE_META.length - healthyServices
   const policyVersion = policy?.version ?? 0
   const lastUpdated = formatTimestamp(policy?.updated_at)
   const policyFormDisabled = policyLoading || saving || !policy
@@ -884,15 +884,15 @@ export default function AdminPage() {
                 type="button"
                 onClick={() => setActiveTab(tab.key)}
                 data-testid={`admin-tab-${tab.key}`}
-                className={`rounded-2xl px-4 py-4 text-left transition ${
+                className={`flex min-h-[76px] items-center justify-center rounded-2xl px-4 py-3 transition ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/15'
                     : 'bg-slate-50/70 text-slate-600 hover:bg-white hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-center justify-center gap-3">
                   <div
-                    className={`rounded-xl p-2 ${
+                    className={`shrink-0 rounded-xl p-2 ${
                       isActive
                         ? 'bg-white/15 text-white'
                         : 'bg-white text-blue-600 shadow-sm'
@@ -901,14 +901,7 @@ export default function AdminPage() {
                     <Icon size={18} />
                   </div>
                   <div>
-                    <p className="text-sm font-bold">{tab.label}</p>
-                    <p
-                      className={`mt-1 text-xs leading-relaxed ${
-                        isActive ? 'text-blue-100' : 'text-slate-500'
-                      }`}
-                    >
-                      {tab.description}
-                    </p>
+                    <p className="text-sm font-bold leading-none">{tab.label}</p>
                   </div>
                 </div>
               </button>
@@ -946,85 +939,65 @@ export default function AdminPage() {
           )}
 
           <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Trạng thái hệ thống
-                  </p>
-                  <p className="mt-2 text-2xl font-bold text-slate-800">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 text-center shadow-sm">
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                  Trạng thái hệ thống
+                </p>
+                <div className="mt-2 inline-flex items-center justify-center gap-3">
+                  <div
+                    className={`rounded-xl p-2 ${
+                      health?.status === 'ok'
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : 'bg-amber-50 text-amber-600'
+                    }`}
+                  >
+                    {health?.status === 'ok' ? (
+                      <ShieldCheck size={18} />
+                    ) : (
+                      <ShieldAlert size={18} />
+                    )}
+                  </div>
+                  <p className="text-2xl font-bold text-slate-800">
                     {healthLoading ? '...' : systemStatusLabel(health?.status)}
                   </p>
                 </div>
-                <div
-                  className={`rounded-xl p-2 ${
-                    health?.status === 'ok'
-                      ? 'bg-emerald-50 text-emerald-600'
-                      : 'bg-amber-50 text-amber-600'
-                  }`}
-                >
-                  {health?.status === 'ok' ? (
-                    <ShieldCheck size={18} />
-                  ) : (
-                    <ShieldAlert size={18} />
-                  )}
-                </div>
               </div>
-              <p className="mt-3 text-sm text-slate-500">
-                {health?.status === 'ok'
-                  ? 'Các dịch vụ chính đang phản hồi bình thường.'
-                  : 'Có dịch vụ cần kiểm tra thêm trước khi xử lý các tác vụ quản trị.'}
-              </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 text-center shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                 Dịch vụ đang ổn
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-800">
                 {healthLoading ? '...' : `${healthyServices}/${SERVICE_META.length}`}
               </p>
-              <p className="mt-3 text-sm text-slate-500">
-                Hoạt động tốt: {healthyServices}. Cần kiểm tra: {degradedServices}.
-              </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 text-center shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                 Tài khoản cần xử lý
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-800">
                 {opsOverviewLoading ? '...' : accountsNeedingAttention}
               </p>
-              <p className="mt-3 text-sm text-slate-500">
-                Đã khóa / tạm khóa đăng nhập: {opsOverview?.account_summary.locked_users ?? 0} /{' '}
-                {opsOverview?.account_summary.temporary_locked_users ?? 0}
-              </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 text-center shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                 Lỗi hoặc yêu cầu bị chặn gần đây
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-800">
                 {recentIncidentsLoading ? '...' : recentIncidentCount}
               </p>
-              <p className="mt-3 text-sm text-slate-500">
-                Chỉ hiển thị bản ghi thất bại hoặc bị từ chối; đã ẩn GET thành công thông thường.
-              </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-slate-200/70 bg-white p-5 text-center shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
                 Chính sách AI
               </p>
               <p className="mt-2 text-2xl font-bold text-slate-800">
                 {policyLoading ? '...' : enabled ? 'Đang bật' : 'Đang tắt'}
-              </p>
-              <p className="mt-3 text-sm text-slate-500">
-                {policyLoading
-                  ? 'Đang tải trạng thái chính sách.'
-                  : `Nhóm rule đang áp dụng: ${normalizedDraftRules.length}, cụm từ: ${countActivePhrases(normalizedDraftRules)}.`}
               </p>
             </div>
           </section>
@@ -1623,6 +1596,7 @@ export default function AdminPage() {
                 </label>
                 <textarea
                   id="policyPreviewText"
+                  data-testid="policy-preview-text"
                   value={policyPreviewText}
                   onChange={(event) => setPolicyPreviewText(event.target.value)}
                   rows={6}
@@ -1799,178 +1773,221 @@ export default function AdminPage() {
 
       {activeTab === 'technical' && (
         <>
-          <section className="mt-6 grid gap-6 xl:grid-cols-3">
-            <AdminTechnicalDetails
-              testId="admin-system-technical"
-              description="Payload raw của health gateway và tên kỹ thuật của các dịch vụ."
+          {/* Sub-tabs selector for Technical tab */}
+          <div className="mt-6 flex border-b border-slate-200">
+            <button
+              type="button"
+              data-testid="technical-subtab-service-logs"
+              onClick={() => setTechnicalSubTab('service_logs')}
+              className={`px-6 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                technicalSubTab === 'service_logs'
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
             >
-              <div className="space-y-4">
-                <dl className="grid gap-3 text-sm md:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <dt className="text-slate-500">Mã trạng thái hệ thống</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {health?.status ?? 'unknown'}
-                    </dd>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <dt className="text-slate-500">Thời điểm kiểm tra gần nhất</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {formatTimestamp(health?.timestamp)}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Tên dịch vụ kỹ thuật
-                  </p>
-                  <ul className="mt-2 space-y-1 text-sm text-slate-600">
-                    {SERVICE_META.map((service) => (
-                      <li key={service.key}>
-                        {service.label}:{' '}
-                        <span className="font-mono text-xs">{service.technicalName}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Raw health payload
-                  </p>
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
-                    {health ? JSON.stringify(health, null, 2) : 'Chưa có dữ liệu'}
-                  </pre>
-                </div>
-              </div>
-            </AdminTechnicalDetails>
+              Services Log viewer
+            </button>
+            <button
+              type="button"
+              data-testid="technical-subtab-audit-logs"
+              onClick={() => setTechnicalSubTab('audit_logs')}
+              className={`px-6 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                technicalSubTab === 'audit_logs'
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Hoạt động gần đây
+            </button>
+            <button
+              type="button"
+              data-testid="technical-subtab-system-configs"
+              onClick={() => setTechnicalSubTab('system_configs')}
+              className={`px-6 py-3 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+                technicalSubTab === 'system_configs'
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              Cấu hình & Trạng thái
+            </button>
+          </div>
 
-            <AdminTechnicalDetails
-              testId="admin-ops-overview-technical"
-              description="Quota policy, nguồn dữ liệu và snapshot raw dùng cho vận hành tài khoản."
-            >
-              <div className="space-y-4">
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-sm font-bold text-slate-800">Quota và phiên đăng nhập</h3>
-                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                    <div>
-                      <dt className="text-slate-500">Rate limit auth</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.quota_policy.rate_limit_auth_per_minute ?? 0}/phút
-                      </dd>
+          <div className="mt-4">
+            {technicalSubTab === 'service_logs' && <AdminServiceLogsSection />}
+            {technicalSubTab === 'audit_logs' && <AdminAuditSection />}
+            {technicalSubTab === 'system_configs' && (
+              <section className="mt-4 flex flex-col gap-4">
+                <AdminTechnicalDetails
+                  title="Trạng thái dịch vụ & Health Gateway"
+                  testId="admin-system-technical"
+                  description="Payload raw của health gateway và tên kỹ thuật của các dịch vụ."
+                >
+                  <div className="space-y-4">
+                    <dl className="grid gap-3 text-sm md:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <dt className="text-slate-500">Mã trạng thái hệ thống</dt>
+                        <dd className="mt-1 font-semibold text-slate-800">
+                          {health?.status ?? 'unknown'}
+                        </dd>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <dt className="text-slate-500">Thời điểm kiểm tra gần nhất</dt>
+                        <dd className="mt-1 font-semibold text-slate-800">
+                          {formatTimestamp(health?.timestamp)}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Tên dịch vụ kỹ thuật
+                      </p>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                        {SERVICE_META.map((service) => (
+                          <li key={service.key}>
+                            {service.label}:{' '}
+                            <span className="font-mono text-xs">{service.technicalName}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                    <div>
-                      <dt className="text-slate-500">Rate limit anonymous</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.quota_policy.rate_limit_anon_per_minute ?? 0}/phút
-                      </dd>
+                    <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 max-h-[250px] overflow-y-auto">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Raw health payload
+                      </p>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                        {health ? JSON.stringify(health, null, 2) : 'Chưa có dữ liệu'}
+                      </pre>
                     </div>
-                    <div>
-                      <dt className="text-slate-500">Load shedding</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.quota_policy.load_shedding_max_concurrent ?? 0}
-                      </dd>
+                  </div>
+                </AdminTechnicalDetails>
+
+                <AdminTechnicalDetails
+                  title="Chính sách Quota & Tài nguyên Hệ thống"
+                  testId="admin-ops-overview-technical"
+                  description="Quota policy, nguồn dữ liệu và snapshot raw dùng cho vận hành tài khoản."
+                >
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <h3 className="text-sm font-bold text-slate-800">Quota và phiên đăng nhập</h3>
+                      <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                        <div>
+                          <dt className="text-slate-500">Rate limit auth</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.quota_policy.rate_limit_auth_per_minute ?? 0}/phút
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-500">Rate limit anonymous</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.quota_policy.rate_limit_anon_per_minute ?? 0}/phút
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-500">Load shedding</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.quota_policy.load_shedding_max_concurrent ?? 0}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-500">Login max attempts</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.quota_policy.login_max_attempts ?? 0}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-500">Access / refresh token</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview
+                              ? `${opsOverview.quota_policy.access_token_ttl} / ${opsOverview.quota_policy.refresh_token_ttl_days} ngày`
+                              : '...'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-500">Khóa tạm sau đăng nhập sai</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.quota_policy.login_lock_duration_seconds ?? 0} giây
+                          </dd>
+                        </div>
+                      </dl>
                     </div>
-                    <div>
-                      <dt className="text-slate-500">Login max attempts</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.quota_policy.login_max_attempts ?? 0}
-                      </dd>
+
+                    <div className="rounded-xl border border-slate-200 bg-white p-4">
+                      <h3 className="text-sm font-bold text-slate-800">Nguồn dữ liệu</h3>
+                      <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+                        <div>
+                          <dt className="text-slate-500">MongoDB</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.sources.mongo_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-slate-500">Redis</dt>
+                          <dd className="mt-1 font-semibold text-slate-800">
+                            {opsOverview?.sources.redis_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
+                          </dd>
+                        </div>
+                      </dl>
                     </div>
-                    <div>
-                      <dt className="text-slate-500">Access / refresh token</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 max-h-[250px] overflow-y-auto">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Raw overview payload
+                      </p>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
                         {opsOverview
-                          ? `${opsOverview.quota_policy.access_token_ttl} / ${opsOverview.quota_policy.refresh_token_ttl_days} ngày`
-                          : '...'}
-                      </dd>
+                          ? JSON.stringify(opsOverview, null, 2)
+                          : 'Chưa có dữ liệu'}
+                      </pre>
                     </div>
-                    <div>
-                      <dt className="text-slate-500">Khóa tạm sau đăng nhập sai</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.quota_policy.login_lock_duration_seconds ?? 0} giây
-                      </dd>
+                  </div>
+                </AdminTechnicalDetails>
+
+                <AdminTechnicalDetails
+                  title="Cấu hình Chính sách AI (RAG Policy)"
+                  testId="admin-policy-technical"
+                  description="Metadata cấu hình và JSON gốc của chính sách AI."
+                >
+                  <div className="space-y-4">
+                    <dl className="grid gap-3 text-sm md:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <dt className="text-slate-500">Khóa cấu hình</dt>
+                        <dd className="mt-1 font-semibold text-slate-800">
+                          {policy?.config_key ?? 'rag_policy'}
+                        </dd>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <dt className="text-slate-500">Phiên bản</dt>
+                        <dd className="mt-1 font-semibold text-slate-800">
+                          {policyLoading ? '...' : `v${policyVersion}`}
+                        </dd>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <dt className="text-slate-500">Cập nhật gần nhất</dt>
+                        <dd className="mt-1 font-semibold text-slate-800">
+                          {lastUpdated}
+                        </dd>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                        <dt className="text-slate-500">Vai trò quản trị hiện tại</dt>
+                        <dd className="mt-1 font-semibold text-slate-800">
+                          {normalizedRoles.join(', ') || 'Không có'}
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 max-h-[250px] overflow-y-auto">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+                        Raw policy payload
+                      </p>
+                      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
+                        {policy ? JSON.stringify(policy, null, 2) : 'Chưa có dữ liệu'}
+                      </pre>
                     </div>
-                  </dl>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-sm font-bold text-slate-800">Nguồn dữ liệu</h3>
-                  <dl className="mt-3 grid gap-3 text-sm md:grid-cols-2">
-                    <div>
-                      <dt className="text-slate-500">MongoDB</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.sources.mongo_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Redis</dt>
-                      <dd className="mt-1 font-semibold text-slate-800">
-                        {opsOverview?.sources.redis_available ? 'Sẵn sàng' : 'Chưa sẵn sàng'}
-                      </dd>
-                    </div>
-                  </dl>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Raw overview payload
-                  </p>
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
-                    {opsOverview
-                      ? JSON.stringify(opsOverview, null, 2)
-                      : 'Chưa có dữ liệu'}
-                  </pre>
-                </div>
-              </div>
-            </AdminTechnicalDetails>
-
-            <AdminTechnicalDetails
-              testId="admin-policy-technical"
-              description="Metadata cấu hình và JSON gốc của chính sách AI."
-            >
-              <div className="space-y-4">
-                <dl className="grid gap-3 text-sm md:grid-cols-2">
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <dt className="text-slate-500">Khóa cấu hình</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {policy?.config_key ?? 'rag_policy'}
-                    </dd>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <dt className="text-slate-500">Phiên bản</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {policyLoading ? '...' : `v${policyVersion}`}
-                    </dd>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <dt className="text-slate-500">Cập nhật gần nhất</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {lastUpdated}
-                    </dd>
-                  </div>
-                  <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                    <dt className="text-slate-500">Vai trò quản trị hiện tại</dt>
-                    <dd className="mt-1 font-semibold text-slate-800">
-                      {normalizedRoles.join(', ') || 'Không có'}
-                    </dd>
-                  </div>
-                </dl>
-                <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Raw policy payload
-                  </p>
-                  <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
-                    {policy ? JSON.stringify(policy, null, 2) : 'Chưa có dữ liệu'}
-                  </pre>
-                </div>
-              </div>
-            </AdminTechnicalDetails>
-          </section>
-
-          <section className="mt-6">
-            <AdminServiceLogsSection />
-          </section>
-
-          <AdminAuditSection />
+                </AdminTechnicalDetails>
+              </section>
+            )}
+          </div>
         </>
       )}
 

@@ -388,7 +388,7 @@ export default function AdminAuditSection() {
 
   return (
     <section
-      className="mt-6 rounded-3xl border border-slate-200/70 bg-white p-5 shadow-sm"
+      className="rounded-3xl border border-slate-200/70 bg-white p-4 shadow-sm"
       data-testid="admin-audit-section"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -460,49 +460,49 @@ export default function AdminAuditSection() {
         </div>
       )}
 
-      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/40 hover:bg-slate-50/80 transition-all duration-300 hover:shadow-sm p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Bản ghi đang hiển thị
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">{loading ? '...' : logs.length}</p>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-2xl font-extrabold text-slate-800">{loading ? '...' : logs.length}</p>
+          <p className="mt-1.5 text-xs text-slate-500">
             Bộ lọc hiện tại đang áp dụng cho danh sách bên dưới.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50/60 transition-all duration-300 hover:shadow-[0_8px_30px_-15px_rgba(16,185,129,0.15)] p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Kết quả thành công
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">
+          <p className="mt-2 text-2xl font-extrabold text-emerald-600">
             {loading ? '...' : successCount}
           </p>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500">
             Những thay đổi đã hoàn tất đúng như mong đợi.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/60 transition-all duration-300 hover:shadow-[0_8px_30px_-15px_rgba(245,158,11,0.15)] p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Cần xem lại
           </p>
-          <p className="mt-2 text-2xl font-bold text-slate-800">
+          <p className="mt-2 text-2xl font-extrabold text-amber-600">
             {loading ? '...' : reviewCount}
           </p>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500">
             Bao gồm bản ghi bị chặn hoặc thất bại cần kiểm tra thêm.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
+        <div className="rounded-2xl border border-purple-100 bg-purple-50/30 hover:bg-purple-50/60 transition-all duration-300 hover:shadow-[0_8px_30px_-15px_rgba(139,92,246,0.15)] p-3.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
             Hoạt động mới nhất
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-800">
+          <p className="mt-2 text-sm font-bold text-purple-700">
             {loading ? 'Đang tải...' : formatTimestamp(latestLog?.created_at)}
           </p>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500 truncate">
             {latestLog ? humanizeAction(latestLog.action) : 'Chưa có bản ghi nào.'}
           </p>
         </div>
@@ -659,8 +659,8 @@ export default function AdminAuditSection() {
 
       <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
         <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/70">
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-y-2 p-3">
+          <div className="overflow-x-auto max-h-[500px] overflow-y-auto pr-1">
+            <table className="min-w-full border-separate border-spacing-y-2 p-2">
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
                   <th className="px-3">Hành động</th>
@@ -717,7 +717,7 @@ export default function AdminAuditSection() {
                           })
                         }}
                       >
-                        <td className="rounded-l-2xl px-3 py-4 align-top">
+                        <td className="rounded-l-2xl px-3 py-2.5 align-top">
                           <div className="space-y-1">
                             <p className="font-semibold text-slate-800">
                               {humanizeAction(log.action)}
@@ -727,7 +727,7 @@ export default function AdminAuditSection() {
                             </p>
                           </div>
                         </td>
-                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                        <td className="px-3 py-2.5 align-top text-sm text-slate-600">
                           <div className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                               {httpMeta.method && (
@@ -745,15 +745,15 @@ export default function AdminAuditSection() {
                             </p>
                           </div>
                         </td>
-                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                        <td className="px-3 py-2.5 align-top text-sm text-slate-600">
                           <p className="font-semibold text-slate-800">
                             {httpMeta.statusCode != null ? httpMeta.statusCode : '—'}
                           </p>
                         </td>
-                        <td className="px-3 py-4 align-top text-sm text-slate-600">
+                        <td className="px-3 py-2.5 align-top text-sm text-slate-600">
                           {log.user_id ?? 'Hệ thống'}
                         </td>
-                        <td className="px-3 py-4 align-top">
+                        <td className="px-3 py-2.5 align-top">
                           <span
                             className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusTone(
                               log.status,
@@ -762,7 +762,7 @@ export default function AdminAuditSection() {
                             {statusLabel(log.status)}
                           </span>
                         </td>
-                        <td className="rounded-r-2xl px-3 py-4 align-top text-sm text-slate-600">
+                        <td className="rounded-r-2xl px-3 py-2.5 align-top text-sm text-slate-600">
                           {formatTimestamp(log.created_at)}
                         </td>
                       </tr>
@@ -774,7 +774,7 @@ export default function AdminAuditSection() {
         </div>
 
         <aside
-          className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4"
+          className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4 max-h-[500px] overflow-y-auto"
           data-testid="audit-detail-panel"
         >
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">

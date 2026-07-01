@@ -20,7 +20,7 @@ type AlertStatusFilter = 'all' | SecurityAlertEntry['status']
 const LIMIT_OPTIONS = [25, 50, 100, 200]
 
 function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return 'Chua co'
+  if (!value) return 'Chưa có'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('vi-VN')
@@ -29,13 +29,13 @@ function formatTimestamp(value: string | null | undefined): string {
 function severityLabel(severity: SecurityAlertEntry['severity']): string {
   switch (severity) {
     case 'low':
-      return 'Low'
+      return 'Thấp'
     case 'medium':
-      return 'Medium'
+      return 'Trung bình'
     case 'high':
-      return 'High'
+      return 'Cao'
     case 'critical':
-      return 'Critical'
+      return 'Khẩn cấp'
     default:
       return severity
   }
@@ -59,11 +59,11 @@ function severityTone(severity: SecurityAlertEntry['severity']): string {
 function statusLabel(status: SecurityAlertEntry['status']): string {
   switch (status) {
     case 'open':
-      return 'Open'
+      return 'Mới phát hiện'
     case 'acknowledged':
-      return 'Acknowledged'
+      return 'Đang theo dõi'
     case 'resolved':
-      return 'Resolved'
+      return 'Đã xử lý'
     default:
       return status
   }
@@ -83,28 +83,74 @@ function statusTone(status: SecurityAlertEntry['status']): string {
 }
 
 function autoActionLabel(alert: SecurityAlertEntry): string {
-  if (!alert.auto_action) return 'Chua co'
-  const action = alert.auto_action
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-  return `${action} / ${alert.auto_action_status}`
+  if (!alert.auto_action) return 'Chưa có'
+
+  const actionLabels: Record<string, string> = {
+    revoke_session: 'Thu hồi phiên',
+    revoke_all_sessions: 'Thu hồi tất cả phiên',
+    temporary_lock_account: 'Tạm khóa tài khoản',
+    lock_account: 'Khóa tài khoản',
+  }
+
+  const statusLabels: Record<string, string> = {
+    applied: 'đã áp dụng',
+    skipped: 'bỏ qua',
+    failed: 'thất bại',
+  }
+
+  const action = actionLabels[alert.auto_action] ?? alert.auto_action
+  const status = statusLabels[alert.auto_action_status] ?? alert.auto_action_status
+  return `${action} · ${status}`
 }
 
 function humanizeRuleCode(ruleCode: string): string {
   const labels: Record<string, string> = {
-    'auth.login_failed_burst': 'Nhieu lan dang nhap that bai',
-    'gateway.revoked_token_reuse': 'Token da revoke van bi dung lai',
-    'gateway.network_policy_blocked': 'Bi chan boi network policy',
-    'gateway.rate_limit_hit': 'Hit rate limit tai gateway',
-    'gateway.denied_burst': 'Nhieu lan 401/403 tu cung user/IP',
-    'gateway.privileged_probe': 'User thuong co goi endpoint admin/ETL',
+    'auth.login_failed_burst': 'Nhiều lần đăng nhập thất bại',
+    'gateway.revoked_token_reuse': 'Token đã thu hồi vẫn bị dùng lại',
+    'gateway.network_policy_blocked': 'Bị chặn bởi chính sách mạng',
+    'gateway.rate_limit_hit': 'Gửi quá nhiều yêu cầu trong thời gian ngắn',
+    'gateway.denied_burst': 'Nhiều lần bị từ chối truy cập',
+    'gateway.privileged_probe': 'Thử truy cập API quản trị hoặc ETL',
   }
   return labels[ruleCode] ?? ruleCode
 }
 
+function friendlyAlertSummary(alert: SecurityAlertEntry): string {
+  const labels: Record<string, string> = {
+    'auth.login_failed_burst':
+      'Hệ thống phát hiện nhiều lần đăng nhập thất bại liên tiếp trong thời gian ngắn.',
+    'gateway.revoked_token_reuse':
+      'Một token đã bị thu hồi vẫn tiếp tục được dùng để gọi hệ thống.',
+    'gateway.network_policy_blocked':
+      'Yêu cầu bị chặn vì không phù hợp với chính sách mạng hoặc vùng truy cập cho phép.',
+    'gateway.rate_limit_hit':
+      'Một nguồn đang gửi quá nhiều yêu cầu trong thời gian ngắn.',
+    'gateway.denied_burst':
+      'Cùng một người dùng hoặc địa chỉ IP liên tục bị từ chối truy cập.',
+    'gateway.privileged_probe':
+      'Có dấu hiệu thử truy cập API quản trị hoặc ETL không đúng quyền.',
+  }
+
+  return labels[alert.rule_code] ?? alert.summary
+}
+
+function resourceTypeLabel(value: string | null | undefined): string {
+  if (!value) return 'Chưa xác định'
+
+  const labels: Record<string, string> = {
+    gateway: 'API Gateway',
+    etl: 'ETL Sync',
+    rag: 'RAG Engine',
+    audit: 'Nhật ký kiểm toán',
+    auth: 'Xác thực',
+    user: 'Người dùng',
+  }
+
+  return labels[value] ?? value
+}
+
 function prettifyValue(value: unknown): string {
-  if (value == null) return 'Khong co'
+  if (value == null) return 'Không có'
   if (typeof value === 'string') return value
   try {
     return JSON.stringify(value, null, 2)
@@ -172,7 +218,7 @@ export default function AdminSecurityAlertsSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong tai duoc security alerts.',
+          : 'Không tải được cảnh báo bảo mật.',
       )
     })
   }, [])
@@ -186,7 +232,7 @@ export default function AdminSecurityAlertsSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong loc duoc security alerts.',
+          : 'Không lọc được cảnh báo bảo mật.',
       )
     }
   }
@@ -210,7 +256,7 @@ export default function AdminSecurityAlertsSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong tai lai duoc security alerts.',
+          : 'Không tải lại được cảnh báo bảo mật.',
       )
     }
   }
@@ -224,7 +270,7 @@ export default function AdminSecurityAlertsSection() {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong tai lai duoc security alerts.',
+          : 'Không tải lại được cảnh báo bảo mật.',
       )
     }
   }
@@ -241,12 +287,14 @@ export default function AdminSecurityAlertsSection() {
       )
       setSelectedId(updated.id)
       setSelectedAlert(updated)
-      setMessage(`Da cap nhat alert #${updated.id} sang trang thai ${statusLabel(status)}.`)
+      setMessage(
+        `Đã cập nhật cảnh báo #${updated.id} sang trạng thái ${statusLabel(status)}.`,
+      )
     } catch (nextError) {
       setError(
         nextError instanceof Error
           ? nextError.message
-          : 'Khong cap nhat duoc trang thai security alert.',
+          : 'Không cập nhật được trạng thái cảnh báo.',
       )
     } finally {
       setUpdatingStatus(null)
@@ -271,12 +319,8 @@ export default function AdminSecurityAlertsSection() {
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
             <ShieldAlert className="text-red-600" size={18} />
-            Security Alerts
+            Cảnh báo bảo mật
           </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Tach rieng cac hanh vi dang ngo khoi audit log tho de admin theo doi,
-            acknowledge va resolve nhanh hon.
-          </p>
         </div>
 
         <button
@@ -285,7 +329,7 @@ export default function AdminSecurityAlertsSection() {
           className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-white"
         >
           <RefreshCw size={15} />
-          Tai lai alerts
+          Tải lại cảnh báo
         </button>
       </div>
 
@@ -309,47 +353,38 @@ export default function AdminSecurityAlertsSection() {
       <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Alert dang hien thi
+            Đang hiển thị
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">{loading ? '...' : alerts.length}</p>
-          <p className="mt-2 text-sm text-slate-500">
-            Danh sach da ap dung bo loc hien tai.
-          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Dang mo
+            Cần theo dõi
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
             {loading ? '...' : openCount}
           </p>
-          <p className="mt-2 text-sm text-slate-500">
-            Cac alert chua duoc acknowledge hoac resolve.
-          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            High / Critical
+            Mức cao / khẩn
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
             {loading ? '...' : escalatedCount}
           </p>
-          <p className="mt-2 text-sm text-slate-500">
-            Nhung alert can admin review uu tien.
-          </p>
         </div>
 
         <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
           <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-            Auto action da ap dung
+            Đã tự xử lý
           </p>
           <p className="mt-2 text-2xl font-bold text-slate-800">
             {loading ? '...' : autoActionCount}
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            Cap nhat moi nhat {loading ? '...' : formatTimestamp(latestSeen)}.
+            {loading ? '...' : formatTimestamp(latestSeen)}
           </p>
         </div>
       </div>
@@ -358,7 +393,7 @@ export default function AdminSecurityAlertsSection() {
         <div className="grid gap-3 lg:grid-cols-[repeat(5,minmax(0,1fr))_auto]">
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Severity
+              Mức độ
             </label>
             <select
               value={severityFilter}
@@ -367,17 +402,17 @@ export default function AdminSecurityAlertsSection() {
               }
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             >
-              <option value="all">Tat ca severity</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
+              <option value="all">Tất cả mức độ</option>
+              <option value="low">Thấp</option>
+              <option value="medium">Trung bình</option>
+              <option value="high">Cao</option>
+              <option value="critical">Khẩn cấp</option>
             </select>
           </div>
 
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Status
+              Trạng thái
             </label>
             <select
               value={statusFilter}
@@ -386,45 +421,45 @@ export default function AdminSecurityAlertsSection() {
               }
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             >
-              <option value="all">Tat ca status</option>
-              <option value="open">Open</option>
-              <option value="acknowledged">Acknowledged</option>
-              <option value="resolved">Resolved</option>
+              <option value="all">Tất cả trạng thái</option>
+              <option value="open">Mới phát hiện</option>
+              <option value="acknowledged">Đang theo dõi</option>
+              <option value="resolved">Đã xử lý</option>
             </select>
           </div>
 
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Rule code
+              Loại cảnh báo
             </label>
             <input
               value={ruleCodeFilter}
               onChange={(event) => setRuleCodeFilter(event.target.value)}
-              placeholder="Vi du: gateway.denied_burst"
+              placeholder="Ví dụ: truy cập API quản trị"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             />
           </div>
 
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              User ID
+              Mã người dùng
             </label>
             <input
               value={userIdFilter}
               onChange={(event) => setUserIdFilter(event.target.value)}
-              placeholder="Vi du: USR001"
+              placeholder="Ví dụ: USR001"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             />
           </div>
 
           <div>
             <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-              Resource type
+              Dịch vụ
             </label>
             <input
               value={resourceTypeFilter}
               onChange={(event) => setResourceTypeFilter(event.target.value)}
-              placeholder="Vi du: etl, gateway"
+              placeholder="Ví dụ: etl, gateway"
               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-50"
             />
           </div>
@@ -432,7 +467,7 @@ export default function AdminSecurityAlertsSection() {
           <div className="flex flex-wrap items-end gap-2">
             <div>
               <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-slate-400">
-                So dong
+                Số dòng
               </label>
               <select
                 value={String(limitFilter)}
@@ -451,14 +486,14 @@ export default function AdminSecurityAlertsSection() {
               onClick={() => void applyFilters()}
               className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
-              Ap dung
+              Áp dụng
             </button>
             <button
               type="button"
               onClick={() => void resetFilters()}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
             >
-              Dat lai
+              Đặt lại
             </button>
           </div>
         </div>
@@ -470,12 +505,12 @@ export default function AdminSecurityAlertsSection() {
             <table className="min-w-full border-separate border-spacing-y-2 p-3">
               <thead>
                 <tr className="text-left text-xs font-bold uppercase tracking-wide text-slate-400">
-                  <th className="px-3">Severity</th>
-                  <th className="px-3">Alert</th>
-                  <th className="px-3">User / IP</th>
-                  <th className="px-3">Status</th>
-                  <th className="px-3">Event count</th>
-                  <th className="px-3">Last seen</th>
+                  <th className="px-3">Mức độ</th>
+                  <th className="px-3">Cảnh báo</th>
+                  <th className="px-3">Người dùng / IP</th>
+                  <th className="px-3">Trạng thái</th>
+                  <th className="px-3">Số lần ghi nhận</th>
+                  <th className="px-3">Lần gần nhất</th>
                 </tr>
               </thead>
               <tbody>
@@ -485,7 +520,7 @@ export default function AdminSecurityAlertsSection() {
                       colSpan={6}
                       className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500"
                     >
-                      Dang tai security alerts...
+                      Đang tải cảnh báo bảo mật...
                     </td>
                   </tr>
                 )}
@@ -496,7 +531,7 @@ export default function AdminSecurityAlertsSection() {
                       colSpan={6}
                       className="rounded-2xl bg-white px-4 py-6 text-sm text-slate-500"
                     >
-                      Khong co alert nao khop bo loc hien tai.
+                      Không có cảnh báo nào khớp với bộ lọc hiện tại.
                     </td>
                   </tr>
                 )}
@@ -520,7 +555,7 @@ export default function AdminSecurityAlertsSection() {
                       >
                         <td className="rounded-l-2xl px-3 py-4 align-top">
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${severityTone(
+                            className={`inline-flex whitespace-nowrap rounded-full border px-2 py-1 text-[10px] font-semibold leading-none tracking-normal ${severityTone(
                               alert.severity,
                             )}`}
                           >
@@ -532,22 +567,24 @@ export default function AdminSecurityAlertsSection() {
                             <p className="font-semibold text-slate-800">
                               {humanizeRuleCode(alert.rule_code)}
                             </p>
-                            <p className="text-sm text-slate-500">{alert.summary}</p>
+                            <p className="text-sm text-slate-500">
+                              {friendlyAlertSummary(alert)}
+                            </p>
                           </div>
                         </td>
                         <td className="px-3 py-4 align-top text-sm text-slate-600">
                           <div className="space-y-1">
                             <p className="font-semibold text-slate-800">
-                              {alert.user_id ?? 'Anonymous'}
+                              {alert.user_id ?? 'Chưa xác định'}
                             </p>
                             <p className="font-mono text-xs text-slate-500">
-                              {alert.ip_address ?? 'Khong co IP'}
+                              {alert.ip_address ?? 'Chưa có IP'}
                             </p>
                           </div>
                         </td>
                         <td className="px-3 py-4 align-top">
                           <span
-                            className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusTone(
+                            className={`inline-flex whitespace-nowrap rounded-full border px-2 py-1 text-[10px] font-semibold leading-none tracking-normal ${statusTone(
                               alert.status,
                             )}`}
                           >
@@ -574,13 +611,13 @@ export default function AdminSecurityAlertsSection() {
         >
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
             <Eye className="text-blue-600" size={16} />
-            Chi tiet security alert
+            Chi tiết cảnh báo
           </h3>
 
           {!selectedAlert && (
             <p className="mt-4 text-sm text-slate-500">
-              Chon mot alert o ben trai de xem noi dung, auto action va payload ky
-              thuat.
+              Chọn một cảnh báo ở bên trái để xem nguyên nhân, ai bị ảnh hưởng và
+              hệ thống đã xử lý gì.
             </p>
           )}
 
@@ -588,30 +625,30 @@ export default function AdminSecurityAlertsSection() {
             <div className="mt-4 space-y-4">
               <dl className="grid gap-3 text-sm">
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Rule / severity</dt>
+                  <dt className="text-slate-500">Loại cảnh báo / mức độ</dt>
                   <dd className="mt-1 font-semibold text-slate-800">
                     {humanizeRuleCode(selectedAlert.rule_code)} ·{' '}
                     {severityLabel(selectedAlert.severity)}
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Trang thai / event count</dt>
+                  <dt className="text-slate-500">Trạng thái / số lần ghi nhận</dt>
                   <dd className="mt-1 font-semibold text-slate-800">
-                    {statusLabel(selectedAlert.status)} · {selectedAlert.event_count} lan
+                    {statusLabel(selectedAlert.status)} · {selectedAlert.event_count} lần
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">User / session / IP</dt>
+                  <dt className="text-slate-500">Người dùng / phiên / IP</dt>
                   <dd className="mt-1 text-slate-800">
-                    {selectedAlert.user_id ?? 'Anonymous'}
+                    {selectedAlert.user_id ?? 'Chưa xác định'}
                     {selectedAlert.session_id
-                      ? ` · session ${selectedAlert.session_id}`
+                      ? ` · phiên ${selectedAlert.session_id}`
                       : ''}
                     {selectedAlert.ip_address ? ` · ${selectedAlert.ip_address}` : ''}
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Auto action</dt>
+                  <dt className="text-slate-500">Hệ thống tự xử lý</dt>
                   <dd className="mt-1 text-slate-800">
                     {autoActionLabel(selectedAlert)}
                     {selectedAlert.auto_action_note ? (
@@ -622,8 +659,10 @@ export default function AdminSecurityAlertsSection() {
                   </dd>
                 </div>
                 <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                  <dt className="text-slate-500">Tom tat</dt>
-                  <dd className="mt-1 text-slate-800">{selectedAlert.summary}</dd>
+                  <dt className="text-slate-500">Tóm tắt dễ hiểu</dt>
+                  <dd className="mt-1 text-slate-800">
+                    {friendlyAlertSummary(selectedAlert)}
+                  </dd>
                 </div>
               </dl>
 
@@ -637,8 +676,8 @@ export default function AdminSecurityAlertsSection() {
                       className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {updatingStatus === 'acknowledged'
-                        ? 'Dang acknowledge...'
-                        : 'Acknowledge'}
+                        ? 'Đang cập nhật...'
+                        : 'Đánh dấu đang theo dõi'}
                     </button>
                   )}
                 {selectedAlert.status !== 'resolved' && (
@@ -648,7 +687,9 @@ export default function AdminSecurityAlertsSection() {
                     disabled={updatingStatus !== null}
                     className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
                   >
-                    {updatingStatus === 'resolved' ? 'Dang resolve...' : 'Resolve'}
+                    {updatingStatus === 'resolved'
+                      ? 'Đang cập nhật...'
+                      : 'Đánh dấu đã xử lý'}
                   </button>
                 )}
                 {selectedAlert.status !== 'open' && (
@@ -658,31 +699,33 @@ export default function AdminSecurityAlertsSection() {
                     disabled={updatingStatus !== null}
                     className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {updatingStatus === 'open' ? 'Dang reopen...' : 'Reopen'}
+                    {updatingStatus === 'open'
+                      ? 'Đang cập nhật...'
+                      : 'Mở lại cảnh báo'}
                   </button>
                 )}
               </div>
 
               <AdminTechnicalDetails
                 testId="security-alert-technical"
-                description="Bao gom rule code goc, path/method, resource, actor acknowledge/resolve va payload JSON phuc vu dieu tra sau su co."
+                description="Bao gồm mã quy tắc gốc, đường dẫn gọi API, tài nguyên bị tác động và dữ liệu JSON phục vụ kiểm tra sâu."
               >
                 <div className="space-y-4">
                   <dl className="grid gap-3 text-sm md:grid-cols-2">
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <dt className="text-slate-500">Rule code</dt>
+                      <dt className="text-slate-500">Mã quy tắc gốc</dt>
                       <dd className="mt-1 font-semibold text-slate-800">
                         {selectedAlert.rule_code}
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <dt className="text-slate-500">Fingerprint</dt>
+                      <dt className="text-slate-500">Dấu vân tay sự cố</dt>
                       <dd className="mt-1 font-mono text-xs font-semibold text-slate-800">
                         {selectedAlert.fingerprint}
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <dt className="text-slate-500">HTTP method / path</dt>
+                      <dt className="text-slate-500">Phương thức / đường dẫn</dt>
                       <dd className="mt-1 text-slate-800">
                         {selectedAlert.http_method ?? 'N/A'} ·{' '}
                         <span className="font-mono text-xs">
@@ -691,23 +734,23 @@ export default function AdminSecurityAlertsSection() {
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <dt className="text-slate-500">Resource</dt>
+                      <dt className="text-slate-500">Dịch vụ / tài nguyên</dt>
                       <dd className="mt-1 text-slate-800">
-                        {selectedAlert.resource_type ?? 'N/A'}
+                        {resourceTypeLabel(selectedAlert.resource_type)}
                         {selectedAlert.resource_id
                           ? ` · ${selectedAlert.resource_id}`
                           : ''}
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <dt className="text-slate-500">First / last seen</dt>
+                      <dt className="text-slate-500">Lần đầu / lần gần nhất</dt>
                       <dd className="mt-1 text-slate-800">
                         {formatTimestamp(selectedAlert.first_seen_at)} ·{' '}
                         {formatTimestamp(selectedAlert.last_seen_at)}
                       </dd>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <dt className="text-slate-500">Ack / resolved by</dt>
+                      <dt className="text-slate-500">Người xác nhận / người xử lý</dt>
                       <dd className="mt-1 text-slate-800">
                         {selectedAlert.acknowledged_by ?? 'N/A'} ·{' '}
                         {selectedAlert.resolved_by ?? 'N/A'}
@@ -717,7 +760,7 @@ export default function AdminSecurityAlertsSection() {
 
                   <div className="rounded-xl border border-slate-200 bg-slate-950 p-4">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-                      Payload
+                      Dữ liệu kỹ thuật
                     </p>
                     <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-100">
                       {prettifyValue(selectedAlert.payload)}
