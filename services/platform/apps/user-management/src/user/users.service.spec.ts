@@ -96,7 +96,7 @@ describe('UsersService', () => {
       'login:locked:student01',
     ])
 
-    const accounts = await service.listManagedAccounts({ limit: 2 })
+    const { items: accounts } = await service.listManagedAccounts({ limit: 2 })
     const adminAccount = accounts.find((account) => account.username === 'admin')
     const studentAccount = accounts.find((account) => account.username === 'student01')
 

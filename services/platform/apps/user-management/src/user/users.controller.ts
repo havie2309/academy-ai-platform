@@ -138,6 +138,7 @@ export class UsersController {
     @Query('status') status?: string,
     @Query('role') role?: string,
     @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
     this.assertAdmin(req.user.roles)
 
@@ -151,11 +152,17 @@ export class UsersController {
       throw new BadRequestException('Giới hạn bản ghi không hợp lệ.')
     }
 
+    const parsedOffset = offset ? Number(offset) : 0
+    if (!Number.isFinite(parsedOffset) || parsedOffset < 0) {
+      throw new BadRequestException('Offset không hợp lệ.')
+    }
+
     return this.users.listManagedAccounts({
       search,
       status: normalizedStatus as 'active' | 'inactive' | 'locked' | undefined,
       role,
       limit: parsedLimit,
+      offset: parsedOffset,
     })
   }
 
