@@ -119,6 +119,45 @@ export interface SecurityAlertFilters {
   limit?: number
 }
 
+export type ServiceLogLevel = 'debug' | 'info' | 'warn' | 'error' | 'unknown'
+export type ServiceLogStream = 'stdout' | 'stderr' | 'combined'
+
+export interface ServiceLogEntry {
+  id: string
+  service: string
+  service_label: string
+  level: ServiceLogLevel
+  timestamp: string | null
+  message: string
+  raw: string
+  file_name: string
+  file_path: string
+  stream: ServiceLogStream
+}
+
+export interface ServiceLogServiceMeta {
+  key: string
+  label: string
+  available: boolean
+  file_count: number
+  last_updated_at: string | null
+}
+
+export interface ServiceLogsResponse {
+  generated_at: string
+  services: ServiceLogServiceMeta[]
+  entries: ServiceLogEntry[]
+}
+
+export interface ServiceLogFilters {
+  service?: string
+  level?: string
+  from?: string
+  to?: string
+  search?: string
+  limit?: number
+}
+
 export interface AdminOpsOverview {
   generated_at: string
   quota_policy: {
@@ -231,6 +270,17 @@ function toAccountSearchParams(filters: ManagedAccountFilters): URLSearchParams 
   return params
 }
 
+function toServiceLogSearchParams(filters: ServiceLogFilters): URLSearchParams {
+  const params = new URLSearchParams()
+  if (filters.service?.trim()) params.set('service', filters.service.trim())
+  if (filters.level?.trim()) params.set('level', filters.level.trim())
+  if (filters.from?.trim()) params.set('from', filters.from.trim())
+  if (filters.to?.trim()) params.set('to', filters.to.trim())
+  if (filters.search?.trim()) params.set('search', filters.search.trim())
+  if (filters.limit) params.set('limit', String(filters.limit))
+  return params
+}
+
 async function parseError(res: Response): Promise<string> {
   const body = await res.json().catch(() => ({}))
   const message = (body as { message?: string | string[] }).message
@@ -289,6 +339,18 @@ export const adminApi = {
       headers: { Accept: 'application/json' },
     })
     if (res.status === 404) return null
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
+
+  async getServiceLogs(
+    filters: ServiceLogFilters = {},
+  ): Promise<ServiceLogsResponse> {
+    const params = toServiceLogSearchParams(filters)
+    const suffix = params.toString() ? `?${params.toString()}` : ''
+    const res = await fetchWithAuth(`/api/audit/service-logs${suffix}`, {
+      headers: { Accept: 'application/json' },
+    })
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },

@@ -14,6 +14,7 @@ describe('AuditController', () => {
           useValue: {
             listLogs: jest.fn(),
             getLog: jest.fn(),
+            listServiceLogs: jest.fn(),
             listSecurityAlerts: jest.fn(),
             getSecurityAlert: jest.fn(),
             updateSecurityAlertStatus: jest.fn(),

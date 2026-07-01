@@ -7,8 +7,8 @@ import unicodedata
 from datetime import datetime
 
 import asyncpg
-import httpx
 import numpy as np
+from ai_clients import create_embeddings
 
 from app.config import (
     ADMIN_CONFIG_CACHE_TTL_SECONDS,
@@ -126,13 +126,13 @@ _EMBED_LOCK = asyncio.Lock()
 
 
 async def _embed_text(text: str) -> list[float]:
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        res = await client.post(
-            f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
-            json={"input": text},
+    return (
+        await create_embeddings(
+            base_url=EMBEDDING_BASE_URL,
+            inputs=[text],
+            timeout=10.0,
         )
-        res.raise_for_status()
-        return res.json()["data"][0]["embedding"]
+    )[0]
 
 
 def _cosine_sim(a: list[float], b: list[float]) -> float:

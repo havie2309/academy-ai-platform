@@ -3,6 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+$runner = Join-Path $root 'scripts\run-with-log.ps1'
 
 # Resolve a working Python launcher. The RAG requirements pin old wheels
 # (numpy 1.26.4, fastembed 0.4.2, pymilvus 2.4.0, pymupdf 1.24.2) that only
@@ -38,10 +39,22 @@ function Start-RagService {
     # succeeding (it can be blocked by execution policy) - both of which silently
     # skip the install and leave the server unable to start.
     $venvPy = ".\.venv\Scripts\python.exe"
+    $serviceCommand =
+        "if (-not (Test-Path .venv)) { $python -m venv .venv }; " +
+        "& $venvPy -m pip install --upgrade pip; " +
+        "& $venvPy -m pip install -r requirements.txt; " +
+        "& $venvPy -m uvicorn main:app --host 0.0.0.0 --port $Port"
     Start-Process powershell -ArgumentList @(
         "-NoExit",
+        "-File",
+        $runner,
+        "-Name",
+        $Name,
+        "-WorkingDirectory",
+        $Dir,
         "-Command",
-        "cd '$Dir'; if (-not (Test-Path .venv)) { $python -m venv .venv }; & $venvPy -m pip install --upgrade pip; & $venvPy -m pip install -r requirements.txt; & $venvPy -m uvicorn main:app --host 0.0.0.0 --port $Port"
+        $serviceCommand,
+        "-KeepOpen"
     )
 }
 

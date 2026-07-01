@@ -5,12 +5,21 @@ from __future__ import annotations
 import re
 
 import httpx
+from ai_clients import (
+    AIClientError,
+    create_chat_completion,
+    extract_message_content,
+    resolve_chat_target,
+)
 
 from app.config import (
     LLM_TIMEOUT,
     OPENAI_API_KEY,
     SQL_FEW_SHOT_ENABLED,
     SQL_LLM_BASE_URL,
+    SQL_LLM_FALLBACK_BASE_URL,
+    SQL_LLM_FALLBACK_MODEL,
+    SQL_LLM_FALLBACK_PROVIDER,
     SQL_LLM_MODEL,
     SQL_LLM_PROVIDER,
     SQL_OPENAI_MODEL,
@@ -108,4 +117,74 @@ async def generate_sql(question: str) -> str:
     content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
     if not content or not content.strip():
         raise LlmError("LLM trả về rỗng khi sinh SQL.")
+    return _extract_sql(content)
+
+
+def _sql_llm_target() -> tuple[str, str, dict[str, str]]:
+    """Resolve dedicated LLM target for SQL generation."""
+    target = _resolve_sql_target()
+    return (target.url, target.model, target.headers)
+
+
+def _resolve_sql_target():
+    try:
+        return resolve_chat_target(
+            provider=SQL_LLM_PROVIDER,
+            base_url=SQL_LLM_BASE_URL,
+            model=SQL_LLM_MODEL,
+            openai_api_key=OPENAI_API_KEY,
+            openai_model=SQL_OPENAI_MODEL,
+        )
+    except ValueError as exc:
+        raise LlmError(str(exc)) from exc
+
+
+def _sql_fallback_targets():
+    has_fallback = bool(
+        SQL_LLM_FALLBACK_PROVIDER
+        or SQL_LLM_FALLBACK_BASE_URL
+        or SQL_LLM_FALLBACK_MODEL
+    )
+    if not has_fallback:
+        return []
+
+    provider = SQL_LLM_FALLBACK_PROVIDER or (
+        "ollama" if SQL_LLM_FALLBACK_BASE_URL else "openai"
+    )
+    model = SQL_LLM_FALLBACK_MODEL or (
+        SQL_OPENAI_MODEL if provider == "openai" else SQL_LLM_MODEL
+    )
+    try:
+        fallback = resolve_chat_target(
+            provider=provider,
+            base_url=SQL_LLM_FALLBACK_BASE_URL,
+            model=model,
+            openai_api_key=OPENAI_API_KEY,
+            openai_model=model,
+        )
+    except ValueError as exc:
+        raise LlmError(str(exc)) from exc
+
+    primary = _resolve_sql_target()
+    if (fallback.url, fallback.model) == (primary.url, primary.model):
+        return []
+    return [fallback]
+
+
+async def generate_sql(question: str) -> str:
+    target = _resolve_sql_target()
+    messages = build_sql_messages(question)
+    try:
+        data = await create_chat_completion(
+            target,
+            messages,
+            temperature=0.1,
+            timeout=LLM_TIMEOUT,
+            fallback_targets=_sql_fallback_targets(),
+        )
+    except (AIClientError, httpx.HTTPError) as exc:
+        raise LlmError(str(exc)) from exc
+    content = extract_message_content(data)
+    if not content or not content.strip():
+        raise LlmError("LLM tra ve rong khi sinh SQL.")
     return _extract_sql(content)

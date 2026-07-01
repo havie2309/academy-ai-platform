@@ -1,6 +1,10 @@
 import { JwtService } from '@nestjs/jwt'
 import type { Response } from 'express'
 import {
+  extractFormattedBearerJwt,
+  isWellFormedJwtCompactToken,
+} from '../../../src/common/jwt-token-format'
+import {
   attachGatewayUserHeaders,
   createGatewayAuthMiddleware,
   isProtectedPath,
@@ -111,6 +115,43 @@ describe('gateway-auth', () => {
     expect(next).not.toHaveBeenCalled()
     expect(res.status).toHaveBeenCalledWith(401)
     expect(res.json).toHaveBeenCalled()
+  })
+
+  it('rejects malformed bearer tokens before revocation lookup', async () => {
+    const revocations = {
+      isAccessTokenRevoked: jest.fn().mockResolvedValue(false),
+    }
+    const middleware = createGatewayAuthMiddleware('spec-secret', revocations)
+    const req = {
+      method: 'GET',
+      path: '/api/chat/sessions',
+      headers: { authorization: 'Bearer definitely-not-a-jwt' },
+    } as GatewayRequest
+    const res = mockResponse()
+    const next = jest.fn()
+
+    await middleware(req, res, next)
+
+    expect(next).not.toHaveBeenCalled()
+    expect(revocations.isAccessTokenRevoked).not.toHaveBeenCalled()
+    expect(res.status).toHaveBeenCalledWith(401)
+  })
+
+  it('extracts only well-formed compact JWT bearer tokens', () => {
+    const validToken = new JwtService({ secret: 'spec-secret' }).sign({
+      sub: 'u1',
+      username: 'tester',
+      roles: ['Admin'],
+    })
+
+    expect(
+      extractFormattedBearerJwt({
+        headers: { authorization: `Bearer ${validToken}` },
+      } as GatewayRequest),
+    ).toBe(validToken)
+    expect(isWellFormedJwtCompactToken(validToken)).toBe(true)
+    expect(isWellFormedJwtCompactToken('not-a-jwt')).toBe(false)
+    expect(isWellFormedJwtCompactToken('a.b')).toBe(false)
   })
 
   it('forwards normalized scope headers for downstream services', () => {

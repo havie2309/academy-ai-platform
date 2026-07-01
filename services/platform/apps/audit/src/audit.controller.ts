@@ -65,6 +65,23 @@ export class AuditController {
     return this.audit.listSecurityAlerts(req.user, query)
   }
 
+  @Get('service-logs')
+  @UseGuards(AuthGuard('jwt'))
+  listServiceLogs(
+    @Req() req: { user: AuthUser },
+    @Query()
+    query: {
+      service?: string
+      level?: string
+      from?: string
+      to?: string
+      search?: string
+      limit?: string
+    },
+  ) {
+    return this.audit.listServiceLogs(req.user, query)
+  }
+
   @Get('security-alerts/:id')
   @UseGuards(AuthGuard('jwt'))
   getSecurityAlert(@Req() req: { user: AuthUser }, @Param('id') id: string) {

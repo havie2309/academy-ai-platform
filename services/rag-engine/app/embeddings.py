@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import httpx
+from ai_clients import create_embeddings
 
 from app.cache import RedisCache
 from app.config import EMBEDDING_BASE_URL
@@ -14,13 +14,13 @@ async def embed_query(text: str, *, use_cache: bool = True) -> list[float]:
         if cached is not None:
             return cached
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        response = await client.post(
-            f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
-            json={"input": text},
+    embedding = (
+        await create_embeddings(
+            base_url=EMBEDDING_BASE_URL,
+            inputs=[text],
+            timeout=60.0,
         )
-        response.raise_for_status()
-        embedding = response.json()["data"][0]["embedding"]
+    )[0]
 
     if use_cache:
         cache.set_embedding(text, embedding)

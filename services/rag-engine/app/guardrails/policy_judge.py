@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
+from ai_clients import AIClientError, create_chat_completion, extract_message_content
 
 from app.config import (
     GUARDRAIL_HEURISTIC_POLICY_ENABLED,
@@ -14,7 +15,12 @@ from app.config import (
     GUARDRAIL_LLM_TIMEOUT_SECONDS,
     LLM_TIMEOUT,
 )
-from app.generate import LlmError, _extract_json_object, _llm_target
+from app.generate import (
+    LlmError,
+    _extract_json_object,
+    _llm_fallback_targets,
+    _resolve_llm_target,
+)
 from app.guardrails.normalize import fold_text, normalize_rules
 from app.guardrails.sensitive_signals import (
     CREDENTIAL_SIGNALS,
@@ -298,3 +304,49 @@ async def match_policy_review(
 
     judgment = await judge_policy(query, normalized, user, judge_fn=judge_fn)
     return judgment_to_match_result(judgment)
+
+
+async def complete_llm_policy_judge(
+    query: str,
+    rules: list[GuardrailRule],
+    user: dict | None = None,
+) -> dict[str, Any]:
+    target = _resolve_llm_target()
+    roles = ", ".join((user or {}).get("roles") or []) or "unknown"
+    rules_summary = [
+        {
+            "id": rule.id,
+            "label": rule.label,
+            "phrases": rule.phrases[:8],
+            "synonyms": rule.synonyms[:8],
+        }
+        for rule in rules
+        if rule.enabled
+    ]
+    user_prompt = json.dumps(
+        {
+            "query": query,
+            "user_roles": roles,
+            "guardrail_rules": rules_summary,
+        },
+        ensure_ascii=False,
+    )
+    timeout = min(GUARDRAIL_LLM_TIMEOUT_SECONDS, LLM_TIMEOUT)
+    try:
+        data = await create_chat_completion(
+            target,
+            [
+                {"role": "system", "content": POLICY_JUDGE_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.0,
+            timeout=timeout,
+            fallback_targets=_llm_fallback_targets(),
+        )
+    except (AIClientError, httpx.HTTPError) as exc:
+        raise LlmError(str(exc)) from exc
+    content = extract_message_content(data)
+    parsed = _extract_json_object(str(content or ""))
+    if not parsed:
+        raise LlmError("Policy LLM khong tra ve JSON hop le")
+    return _normalize_judgment(parsed)

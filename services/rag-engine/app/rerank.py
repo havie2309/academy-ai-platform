@@ -2,7 +2,7 @@
 
 import logging
 
-import httpx
+from ai_clients import rerank_documents
 
 from app.config import (
     RAG_CONTEXT_MAX_CHARS,
@@ -88,13 +88,12 @@ async def rerank_citations(query: str, citations: list[dict]) -> list[dict]:
         return citations[:RERANK_TOP_K]
 
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            res = await client.post(
-                f"{RERANK_BASE_URL.rstrip('/')}/v1/rerank",
-                json={"query": query, "documents": documents},
-            )
-            res.raise_for_status()
-            results = res.json().get("results", [])
+        results = await rerank_documents(
+            base_url=RERANK_BASE_URL,
+            query=query,
+            documents=documents,
+            timeout=60.0,
+        )
     except Exception as exc:
         logger.warning("rerank unavailable, using vector order: %s", exc)
         return citations[:RERANK_TOP_K]

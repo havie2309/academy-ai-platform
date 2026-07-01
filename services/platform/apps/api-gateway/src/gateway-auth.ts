@@ -4,6 +4,7 @@ import {
   resolveAccessScope,
   type AccessScope,
 } from '../../../src/common/access-scope'
+import { extractFormattedBearerJwt } from '../../../src/common/jwt-token-format'
 import { SecurityAlertsService } from '../../../src/common/security-alerts.service'
 import { normalizeRequestPath, resolveClientIp } from './request-network'
 
@@ -98,13 +99,6 @@ export function isProtectedPath(pathname: string, method?: string): boolean {
   return PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix))
 }
 
-function readBearerToken(req: Request): string | null {
-  const header = req.headers.authorization
-  if (!header) return null
-  const match = header.match(/^Bearer\s+(.+)$/i)
-  return match?.[1]?.trim() || null
-}
-
 async function toGatewayUser(
   payload: GatewayJwtPayload,
 ): Promise<GatewayUser | null> {
@@ -178,7 +172,7 @@ export function createGatewayAuthMiddleware(
       return
     }
 
-    const token = readBearerToken(req)
+    const token = extractFormattedBearerJwt(req)
 
     // 1. If a token is provided, try to validate it
     if (token) {
