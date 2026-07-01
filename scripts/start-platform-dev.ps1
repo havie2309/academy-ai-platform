@@ -14,17 +14,23 @@ function Start-NestApp {
         [int]$Port
     )
     Write-Host "Starting $Name on :$Port ..."
+    $command = "npx nest start $Name --watch"
+    $encodedCommand = [Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($command)
+    )
     Start-Process powershell -ArgumentList @(
         '-NoExit',
+        '-ExecutionPolicy',
+        'Bypass',
         '-File',
         $runner,
         '-Name',
         $Name,
         '-WorkingDirectory',
         $platform,
-        '-Command',
-        "npx nest start $Name --watch",
-        '-KeepOpen'
+        '-KeepOpen',
+        '-EncodedCommand',
+        $encodedCommand
     )
     Start-Sleep -Seconds 2
 }

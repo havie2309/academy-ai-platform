@@ -62,6 +62,8 @@ interface ParsedServiceLogEntry extends ServiceLogEntry {
   sort_timestamp_ms: number
   file_mtime_ms: number
   line_index: number
+  continuation_candidate: boolean
+  wrapped_level_only: boolean
 }
 
 export const SERVICE_LOG_CATALOG: ServiceLogCatalogEntry[] = [
@@ -163,6 +165,51 @@ function normalizeLogLevel(
   return stream === 'stderr' ? 'error' : 'unknown'
 }
 
+function inferLevelFromMessage(message: string): ServiceLogLevel | null {
+  const trimmed = message.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (trimmed === 'System.Management.Automation.RemoteException') {
+    return null
+  }
+  if (/^Fetching \d+ files:/i.test(trimmed)) {
+    return 'info'
+  }
+  if (trimmed.includes('Traceback')) {
+    return 'error'
+  }
+  if (/^(DEBUG|TRACE):\s+/i.test(trimmed)) {
+    return 'debug'
+  }
+  if (/^(INFO|LOG|VERBOSE):\s+/i.test(trimmed)) {
+    return 'info'
+  }
+  if (/^(WARN|WARNING):\s+/i.test(trimmed) || /\b[A-Za-z]+Warning:/i.test(trimmed)) {
+    return 'warn'
+  }
+  if (/^(ERROR|ERR|CRITICAL|FATAL):\s+/i.test(trimmed)) {
+    return 'error'
+  }
+
+  return null
+}
+
+function isIgnorableMessage(message: string): boolean {
+  return message.trim() === 'System.Management.Automation.RemoteException'
+}
+
+function isContinuationCandidate(message: string): boolean {
+  const trimmed = message.trim()
+  return (
+    /^File ".*", line \d+, in /.test(trimmed) ||
+    /^\^+$/.test(trimmed) ||
+    /^from\s+\S+\s+import\s+.+/.test(trimmed) ||
+    /^(return\s+await\s+.+|stmt\s*=.+|statement\s*=.+)$/.test(trimmed)
+  )
+}
+
 function normalizeLevelFilter(rawLevel: string | undefined): ServiceLogLevel | null {
   const trimmed = rawLevel?.trim()
   if (!trimmed) {
@@ -198,6 +245,11 @@ function inferStream(fileName: string): ServiceLogStream {
     return 'stdout'
   }
   return 'combined'
+}
+
+function isScratchLogFile(fileName: string): boolean {
+  const lower = fileName.toLowerCase()
+  return lower.endsWith('.stdout.tmp') || lower.endsWith('.stderr.tmp')
 }
 
 function matchesServiceFile(
@@ -240,6 +292,7 @@ function parseLogLine(
   let timestamp: string | null = null
   let level = normalizeLogLevel(null, file.stream)
   let message = clean
+  let wrappedLevelOnly = false
 
   if (clean.startsWith('{') && clean.endsWith('}')) {
     try {
@@ -275,6 +328,7 @@ function parseLogLine(
       timestamp = parseTimestamp(prefixedMatch.groups.timestamp)
       level = normalizeLogLevel(prefixedMatch.groups.level, file.stream)
       message = prefixedMatch.groups.message.trim() || clean
+      wrappedLevelOnly = true
     }
   }
 
@@ -286,6 +340,7 @@ function parseLogLine(
       timestamp = parseTimestamp(nestMatch.groups.timestamp)
       level = normalizeLogLevel(nestMatch.groups.level, file.stream)
       message = nestMatch.groups.message.trim() || clean
+      wrappedLevelOnly = false
     }
   }
 
@@ -296,10 +351,18 @@ function parseLogLine(
     if (uvicornMatch?.groups) {
       level = normalizeLogLevel(uvicornMatch.groups.level, file.stream)
       message = uvicornMatch.groups.message.trim() || clean
+      wrappedLevelOnly = false
     }
   }
 
-  if (message === clean && clean.includes('Traceback')) {
+  if (isIgnorableMessage(message)) {
+    return null
+  }
+
+  const hintedLevel = inferLevelFromMessage(message)
+  if (hintedLevel) {
+    level = hintedLevel
+  } else if (message === clean && clean.includes('Traceback')) {
     level = 'error'
   }
 
@@ -321,6 +384,8 @@ function parseLogLine(
       : file.mtimeMs,
     file_mtime_ms: file.mtimeMs,
     line_index: lineIndex,
+    continuation_candidate: isContinuationCandidate(message),
+    wrapped_level_only: wrappedLevelOnly,
   }
 }
 
@@ -347,6 +412,7 @@ export function resolveServiceLogRoots(
 ): string[] {
   const repoRoot = path.resolve(cwd, '..', '..')
   const defaults = [
+    path.join(repoRoot, 'runtime-logs'),
     path.join(repoRoot, '.tmp-startlogs'),
     path.join(repoRoot, '.codex', 'app-runtime', 'logs'),
     path.join(repoRoot, '.codex', 'runlogs'),
@@ -397,6 +463,9 @@ export async function readServiceLogs(input: {
       }
 
       const entryName = String(entry.name)
+      if (isScratchLogFile(entryName)) {
+        continue
+      }
 
       for (const service of SERVICE_LOG_CATALOG) {
         if (!matchesServiceFile(entryName, service)) {
@@ -451,6 +520,7 @@ export async function readServiceLogs(input: {
         .split(/\r?\n/)
         .filter((line) => line.trim().length > 0)
         .slice(-DEFAULT_SCAN_LINES)
+      let previousLevel: ServiceLogLevel | null = null
 
       lines.forEach((line, index) => {
         const parsed = parseLogLine(file, line, index)
@@ -458,26 +528,41 @@ export async function readServiceLogs(input: {
           return
         }
 
+        if (
+          parsed.continuation_candidate &&
+          parsed.wrapped_level_only &&
+          previousLevel &&
+          previousLevel !== 'unknown'
+        ) {
+          parsed.level = previousLevel
+        }
+
         if (levelFilter && parsed.level !== levelFilter) {
+          previousLevel = parsed.level
           return
         }
         if (search) {
           const haystack = `${parsed.message} ${parsed.raw} ${parsed.file_name}`.toLowerCase()
           if (!haystack.includes(search)) {
+            previousLevel = parsed.level
             return
           }
         }
         if ((fromMs != null || toMs != null) && parsed.timestamp == null) {
+          previousLevel = parsed.level
           return
         }
         if (fromMs != null && parsed.timestamp != null && Date.parse(parsed.timestamp) < fromMs) {
+          previousLevel = parsed.level
           return
         }
         if (toMs != null && parsed.timestamp != null && Date.parse(parsed.timestamp) > toMs) {
+          previousLevel = parsed.level
           return
         }
 
         parsedEntries.push(parsed)
+        previousLevel = parsed.level
       })
     }
   }
@@ -500,6 +585,8 @@ export async function readServiceLogs(input: {
         sort_timestamp_ms: _sortTimestampMs,
         file_mtime_ms: _fileMtimeMs,
         line_index: _lineIndex,
+        continuation_candidate: _continuationCandidate,
+        wrapped_level_only: _wrappedLevelOnly,
         ...entry
       }) => entry,
     ),
