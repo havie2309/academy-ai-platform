@@ -14,6 +14,8 @@
 - Python 3.12
 - Ollama
 - Git
+- **Tesseract OCR** (kèm `vie` language pack) và **Poppler** — bắt buộc nếu chạy `document-processor` local và muốn OCR file scan.
+  - Hướng dẫn cài đặt chi tiết xem trong `README.md` mục "Cài đặt Tesseract và Poppler".
 
 ### 2.2. Chuẩn bị môi trường
 
@@ -118,6 +120,8 @@ Nếu dùng Mode B:
 | Upload xong nhưng không index | Kiểm tra RabbitMQ, `document-processor`, Milvus |
 | Citation trống | Kiểm tra sample docs đã ingest xong chưa |
 | Refresh/login lỗi | Kiểm tra seed IAM, cookie config, và container/local mode đang dùng |
+| `pdf2image` báo lỗi `Unable to get page count. Is poppler installed and in PATH?` | Poppler chưa được cài hoặc chưa có trong PATH. Tải poppler và thêm thư mục `bin` vào PATH, hoặc cài đặt trong code bằng `pdf2image.config.set_path_to_poppler()`. |
+| `pytesseract` báo lỗi `TesseractNotFoundError` | Tesseract chưa được cài hoặc `tesseract.exe` chưa có trong PATH. Cài Tesseract và đảm bảo chọn gói `Vietnamese (vie)`. |
 
 ## 6. Quy tắc local branch
 

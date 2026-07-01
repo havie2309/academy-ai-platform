@@ -9,8 +9,14 @@
 
 1. Nhận job từ documents API.
 2. Validate metadata bảo mật.
-3. Extract native text trước; fallback OCR khi cần.
-4. Chunk theo parent-child.
+3. Extract native text trước; fallback OCR khi cần:
+   - Ưu tiên: Native text (PyMuPDF cho PDF, python-docx cho DOCX)
+   - Fallback 1: MinerU (nếu được cài đặt và bật)
+   - Fallback 2: **Tesseract OCR** (nhẹ, chạy CPU, hỗ trợ tiếng Việt)
+   - Fallback 3: PaddleOCR (nặng, yêu cầu GPU, hiện đang disabled)
+4. Chunk theo parent-child:
+   - **Parent chunk**: giữ nguyên text (bao gồm Markdown headers) để LLM grounding
+   - **Child chunk**: được làm sạch Markdown syntax (`#`, `**`, `_`, `[link](url)`, ...) để embedding sạch hơn
 5. Embed child chunks.
 6. Upsert metadata vào MongoDB, vector vào Milvus.
 7. Cập nhật `processing_jobs` và `documents`.

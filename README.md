@@ -11,7 +11,22 @@ Kho dữ liệu tập trung và Cổng khai thác trợ lý ảo — on-premise,
 - **Node.js LTS** (≥ 20) + npm — backend NestJS & frontend Vite
 - **[Ollama](https://ollama.com/download)** — chạy LLM `qwen2.5:3b` local
 - **Python 3.12** (chỉ cần cho RAG/embedding sau này)
+- **Tesseract OCR & Poppler** (bắt buộc nếu chạy `document-processor` local để OCR file scan)
+  - **Tesseract** (kèm gói tiếng Việt `vie`): [Hướng dẫn cài Windows](#cai-dat-tesseract-va-poppler)
+  - **Poppler** (`pdf2image` dùng để chuyển PDF sang ảnh)
 - **Git**
+
+### Cài đặt Tesseract và Poppler (chỉ khi chạy document-processor local)
+
+**Tesseract OCR**:
+1. Tải installer: [UB-Mannheim/tesseract](https://github.com/UB-Mannheim/tesseract/wiki)
+2. Chạy file `.exe`, tại màn hình **Select Additional Languages** → chọn **Vietnamese (vie)**.
+3. Thêm đường dẫn `Tesseract-OCR` vào biến môi trường `PATH` (hoặc để `pytesseract` tự tìm).
+
+**Poppler** (cho `pdf2image`):
+1. Tải bản mới nhất: [oschwartz10612/poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases)
+2. Giải nén vào thư mục, ví dụ `C:\Users\<user>\AppData\Local\Programs\poppler-24.08.0\`
+3. Thêm thư mục `bin` (ví dụ `C:\...\poppler-24.08.0\bin`) vào biến môi trường `PATH`.
 
 ---
 
