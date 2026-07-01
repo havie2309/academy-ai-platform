@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app.pipeline as pipeline  # noqa: E402
+import httpx  # noqa: E402
 
 
 class _FakeResponse:
@@ -35,7 +36,7 @@ class _FakeClient:
         texts = json["input"]
         self.calls.append(len(texts))
         if self.fail_first_post and self.post_count == 1:
-            raise RuntimeError("temporary embedding failure")
+            raise httpx.ReadTimeout("temporary embedding failure")
         return _FakeResponse(
             {
                 "data": [

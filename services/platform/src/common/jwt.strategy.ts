@@ -1,8 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { PassportStrategy } from '@nestjs/passport'
-import { ExtractJwt, Strategy } from 'passport-jwt'
+import { Strategy } from 'passport-jwt'
 import type { JwtPayload } from './auth.types'
+import { extractFormattedBearerJwt } from './jwt-token-format'
 import { TokenRevocationService } from './token-revocation.service'
 
 @Injectable()
@@ -12,7 +13,7 @@ export class CommonJwtStrategy extends PassportStrategy(Strategy) {
     private readonly tokenRevocations: TokenRevocationService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: extractFormattedBearerJwt,
       secretOrKey: config.get<string>('JWT_SECRET', 'dev-secret'),
     })
   }

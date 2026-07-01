@@ -37,6 +37,9 @@ RERANK_SCORE_DELTA = float(os.getenv("RERANK_SCORE_DELTA", "3.0"))
 LLM_PROVIDER = (os.getenv("LLM_PROVIDER") or "").strip().lower()
 LLM_BASE_URL = (os.getenv("LLM_BASE_URL") or "http://localhost:11434").strip()
 LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:3b")
+LLM_FALLBACK_PROVIDER = (os.getenv("LLM_FALLBACK_PROVIDER") or "").strip().lower()
+LLM_FALLBACK_BASE_URL = (os.getenv("LLM_FALLBACK_BASE_URL") or "").strip()
+LLM_FALLBACK_MODEL = (os.getenv("LLM_FALLBACK_MODEL") or "").strip()
 OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
@@ -47,6 +50,15 @@ LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 SQL_LLM_PROVIDER = (os.getenv("SQL_LLM_PROVIDER") or LLM_PROVIDER).strip().lower()
 SQL_LLM_BASE_URL = (os.getenv("SQL_LLM_BASE_URL") or LLM_BASE_URL).strip()
 SQL_LLM_MODEL = os.getenv("SQL_LLM_MODEL", LLM_MODEL)
+SQL_LLM_FALLBACK_PROVIDER = (
+    os.getenv("SQL_LLM_FALLBACK_PROVIDER") or LLM_FALLBACK_PROVIDER
+).strip().lower()
+SQL_LLM_FALLBACK_BASE_URL = (
+    os.getenv("SQL_LLM_FALLBACK_BASE_URL") or LLM_FALLBACK_BASE_URL
+).strip()
+SQL_LLM_FALLBACK_MODEL = (
+    os.getenv("SQL_LLM_FALLBACK_MODEL") or LLM_FALLBACK_MODEL
+).strip()
 SQL_OPENAI_MODEL = os.getenv("SQL_OPENAI_MODEL", OPENAI_MODEL)
 SQL_FEW_SHOT_ENABLED = os.getenv("SQL_FEW_SHOT_ENABLED", "true").lower() != "false"
 

@@ -1,3 +1,6 @@
+import { promises as fs } from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
 import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import type { AuthUser } from '../../../src/common/auth.types'
 import { AuditService } from './audit.service'
@@ -16,16 +19,24 @@ describe('AuditService', () => {
     listAlerts: jest.fn(),
     updateAlertStatus: jest.fn(),
   }
+  const config = {
+    get: jest.fn(),
+  }
 
   beforeEach(() => {
     jest.clearAllMocks()
-})
+    config.get.mockReturnValue(undefined)
+  })
 
   it('builds filtered audit queries and caps export limit', async () => {
     const pg = {
       query: jest.fn().mockResolvedValue({ rows: [] }),
     }
-    const service = new AuditService(pg as any, securityAlerts as any)
+    const service = new AuditService(
+      config as any,
+      pg as any,
+      securityAlerts as any,
+    )
 
     await service.listLogs(adminUser, {
       status: 'denied',
@@ -62,7 +73,11 @@ describe('AuditService', () => {
     const pg = {
       query: jest.fn(),
     }
-    const service = new AuditService(pg as any, securityAlerts as any)
+    const service = new AuditService(
+      config as any,
+      pg as any,
+      securityAlerts as any,
+    )
 
     await expect(
       service.listLogs(
@@ -80,7 +95,11 @@ describe('AuditService', () => {
       query: jest.fn(),
     }
     securityAlerts.listAlerts.mockResolvedValue([{ id: 1 }])
-    const service = new AuditService(pg as any, securityAlerts as any)
+    const service = new AuditService(
+      config as any,
+      pg as any,
+      securityAlerts as any,
+    )
 
     const result = await service.listSecurityAlerts(adminUser, {
       severity: 'high',
@@ -100,10 +119,82 @@ describe('AuditService', () => {
     const pg = {
       query: jest.fn(),
     }
-    const service = new AuditService(pg as any, securityAlerts as any)
+    const service = new AuditService(
+      config as any,
+      pg as any,
+      securityAlerts as any,
+    )
 
     await expect(
       service.updateSecurityAlertStatus(adminUser, '15', 'paused'),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('reads filtered service logs from configured log roots', async () => {
+    const pg = {
+      query: jest.fn(),
+    }
+    const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pm2-audit-logs-'))
+    const logDir = path.join(tmpRoot, 'logs')
+    await fs.mkdir(logDir, { recursive: true })
+    await fs.writeFile(
+      path.join(logDir, 'rag-engine.log'),
+      [
+        '2026-06-30T09:10:00.000Z [info] boot completed',
+        '2026-06-30T09:11:00.000Z [error] upstream timeout',
+      ].join('\n'),
+      'utf8',
+    )
+    config.get.mockImplementation((key: string) =>
+      key === 'ADMIN_SERVICE_LOG_DIRS' ? logDir : undefined,
+    )
+    const service = new AuditService(
+      config as any,
+      pg as any,
+      securityAlerts as any,
+    )
+
+    try {
+      const result = await service.listServiceLogs(adminUser, {
+        service: 'rag-engine',
+        level: 'error',
+        search: 'timeout',
+        from: '2026-06-30T09:00:00.000Z',
+        to: '2026-06-30T10:00:00.000Z',
+        limit: '10',
+      })
+
+      expect(result.entries).toHaveLength(1)
+      expect(result.entries[0]).toMatchObject({
+        service: 'rag-engine',
+        level: 'error',
+        message: 'upstream timeout',
+      })
+      expect(
+        result.services.find((item) => item.key === 'rag-engine'),
+      ).toMatchObject({
+        available: true,
+        file_count: 1,
+      })
+    } finally {
+      await fs.rm(tmpRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects invalid service log filters', async () => {
+    const pg = {
+      query: jest.fn(),
+    }
+    const service = new AuditService(
+      config as any,
+      pg as any,
+      securityAlerts as any,
+    )
+
+    await expect(
+      service.listServiceLogs(adminUser, {
+        service: '../secrets',
+      }),
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 })

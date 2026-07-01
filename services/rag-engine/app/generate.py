@@ -9,9 +9,20 @@ import re
 from collections.abc import AsyncIterator
 
 import httpx
+from ai_clients import (
+    AIClientError,
+    ChatCompletionTarget,
+    create_chat_completion,
+    extract_message_content,
+    resolve_chat_target,
+    stream_chat_completion,
+)
 
 from app.config import (
     LLM_BASE_URL,
+    LLM_FALLBACK_BASE_URL,
+    LLM_FALLBACK_MODEL,
+    LLM_FALLBACK_PROVIDER,
     LLM_MODEL,
     LLM_PROVIDER,
     LLM_TIMEOUT,
@@ -547,3 +558,120 @@ async def stream_chat(
                     continue
                 if delta:
                     yield delta
+
+
+def _llm_target() -> tuple[str, str, dict[str, str]]:
+    """Resolve (url, model, headers) for the configured LLM provider."""
+    target = _resolve_llm_target()
+    return (target.url, target.model, target.headers)
+
+
+def _resolve_llm_target() -> ChatCompletionTarget:
+    try:
+        return resolve_chat_target(
+            provider=LLM_PROVIDER,
+            base_url=LLM_BASE_URL,
+            model=LLM_MODEL,
+            openai_api_key=OPENAI_API_KEY,
+            openai_model=OPENAI_MODEL,
+        )
+    except ValueError as exc:
+        raise LlmError(str(exc)) from exc
+
+
+def _llm_fallback_targets() -> list[ChatCompletionTarget]:
+    has_fallback = bool(
+        LLM_FALLBACK_PROVIDER or LLM_FALLBACK_BASE_URL or LLM_FALLBACK_MODEL
+    )
+    if not has_fallback:
+        return []
+
+    provider = LLM_FALLBACK_PROVIDER or ("ollama" if LLM_FALLBACK_BASE_URL else "openai")
+    model = LLM_FALLBACK_MODEL or (OPENAI_MODEL if provider == "openai" else LLM_MODEL)
+    try:
+        fallback = resolve_chat_target(
+            provider=provider,
+            base_url=LLM_FALLBACK_BASE_URL,
+            model=model,
+            openai_api_key=OPENAI_API_KEY,
+            openai_model=model,
+        )
+    except ValueError as exc:
+        raise LlmError(str(exc)) from exc
+
+    primary = _resolve_llm_target()
+    if (fallback.url, fallback.model) == (primary.url, primary.model):
+        return []
+    return [fallback]
+
+
+async def complete_chat_raw(
+    history: list[dict],
+    citations: list[dict],
+    *,
+    require_json: bool = True,
+    force_answer_from_context: bool = False,
+    force_expand_answer: bool = False,
+) -> str:
+    """Non-streaming grounded answer (raw LLM content)."""
+    target = _resolve_llm_target()
+    messages = build_messages(
+        history,
+        citations,
+        require_json=require_json,
+        force_answer_from_context=force_answer_from_context,
+        force_expand_answer=force_expand_answer,
+    )
+    try:
+        data = await create_chat_completion(
+            target,
+            messages,
+            temperature=0.3,
+            timeout=LLM_TIMEOUT,
+            fallback_targets=_llm_fallback_targets(),
+        )
+    except (AIClientError, httpx.HTTPError) as exc:
+        raise LlmError(str(exc)) from exc
+    content = extract_message_content(data)
+    if not content or not content.strip():
+        raise LlmError("LLM tra ve rong.")
+    return content
+
+
+async def complete_task_assist(history: list[dict]) -> str:
+    """Direct non-grounded helper answer for drafting/task-assist requests."""
+    target = _resolve_llm_target()
+    messages = build_task_assist_messages(history)
+    try:
+        data = await create_chat_completion(
+            target,
+            messages,
+            temperature=0.4,
+            timeout=LLM_TIMEOUT,
+            fallback_targets=_llm_fallback_targets(),
+        )
+    except (AIClientError, httpx.HTTPError) as exc:
+        raise LlmError(str(exc)) from exc
+    content = extract_message_content(data)
+    answer = _clean_answer_text(str(content or ""))
+    if not answer:
+        raise LlmError("LLM tra ve rong.")
+    return answer
+
+
+async def stream_chat(
+    history: list[dict], citations: list[dict]
+) -> AsyncIterator[str]:
+    """Yield answer token deltas from the LLM (OpenAI-compatible SSE)."""
+    target = _resolve_llm_target()
+    messages = build_messages(history, citations)
+    try:
+        async for delta in stream_chat_completion(
+            target,
+            messages,
+            timeout=LLM_TIMEOUT,
+            fallback_targets=_llm_fallback_targets(),
+        ):
+            yield delta
+    except (AIClientError, httpx.HTTPError) as exc:
+        raise LlmError(str(exc)) from exc

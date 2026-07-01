@@ -1,3 +1,6 @@
+﻿$root = Split-Path -Parent $PSScriptRoot
+$runner = Join-Path $root 'scripts\run-with-log.ps1'
+
 & .\scripts\up-code.ps1
 docker compose stop user-management     # outdated container, run `npm run start:dev user-management` to start a new one
 
@@ -8,8 +11,14 @@ function Start-NestDevApp {
 
     Start-Process powershell -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
+        '-File',
+        $runner,
+        '-Name',
+        $Name,
+        '-WorkingDirectory',
+        "$root\services\platform",
         '-Command',
-        "cd '$PWD\\services\\platform'; npx nest start $Name --watch"
+        "npx nest start $Name --watch"
     )
 }
 
@@ -21,8 +30,14 @@ function Start-PythonService {
 
     Start-Process powershell -WindowStyle Hidden -ArgumentList @(
         '-NoProfile',
+        '-File',
+        $runner,
+        '-Name',
+        (Split-Path $Path -Leaf),
+        '-WorkingDirectory',
+        (Join-Path $root $Path),
         '-Command',
-        "cd '$PWD\\$Path'; $Command"
+        $Command
     )
 }
 
@@ -79,6 +94,12 @@ Start-PythonService -Path 'services/document-processor' -Command 'py -m uvicorn 
 # Start Web UI
 Start-Process powershell -WindowStyle Hidden -ArgumentList @(
     '-NoProfile',
+    '-File',
+    $runner,
+    '-Name',
+    'web-ui-dev',
+    '-WorkingDirectory',
+    "$root\services\web-ui",
     '-Command',
-    "cd '$PWD\\services\\web-ui'; npm run dev"
+    'npm run dev'
 )

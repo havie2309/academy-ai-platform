@@ -33,6 +33,7 @@ import {
 import { authApi } from '../api/auth'
 import AdminAuditSection from '../components/admin/AdminAuditSection'
 import AdminOpsSection from '../components/admin/AdminOpsSection'
+import AdminServiceLogsSection from '../components/admin/AdminServiceLogsSection'
 import AdminSecurityAlertsSection from '../components/admin/AdminSecurityAlertsSection'
 import AdminTechnicalDetails from '../components/admin/AdminTechnicalDetails'
 import { formatRoleLabel, normalizeRoles } from '../lib/authz'
@@ -1963,6 +1964,10 @@ export default function AdminPage() {
                 </div>
               </div>
             </AdminTechnicalDetails>
+          </section>
+
+          <section className="mt-6">
+            <AdminServiceLogsSection />
           </section>
 
           <AdminAuditSection />

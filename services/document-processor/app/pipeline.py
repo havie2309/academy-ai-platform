@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 import httpx
+from ai_clients import ResilienceOptions, create_embeddings
 from pymongo import MongoClient
 
 from app.chunker import chunk_document_parent_child
@@ -37,6 +38,10 @@ def _get_mongo() -> MongoClient:
     if _mongo_client is None:
         _mongo_client = MongoClient(MONGO_URI)
     return _mongo_client
+
+
+def _mongo() -> MongoClient:
+    return _get_mongo()
 
 
 def _compact_ws(text: object) -> str:
@@ -105,30 +110,22 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
     batch_size = max(1, min(EMBEDDING_BATCH_SIZE, 64))
     vectors: list[list[float]] = []
+    resilience_options = ResilienceOptions(
+        max_attempts=max(1, EMBEDDING_MAX_RETRIES),
+        backoff_ms=max(0, EMBEDDING_RETRY_BACKOFF_MS),
+    )
     async with httpx.AsyncClient(timeout=120) as client:
         for i in range(0, len(texts), batch_size):
             chunk = texts[i : i + batch_size]
-            data = None
-            last_error: Exception | None = None
-            for attempt in range(1, max(1, EMBEDDING_MAX_RETRIES) + 1):
-                try:
-                    res = await client.post(
-                        f"{EMBEDDING_BASE_URL.rstrip('/')}/v1/embeddings",
-                        json={"input": chunk},
-                    )
-                    res.raise_for_status()
-                    data = res.json()["data"]
-                    if len(data) != len(chunk):
-                        raise ValueError("Embedding response count mismatch.")
-                    break
-                except Exception as exc:
-                    last_error = exc
-                    if attempt >= max(1, EMBEDDING_MAX_RETRIES):
-                        raise
-                    await asyncio.sleep(EMBEDDING_RETRY_BACKOFF_MS / 1000 * attempt)
-            if data is None:
-                raise RuntimeError(f"Embedding batch failed: {last_error}")
-            vectors.extend(item["embedding"] for item in data)
+            data = await create_embeddings(
+                base_url=EMBEDDING_BASE_URL,
+                inputs=chunk,
+                client=client,
+                resilience_options=resilience_options,
+            )
+            if len(data) != len(chunk):
+                raise ValueError("Embedding response count mismatch.")
+            vectors.extend(data)
     return vectors
 
 
@@ -332,7 +329,7 @@ async def process_document(job: dict) -> dict:
     title = job.get("title", document_id)
     mime_type = job.get("mimeType", "")
 
-    db = _get_mongo()[MONGO_DB]
+    db = _mongo()[MONGO_DB]
     parent_ids: list[str] = []
     chunk_ids: list[str] = []
 

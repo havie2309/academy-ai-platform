@@ -2,6 +2,7 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $platform = Join-Path $root 'services\platform'
+$runner = Join-Path $root 'scripts\run-with-log.ps1'
 
 if (-not (Test-Path (Join-Path $platform '.env'))) {
     Write-Error "Missing services/platform/.env — copy from .env.example first."
@@ -15,8 +16,15 @@ function Start-NestApp {
     Write-Host "Starting $Name on :$Port ..."
     Start-Process powershell -ArgumentList @(
         '-NoExit',
+        '-File',
+        $runner,
+        '-Name',
+        $Name,
+        '-WorkingDirectory',
+        $platform,
         '-Command',
-        "cd '$platform'; npx nest start $Name --watch"
+        "npx nest start $Name --watch",
+        '-KeepOpen'
     )
     Start-Sleep -Seconds 2
 }

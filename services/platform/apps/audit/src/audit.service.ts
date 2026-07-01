@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { isAdminLike } from '../../../src/common/access-scope'
 import { writeAuditLog } from '../../../src/common/audit-log'
 import type { AuthUser } from '../../../src/common/auth.types'
@@ -12,6 +13,11 @@ import {
   type SecurityAlertStatus,
 } from '../../../src/common/security-alerts.service'
 import { PostgresService } from '../../../src/common/postgres.service'
+import {
+  readServiceLogs,
+  resolveServiceLogRoots,
+  type ServiceLogFilters,
+} from './service-logs'
 
 const ALERT_STATUSES: SecurityAlertStatus[] = [
   'open',
@@ -22,6 +28,7 @@ const ALERT_STATUSES: SecurityAlertStatus[] = [
 @Injectable()
 export class AuditService {
   constructor(
+    private readonly config: ConfigService,
     private readonly pg: PostgresService,
     private readonly securityAlerts: SecurityAlertsService,
   ) {}
@@ -150,6 +157,33 @@ export class AuditService {
   ) {
     this.assertCanRead(user)
     return this.securityAlerts.listAlerts(filters)
+  }
+
+  async listServiceLogs(user: AuthUser, filters: ServiceLogFilters) {
+    this.assertCanRead(user)
+
+    const requestedService = filters.service?.trim()
+    if (
+      requestedService &&
+      requestedService.toLowerCase() !== 'all' &&
+      !requestedService.match(/^[a-z0-9-]+$/i)
+    ) {
+      throw new BadRequestException('Service log filter khong hop le.')
+    }
+
+    try {
+      return await readServiceLogs({
+        logRoots: resolveServiceLogRoots(
+          this.config.get<string>('ADMIN_SERVICE_LOG_DIRS'),
+        ),
+        filters,
+      })
+    } catch (error) {
+      if (error instanceof Error && error.message === 'invalid_service') {
+        throw new BadRequestException('Service log filter khong hop le.')
+      }
+      throw error
+    }
   }
 
   async getSecurityAlert(user: AuthUser, id: string) {
