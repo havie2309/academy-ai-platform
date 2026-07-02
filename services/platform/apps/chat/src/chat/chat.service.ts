@@ -74,6 +74,7 @@ interface ChatSessionDoc {
   scope: { domain: string }
   createdAt: Date
   updatedAt: Date
+  deletedAt?: Date
 }
 
 interface ChatMessageDoc {
@@ -126,7 +127,7 @@ export class ChatService implements OnModuleInit {
       throw new ServiceUnavailableException('Chat database chưa sẵn sàng.')
     }
     const rows = await this.sessions
-      .find({ userId })
+      .find({ userId, deletedAt: { $exists: false } })
       .sort({ updatedAt: -1 })
       .limit(50)
       .toArray()
@@ -149,15 +150,17 @@ export class ChatService implements OnModuleInit {
   }
 
   async getSession(userId: string, sessionId: string) {
-    const session = await this.sessions.findOne({ sessionId, userId })
+    const session = await this.sessions.findOne({ sessionId, userId, deletedAt: { $exists: false } })
     if (!session) throw new NotFoundException('Không tìm thấy hội thoại.')
     return this.toSessionDto(session)
   }
 
   async deleteSession(userId: string, sessionId: string) {
-    const result = await this.sessions.deleteOne({ sessionId, userId })
-    if (result.deletedCount === 0) throw new NotFoundException('Không tìm thấy hội thoại.')
-    await this.messages.deleteMany({ sessionId, userId })
+    const result = await this.sessions.updateOne(
+      { sessionId, userId, deletedAt: { $exists: false } },
+      { $set: { deletedAt: new Date() } },
+    )
+    if (result.matchedCount === 0) throw new NotFoundException('Không tìm thấy hội thoại.')
     await this.clearSessionContext(sessionId)
     return { deleted: true }
   }
@@ -171,9 +174,10 @@ export class ChatService implements OnModuleInit {
     return rows.map((m) => this.toMessageDto(m))
   }
 
-  async adminListSessions(targetUserId?: string, page = 1, limit = 20) {
+  async adminListSessions(targetUserId?: string, page = 1, limit = 20, includeDeleted = true) {
     if (!this.sessions) throw new ServiceUnavailableException('Chat database chưa sẵn sàng.')
-    const filter = targetUserId ? { userId: targetUserId } : {}
+    const filter: Record<string, unknown> = targetUserId ? { userId: targetUserId } : {}
+    if (!includeDeleted) filter['deletedAt'] = { $exists: false }
     const skip = (page - 1) * limit
     const [rows, total] = await Promise.all([
       this.sessions.find(filter).sort({ updatedAt: -1 }).skip(skip).limit(limit).toArray(),
@@ -883,6 +887,7 @@ export class ChatService implements OnModuleInit {
       title: s.title,
       created_at: s.createdAt.toISOString(),
       updated_at: s.updatedAt.toISOString(),
+      ...(s.deletedAt ? { deleted_at: s.deletedAt.toISOString() } : {}),
     }
   }
 
