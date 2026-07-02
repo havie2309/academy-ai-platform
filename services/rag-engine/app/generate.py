@@ -114,8 +114,6 @@ def _is_too_brief_answer(text: str) -> bool:
     t = text.strip()
     if not t:
         return True
-    # Typical overly-brief outputs from smaller models:
-    # "Không.", "Có.", "Được.", "Không được."
     short_tokens = {
         "không",
         "có",
@@ -126,7 +124,6 @@ def _is_too_brief_answer(text: str) -> bool:
     }
     if t.lower().rstrip(".!?") in short_tokens:
         return True
-    # Guardrail: with available context, require at least a modest explanation.
     return len(t) < 40 or _sentence_count(t) < 2
 
 
@@ -170,7 +167,6 @@ def _extract_json_object(text: str) -> dict | None:
     except json.JSONDecodeError:
         pass
 
-    # Fallback for fenced markdown JSON blocks.
     fence = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", raw, flags=re.I)
     if fence:
         try:
@@ -178,9 +174,7 @@ def _extract_json_object(text: str) -> dict | None:
             return parsed if isinstance(parsed, dict) else None
         except json.JSONDecodeError:
             return None
-    # Fallback for mixed output where JSON object is appended at the end.
-    # Example:
-    #   "Đáp án...\n\n{ \"answer\": \"...\", \"used_chunk_ids\": [...] }"
+
     tail = re.search(
         r"(\{[\s\S]*?\"answer\"[\s\S]*?\"used_chunk_ids\"[\s\S]*?\})\s*$",
         raw,
@@ -192,9 +186,7 @@ def _extract_json_object(text: str) -> dict | None:
             return parsed if isinstance(parsed, dict) else None
         except json.JSONDecodeError:
             pass
-    # Fallback for mixed output where JSON LIST is appended at the end.
-    # Example:
-    #   "Đáp án...\n\n[{\"answer\":\"...\",\"used_chunk_ids\":[]}]"
+
     tail_list = re.search(
         r"(\[[\s\S]*?\"answer\"[\s\S]*?\"used_chunk_ids\"[\s\S]*?\])\s*$",
         raw,
@@ -313,42 +305,14 @@ def parse_llm_structured_output(raw: str) -> tuple[str, list[str], list[str]]:
     clean_answer = _clean_answer_text(raw)
     parsed = _extract_json_object(raw)
     if not parsed:
-        # Fallback: keep clean text (without leaked JSON tail) as answer.
         return clean_answer, [], []
 
     answer = _clean_answer_text(str(parsed.get("answer", "")))
     used_ids = _parse_chunk_id_list(parsed.get("used_chunk_ids", []))
     reference_ids = _parse_chunk_id_list(parsed.get("reference_chunk_ids", []))
     if not answer:
-        # Model may return tail JSON with only used ids; keep visible answer clean.
         return clean_answer, used_ids, reference_ids
     return answer, used_ids, reference_ids
-
-
-def _llm_target() -> tuple[str, str, dict[str, str]]:
-    """Resolve (url, model, headers) for the configured LLM provider."""
-    provider = LLM_PROVIDER
-    if not provider:
-        provider = "ollama" if LLM_BASE_URL else "openai"
-
-    if provider == "openai":
-        if not OPENAI_API_KEY:
-            raise LlmError("Chưa cấu hình OPENAI_API_KEY cho rag-engine.")
-        return (
-            "https://api.openai.com/v1/chat/completions",
-            OPENAI_MODEL,
-            {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-            },
-        )
-
-    base = (LLM_BASE_URL or "http://localhost:11434").rstrip("/")
-    return (
-        f"{base}/v1/chat/completions",
-        LLM_MODEL,
-        {"Content-Type": "application/json"},
-    )
 
 
 def build_messages(
@@ -359,16 +323,8 @@ def build_messages(
     force_answer_from_context: bool = False,
     force_expand_answer: bool = False,
 ) -> list[dict]:
-    """System prompt (+ retrieved context) followed by the conversation history.
-
-    Builds a Markdown-hierarchical context instead of a flat list.
-    Groups citations by title and section_path, then renders as:
-      # Title
-      ## Section Path
-      content...
-    """
+    """System prompt (+ retrieved context) followed by the conversation history."""
     if citations:
-        # Group citations by title, then by section_path
         groups: dict[str, dict[str, list[str]]] = {}
         for c in citations:
             title = c.get('title', 'Tài liệu không tên')
@@ -377,8 +333,7 @@ def build_messages(
             if not text:
                 continue
             groups.setdefault(title, {}).setdefault(path, []).append(text)
-        
-        # Build Markdown hierarchy
+
         md_parts = []
         for title, paths in groups.items():
             md_parts.append(f"# {title}")
@@ -435,151 +390,9 @@ def build_task_assist_messages(history: list[dict]) -> list[dict]:
     return [{"role": "system", "content": TASK_ASSIST_SYSTEM_PROMPT}, *convo]
 
 
-async def complete_chat_raw(
-    history: list[dict],
-    citations: list[dict],
-    *,
-    require_json: bool = True,
-    force_answer_from_context: bool = False,
-    force_expand_answer: bool = False,
-) -> str:
-    """Non-streaming grounded answer (raw LLM content)."""
-    url, model, headers = _llm_target()
-    messages = build_messages(
-        history,
-        citations,
-        require_json=require_json,
-        force_answer_from_context=force_answer_from_context,
-        force_expand_answer=force_expand_answer,
-    )
-    async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
-        res = await client.post(
-            url, headers=headers, json={
-                "model": model, 
-                "messages": messages, 
-                "temperature": 0.3}
-        )
-        if res.status_code >= 400:
-            raise LlmError(f"LLM API lỗi ({res.status_code}): {res.text[:200]}")
-        data = res.json()
-    content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
-    if not content or not content.strip():
-        raise LlmError("LLM trả về rỗng.")
-    return content
-
-
-async def complete_chat_structured(
-    history: list[dict], citations: list[dict]
-) -> tuple[str, list[str], list[str]]:
-    raw = await complete_chat_raw(history, citations, require_json=True)
-    answer, used_chunk_ids, reference_chunk_ids = parse_llm_structured_output(raw)
-    if not answer:
-        raise LlmError("LLM trả về rỗng.")
-
-    # qwen2.5:3b may over-refuse in strict JSON mode; if retrieval has context,
-    # retry once with relaxed output contract to reduce false "không tìm thấy".
-    if _is_no_info_answer(answer) and citations:
-        retry_raw = await complete_chat_raw(
-            history,
-            citations,
-            require_json=False,
-            force_answer_from_context=True,
-        )
-        retry_answer = _clean_answer_text(retry_raw)
-        if retry_answer and not _is_no_info_answer(retry_answer):
-            return retry_answer, [], []
-    # qwen2.5:3b may answer too briefly ("Không.") despite relevant context.
-    # Retry once with an explicit minimum explanation constraint.
-    if citations and not _is_no_info_answer(answer) and _is_too_brief_answer(answer):
-        retry_raw = await complete_chat_raw(
-            history,
-            citations,
-            require_json=False,
-            force_answer_from_context=True,
-            force_expand_answer=True,
-        )
-        retry_answer = _clean_answer_text(retry_raw)
-        if retry_answer and not _is_no_info_answer(retry_answer):
-            return retry_answer, [], []
-    return answer, used_chunk_ids, reference_chunk_ids
-
-
-async def complete_task_assist(history: list[dict]) -> str:
-    """Direct non-grounded helper answer for drafting/task-assist requests."""
-    url, model, headers = _llm_target()
-    messages = build_task_assist_messages(history)
-    async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
-        res = await client.post(
-            url,
-            headers=headers,
-            json={
-                "model": model,
-                "messages": messages,
-                "temperature": 0.4,
-            },
-        )
-        if res.status_code >= 400:
-            raise LlmError(f"LLM API loi ({res.status_code}): {res.text[:200]}")
-        data = res.json()
-    content = (data.get("choices") or [{}])[0].get("message", {}).get("content")
-    answer = _clean_answer_text(str(content or ""))
-    if not answer:
-        raise LlmError("LLM tra ve rong.")
-    return answer
-
-
-async def stream_chat(
-    history: list[dict],
-    citations: list[dict],
-    require_json: bool = False,
-    force_answer_from_context: bool = False,
-    force_expand_answer: bool = False,
-) -> AsyncIterator[str]:
-    """Yield answer token deltas from the LLM (OpenAI-compatible SSE)."""
-    url, model, headers = _llm_target()
-    messages = build_messages(
-        history,
-        citations,
-        require_json=require_json,
-        force_answer_from_context=force_answer_from_context,
-        force_expand_answer=force_expand_answer,
-    )
-    payload = {
-        "model": model,
-        "messages": messages,
-        "stream": True,
-        "temperature": 0.3,
-    }
-    async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
-        async with client.stream(
-            "POST", url, headers=headers, json=payload
-        ) as res:
-            if res.status_code >= 400:
-                body = (await res.aread()).decode("utf-8", "replace")
-                raise LlmError(f"LLM API lỗi ({res.status_code}): {body[:200]}")
-            async for line in res.aiter_lines():
-                line = line.strip()
-                if not line.startswith("data:"):
-                    continue
-                payload_str = line[5:].strip()
-                if payload_str == "[DONE]":
-                    break
-                try:
-                    obj = json.loads(payload_str)
-                    delta = (obj.get("choices") or [{}])[0].get("delta", {}).get(
-                        "content"
-                    )
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    continue
-                if delta:
-                    yield delta
-
-
-def _llm_target() -> tuple[str, str, dict[str, str]]:
-    """Resolve (url, model, headers) for the configured LLM provider."""
-    target = _resolve_llm_target()
-    return (target.url, target.model, target.headers)
-
+# ------------------------------------------------------------------
+# AI Client based implementations (retry/fallback/circuit-breaker)
+# ------------------------------------------------------------------
 
 def _resolve_llm_target() -> ChatCompletionTarget:
     try:
@@ -628,7 +441,7 @@ async def complete_chat_raw(
     force_answer_from_context: bool = False,
     force_expand_answer: bool = False,
 ) -> str:
-    """Non-streaming grounded answer (raw LLM content)."""
+    """Non-streaming grounded answer using AI client (with retry/fallback)."""
     target = _resolve_llm_target()
     messages = build_messages(
         history,
@@ -649,12 +462,52 @@ async def complete_chat_raw(
         raise LlmError(str(exc)) from exc
     content = extract_message_content(data)
     if not content or not content.strip():
-        raise LlmError("LLM tra ve rong.")
+        raise LlmError("LLM trả về rỗng.")
     return content
 
 
+async def complete_chat_structured(
+    history: list[dict], citations: list[dict]
+) -> tuple[str, list[str], list[str]]:
+    """
+    Non-streaming grounded answer, returning parsed (answer, used_ids, reference_ids).
+    Uses the AI client (retry/fallback) internally.
+    """
+    raw = await complete_chat_raw(history, citations, require_json=True)
+    answer, used_chunk_ids, reference_chunk_ids = parse_llm_structured_output(raw)
+    if not answer:
+        raise LlmError("LLM trả về rỗng.")
+
+    # qwen2.5:3b may over-refuse in strict JSON mode; if retrieval has context,
+    # retry once with relaxed output contract to reduce false "không tìm thấy".
+    if _is_no_info_answer(answer) and citations:
+        retry_raw = await complete_chat_raw(
+            history,
+            citations,
+            require_json=False,
+            force_answer_from_context=True,
+        )
+        retry_answer = _clean_answer_text(retry_raw)
+        if retry_answer and not _is_no_info_answer(retry_answer):
+            return retry_answer, [], []
+    # qwen2.5:3b may answer too briefly ("Không.") despite relevant context.
+    # Retry once with an explicit minimum explanation constraint.
+    if citations and not _is_no_info_answer(answer) and _is_too_brief_answer(answer):
+        retry_raw = await complete_chat_raw(
+            history,
+            citations,
+            require_json=False,
+            force_answer_from_context=True,
+            force_expand_answer=True,
+        )
+        retry_answer = _clean_answer_text(retry_raw)
+        if retry_answer and not _is_no_info_answer(retry_answer):
+            return retry_answer, [], []
+    return answer, used_chunk_ids, reference_chunk_ids
+
+
 async def complete_task_assist(history: list[dict]) -> str:
-    """Direct non-grounded helper answer for drafting/task-assist requests."""
+    """Direct non-grounded helper answer with AI client."""
     target = _resolve_llm_target()
     messages = build_task_assist_messages(history)
     try:
@@ -670,16 +523,29 @@ async def complete_task_assist(history: list[dict]) -> str:
     content = extract_message_content(data)
     answer = _clean_answer_text(str(content or ""))
     if not answer:
-        raise LlmError("LLM tra ve rong.")
+        raise LlmError("LLM trả về rỗng.")
     return answer
 
 
 async def stream_chat(
-    history: list[dict], citations: list[dict]
+    history: list[dict],
+    citations: list[dict],
+    require_json: bool = False,
+    force_answer_from_context: bool = False,
+    force_expand_answer: bool = False,
 ) -> AsyncIterator[str]:
-    """Yield answer token deltas from the LLM (OpenAI-compatible SSE)."""
+    """
+    Stream answer token deltas using AI client (with retry/fallback).
+    The extra parameters are passed to build_messages to control prompt behaviour.
+    """
     target = _resolve_llm_target()
-    messages = build_messages(history, citations)
+    messages = build_messages(
+        history,
+        citations,
+        require_json=require_json,
+        force_answer_from_context=force_answer_from_context,
+        force_expand_answer=force_expand_answer,
+    )
     try:
         async for delta in stream_chat_completion(
             target,
