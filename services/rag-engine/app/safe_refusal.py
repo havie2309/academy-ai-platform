@@ -32,9 +32,11 @@ from app.guardrails.types import (
 )
 
 __all__ = [
+    "CLARIFICATION_TEMPLATES",
     "DEFAULT_BLACKLIST",
     "DEFAULT_SAFE_REFUSAL",
     "RAG_POLICY_KEY",
+    "check_query_clarity",
     "get_rag_policy",
     "log_policy_event",
     "match_blacklist",
@@ -44,6 +46,16 @@ __all__ = [
     "normalize_keywords",
     "retrieve_refusal_payload",
 ]
+
+CLARIFICATION_TEMPLATES: dict[str, str] = {
+    "time": (
+        "Bạn muốn hỏi về năm học nào hoặc học kỳ nào? "
+        "Ví dụ: năm học 2024-2025, học kỳ 1 hoặc học kỳ 2."
+    ),
+    "subject": "Bạn muốn hỏi về môn học nào cụ thể?",
+    "person": "Bạn muốn tra cứu thông tin của sinh viên hoặc giảng viên nào?",
+    "default": "Bạn có thể cung cấp thêm thông tin cụ thể hơn không?",
+}
 
 # Chỉ các từ liên quan đáp án/nội dung thi mới cần check year.
 # "lịch thi", "mẫu đề thi", "ôn tập" KHÔNG nằm ở đây → để guardrail thường xử lý.
@@ -91,6 +103,57 @@ _CURRENT_RELATIVE_HINTS = (
     "năm học này",
     "hien tai",
     "hiện tại",
+)
+
+# Queries about schedules/fees/exams without year/semester → TIME ambiguous
+_TIME_SENSITIVE_HINTS = (
+    "lich thi",
+    "lịch thi",
+    "thoi khoa bieu",
+    "thời khóa biểu",
+    "hoc phi",
+    "học phí",
+    "dang ky tin chi",
+    "đăng ký tín chỉ",
+    "dang ky hoc phan",
+    "đăng ký học phần",
+    "lich hoc",
+    "lịch học",
+    "thi cuoi ky",
+    "thi cuối kỳ",
+    "kiem tra cuoi ky",
+    "kiểm tra cuối kỳ",
+    "tuyen sinh",
+    "tuyển sinh",
+    "hoc bong",
+    "học bổng",
+)
+
+# Queries asking about a course without naming which → SUBJECT ambiguous
+_SUBJECT_SENSITIVE_HINTS = (
+    "de cuong mon",
+    "đề cương môn",
+    "tai lieu mon",
+    "tài liệu môn",
+    "noi dung mon",
+    "nội dung môn",
+    "diem thi mon",
+    "điểm thi môn",
+    "thi mon",
+    "thi môn",
+)
+
+# Only trigger PERSON clarification when the query explicitly leaves "who" open
+# ("ai" = who). Avoids false positives for "điểm của Nguyễn Văn A".
+_PERSON_SENSITIVE_HINTS = (
+    "diem cua ai",
+    "điểm của ai",
+    "ket qua cua ai",
+    "kết quả của ai",
+    "thong tin cua ai",
+    "thông tin của ai",
+    "ho so cua ai",
+    "hồ sơ của ai",
 )
 
 # Labeled examples cho KNN embedding classifier
@@ -207,6 +270,58 @@ def _has_answer_hint(folded: str) -> bool:
     return any(_fold_text(hint) in folded for hint in _ANSWER_HINTS)
 
 
+def _has_temporal_qualifier(folded: str) -> bool:
+    """Returns True if query already specifies which year/semester."""
+    if _YEAR_PAIR_RE.search(folded):
+        return True
+    if re.search(r"hoc ky \d", folded) or re.search(r"\bky \d\b", folded):
+        return True
+    return any(
+        _fold_text(h) in folded
+        for h in (*_PAST_RELATIVE_HINTS, *_CURRENT_RELATIVE_HINTS)
+    )
+
+
+def _detect_ambiguity_type(folded: str) -> str | None:
+    """
+    Rule-based: returns template key if query is ambiguous, None if clear.
+
+    Layer 1 (active): keyword + missing-qualifier pattern matching.
+    Layer 2 (placeholder): Qwen classify — swap _detect_ambiguity_type for an
+    async LLM call that returns TIME/SUBJECT/PERSON/CLEAR to handle open-ended
+    phrasing that keywords miss, without changing the callers.
+    """
+    if any(_fold_text(h) in folded for h in _TIME_SENSITIVE_HINTS):
+        if not _has_temporal_qualifier(folded):
+            return "time"
+    if any(_fold_text(h) in folded for h in _SUBJECT_SENSITIVE_HINTS):
+        return "subject"
+    if any(_fold_text(h) in folded for h in _PERSON_SENSITIVE_HINTS):
+        return "person"
+    return None
+
+
+async def check_query_clarity(query: str) -> dict | None:
+    """
+    Returns a clarification response dict if query is too ambiguous for RAG,
+    or None if the query is specific enough to proceed.
+    Skips queries already handled by the answer-hint year policy.
+    """
+    folded = _fold_text(query)
+    if _has_answer_hint(folded):
+        return None
+    ambiguity_type = _detect_ambiguity_type(folded)
+    if ambiguity_type is None:
+        return None
+    message = CLARIFICATION_TEMPLATES.get(ambiguity_type, CLARIFICATION_TEMPLATES["default"])
+    return {
+        "answer": message,
+        "citations": [],
+        "route": "clarify",
+        "clarification_type": ambiguity_type,
+    }
+
+
 def _classify_year_context(folded: str, current_year: str) -> str:
     """
     ALLOW    → rõ năm cũ (explicit past year hoặc relative past hint)
@@ -278,7 +393,15 @@ async def maybe_refuse_query(query: str, user: dict | None = None) -> dict | Non
         current_year = _current_academic_year()
         decision = _classify_year_context(folded, current_year)
         if decision == "AMBIGUOUS":
-            decision = await _embedding_classify(query)
+            return {
+                "answer": (
+                    "Bạn muốn hỏi đáp án đề thi năm học nào? "
+                    "Ví dụ: năm học 2023-2024 hay 2024-2025?"
+                ),
+                "citations": [],
+                "route": "clarify",
+                "clarification_type": "answer_year",
+            }
         if decision == "BLOCK":
             await log_policy_event(
                 user=user,

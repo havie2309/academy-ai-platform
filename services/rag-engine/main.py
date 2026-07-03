@@ -15,7 +15,7 @@ from app.generate import LlmError, complete_chat_structured, complete_task_assis
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
 from app.router import classify_route
-from app.safe_refusal import _load_example_embeddings, maybe_refuse_query, retrieve_refusal_payload
+from app.safe_refusal import _load_example_embeddings, check_query_clarity, maybe_refuse_query, retrieve_refusal_payload
 from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
 
@@ -447,6 +447,16 @@ async def chat(body: ChatRequest, request: Request):
             "refusal",
         )
         return refusal
+    clarification = await check_query_clarity(body.query)
+    if clarification:
+        _write_session_context(
+            body.sessionId,
+            user,
+            history,
+            str(clarification.get("answer") or ""),
+            "clarify",
+        )
+        return clarification
     route = classify_route(body.query)
     if route == "sql":
         try:
@@ -529,7 +539,8 @@ async def chat_stream(body: ChatRequest, request: Request):
     """Streaming turn: SQL streams markdown answer; RAG streams citations + tokens."""
     user = _resolved_user(body.user, request)
     refusal = await maybe_refuse_query(body.query, user)
-    route = "refusal" if refusal else classify_route(body.query)
+    clarification = None if refusal else await check_query_clarity(body.query)
+    route = "refusal" if refusal else ("clarify" if clarification else classify_route(body.query))
     history = _resolve_chat_history(
         body.sessionId,
         body.query,
@@ -544,6 +555,15 @@ async def chat_stream(body: ChatRequest, request: Request):
             for delta in answer:
                 yield _sse("token", {"delta": delta})
             yield _sse("done", {"answer": answer, "route": "refusal"})
+            return
+
+        if clarification:
+            answer = str(clarification.get("answer") or "")
+            _write_session_context(body.sessionId, user, history, answer, "clarify")
+            yield _sse("meta", {"citations": [], "route": "clarify"})
+            for delta in answer:
+                yield _sse("token", {"delta": delta})
+            yield _sse("done", {"answer": answer, "route": "clarify"})
             return
 
         if route == "sql":
