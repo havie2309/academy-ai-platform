@@ -381,9 +381,13 @@ export default function ChatPage() {
                         <ChatMarkdown content={msg.content} />
                       )}
                     </div>
-                    {!msg.error && msg.citations && msg.citations.length > 0 && (
-                      <CitationList citations={msg.citations} />
-                    )}
+                    {!msg.error &&
+                      msg.citations &&
+                      msg.citations.length > 0 &&
+                      msg.status !== 'streaming' &&
+                      msg.status !== 'loading' && (
+                        <CitationList citations={msg.citations} />
+                      )}
                   </div>
                 )}
               </div>

@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ChatLayout from './layouts/ChatLayout.tsx'
 import ChatPage from './pages/ChatPage.tsx'
 import DocsPage from './pages/DocsPage.tsx'
+import KhoDuLieuPage from './pages/KhoDuLieuPage.tsx'
+import TraCuuPage from './pages/TraCuuPage.tsx'
 import AdminPage from './pages/AdminPage.tsx'
 import AccountPage from './pages/AccountPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
@@ -20,6 +22,8 @@ function App() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/docs" element={<DocsPage />} />
+            <Route path="/docs/kho-du-lieu" element={<KhoDuLieuPage />} />
+            <Route path="/docs/tra-cuu" element={<TraCuuPage />} />
             <Route path="/account" element={<AccountPage />} />
 
             <Route element={<RequireAuth allowedRoles={['ADMIN', 'BGD', 'P2', 'P7']} />}>
