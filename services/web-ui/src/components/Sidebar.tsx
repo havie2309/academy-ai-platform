@@ -1,5 +1,7 @@
-import { type MouseEvent } from 'react'
+import { type MouseEvent, useState } from 'react'
 import {
+  ChevronDown,
+  Database,
   FileText,
   GraduationCap,
   LayoutDashboard,
@@ -7,6 +9,7 @@ import {
   LogOut,
   MessageSquare,
   Plus,
+  Search,
   Settings,
   Trash2,
   User,
@@ -21,6 +24,7 @@ export default function Sidebar() {
   const location = useLocation()
   const { sessionId: activeSessionId } = useParams()
   const { sessions, loading, removeSession } = useChatSessions()
+  const [docsOpen, setDocsOpen] = useState(location.pathname === '/docs')
 
   const user = authApi.getUser()
   const isAuthenticated = authApi.isAuthenticated()
@@ -36,7 +40,6 @@ export default function Sidebar() {
 
   const navItems = [
     { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
-    { icon: FileText, label: 'Tài liệu', href: '/docs' },
     ...(isAdmin
       ? [{ icon: LayoutDashboard, label: 'Dashboard', href: '/admin' }]
       : []),
@@ -47,6 +50,14 @@ export default function Sidebar() {
       ? [{ icon: Settings, label: 'Cài đặt', href: '/settings' }]
       : []),
   ]
+
+  const docsChildren = [
+    { icon: FileText, label: 'Tài liệu và học liệu', href: '/docs' },
+    { icon: Database, label: 'Kho dữ liệu tập trung', href: '/docs/kho-du-lieu' },
+    { icon: Search, label: 'Tra cứu tài liệu', href: '/docs/tra-cuu' },
+  ]
+
+  const isDocsActive = location.pathname.startsWith('/docs')
 
   const handleNewChat = () => {
     if (activeSessionId) {
@@ -76,6 +87,40 @@ export default function Sidebar() {
   const handleLogout = async () => {
     await authApi.logout()
     navigate('/login')
+  }
+
+  const renderNavButton = ({
+    icon: Icon,
+    label,
+    href,
+  }: {
+    icon: typeof MessageSquare
+    label: string
+    href: string
+  }) => {
+    const isActive =
+      location.pathname === href ||
+      (href === '/chat' && location.pathname.startsWith('/chat'))
+
+    return (
+      <button
+        key={href}
+        type="button"
+        onClick={() => navigate(href)}
+        data-testid={`sidebar-link-${href.replace('/', '') || 'root'}`}
+        className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
+          isActive
+            ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
+            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        }`}
+      >
+        <Icon
+          size={16}
+          className={isActive ? 'text-blue-600' : 'text-slate-400'}
+        />
+        {label}
+      </button>
+    )
   }
 
   return (
@@ -109,31 +154,63 @@ export default function Sidebar() {
       </div>
 
       <div className="space-y-2 px-3">
-        {navItems.map(({ icon: Icon, label, href }) => {
-          const isActive =
-            location.pathname === href ||
-            (href === '/chat' && location.pathname.startsWith('/chat'))
+        {renderNavButton(navItems[0])}
 
-          return (
-            <button
-              key={href}
-              type="button"
-              onClick={() => navigate(href)}
-              data-testid={`sidebar-link-${href.replace('/', '') || 'root'}`}
-              className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+        {/* Tài liệu dropdown */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setDocsOpen((open) => !open)}
+            data-testid="sidebar-link-docs"
+            aria-expanded={docsOpen}
+            className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-3 text-sm font-medium transition-all ${
+              isDocsActive
+                ? 'bg-blue-50 text-blue-600 shadow-sm shadow-blue-50/50'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <FileText
+              size={16}
+              className={isDocsActive ? 'text-blue-600' : 'text-slate-400'}
+            />
+            Tài liệu
+            <ChevronDown
+              size={16}
+              className={`ml-auto text-slate-400 transition-transform ${
+                docsOpen ? 'rotate-180' : ''
               }`}
-            >
-              <Icon
-                size={16}
-                className={isActive ? 'text-blue-600' : 'text-slate-400'}
-              />
-              {label}
-            </button>
-          )
-        })}
+            />
+          </button>
+
+          {docsOpen && (
+            <div className="mt-1 space-y-1 pl-4">
+              {docsChildren.map(({ icon: ChildIcon, label, href }) => {
+                const isChildActive = location.pathname === href
+                return (
+                  <button
+                    key={href}
+                    type="button"
+                    onClick={() => navigate(href)}
+                    data-testid={`sidebar-link-${href.replace(/\//g, '-').replace(/^-/, '')}`}
+                    className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all ${
+                      isChildActive
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                    }`}
+                  >
+                    <ChildIcon
+                      size={15}
+                      className={isChildActive ? 'text-blue-600' : 'text-slate-400'}
+                    />
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {navItems.slice(1).map(renderNavButton)}
       </div>
 
       <div className="mt-6 flex-1 overflow-y-auto px-3">

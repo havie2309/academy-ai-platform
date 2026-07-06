@@ -1008,7 +1008,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
                     <Server className="text-blue-600" size={18} />
-                    Card trạng thái hệ thống
+                    Trạng thái hệ thống
                   </h2>
                   <p className="mt-1 text-sm text-slate-500">
                     Tình trạng các dịch vụ chính đang phục vụ dashboard quản trị.
