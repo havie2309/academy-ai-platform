@@ -203,7 +203,11 @@ function VungDuLieuTab() {
           <div>
             <span className="text-slate-400 text-xs">Mức mật tối đa</span>
             <p className="font-semibold text-slate-700">
-              {data.user.maxSecurityLevel}
+              {SECURITY_LEVELS.find(
+                (s) =>
+                  ({ public: 1, internal: 2, restricted: 3, confidential: 4 } as Record<string, number>)[s.value] ===
+                  data.user.maxSecurityLevel,
+              )?.label ?? String(data.user.maxSecurityLevel)}
             </p>
           </div>
           <div>

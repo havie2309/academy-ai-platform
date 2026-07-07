@@ -106,4 +106,10 @@ export const requestsApi = {
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },
+
+  async syncStatus(id: string): Promise<{ requestId: string; status: string }> {
+    const res = await fetchWithAuth(`/api/documents/requests/${id}/sync-status`, { method: 'POST' })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  },
 }

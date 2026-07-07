@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config'
 import { Collection, Db, MongoClient, ObjectId } from 'mongodb'
 import { v4 as uuidv4 } from 'uuid'
 import { IngestQueueService } from '../ingest/ingest-queue.service'
+import { writeAuditLog } from '../../../../src/common/audit-log'
 
 export interface UploadedFileLike {
   originalname: string
@@ -122,6 +123,78 @@ export class RequestsService implements OnModuleInit {
     await this.col.createIndex({ zone: 1, status: 1 })
     await this.col.createIndex({ 'createdBy.userId': 1 })
     this.logger.log('RequestsService connected to MongoDB')
+
+    // Reconcile stuck 'processing' requests every 2 minutes
+    this._scheduleReconciler()
+  }
+
+  private _scheduleReconciler() {
+    setTimeout(() => {
+      this._reconcileProcessing().catch((err) =>
+        this.logger.warn(`Reconciler error: ${err instanceof Error ? err.message : String(err)}`),
+      )
+    }, 30_000) // first run after 30s (give pipeline time to start)
+
+    setInterval(() => {
+      this._reconcileProcessing().catch((err) =>
+        this.logger.warn(`Reconciler error: ${err instanceof Error ? err.message : String(err)}`),
+      )
+    }, 120_000) // then every 2 minutes
+  }
+
+  private async _reconcileProcessing() {
+    // Only look at requests that have been in 'processing' for > 2 minutes
+    const cutoff = new Date(Date.now() - 2 * 60 * 1000)
+    const stuckRequests = await this.col
+      .find({ status: 'processing', approvedAt: { $lte: cutoff } })
+      .toArray()
+
+    if (stuckRequests.length === 0) return
+    this.logger.log(`Reconciler: found ${stuckRequests.length} stuck request(s)`)
+
+    for (const req of stuckRequests) {
+      try {
+        await this._syncRequestStatus(req)
+      } catch (err) {
+        this.logger.warn(`Reconciler: failed to sync ${req.requestId}: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    }
+  }
+
+  private async _syncRequestStatus(doc: DocRequest) {
+    let synced = 0
+    for (const file of doc.files) {
+      if (file.ingestStatus === 'done' || file.ingestStatus === 'failed') continue
+
+      const docRecord = await this.docsCol.findOne(
+        { requestId: doc.requestId, requestFileId: file.fileId },
+        { projection: { docId: 1, ingestStatus: 1 } },
+      )
+      if (!docRecord) continue
+
+      const ingestStatus = docRecord.ingestStatus as string
+      const fileStatus =
+        ingestStatus === 'completed' ? 'done' :
+        ingestStatus === 'failed' ? 'failed' : null
+
+      if (fileStatus) {
+        await this.col.updateOne(
+          { _id: doc._id, 'files.fileId': file.fileId },
+          { $set: { 'files.$.ingestStatus': fileStatus, 'files.$.documentId': docRecord.docId } },
+        )
+        synced++
+      }
+    }
+
+    if (synced === 0) return
+
+    const updated = await this.col.findOne({ _id: doc._id })
+    if (updated && updated.files.every((f) => f.ingestStatus === 'done' || f.ingestStatus === 'failed')) {
+      await this.col.updateOne({ _id: updated._id }, { $set: { status: 'done' } })
+      this.logger.log(`Reconciler: closed request ${doc.requestId} (synced ${synced} files)`)
+    } else {
+      this.logger.log(`Reconciler: partial sync for ${doc.requestId} (${synced} files updated)`)
+    }
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -296,6 +369,23 @@ export class RequestsService implements OnModuleInit {
     }
     this.logger.log(`Approved ${doc.requestId}: ${doc.files.length - failed} queued, ${failed} failed`)
 
+    writeAuditLog({
+      userId: user.userId,
+      action: 'approve_request',
+      resourceType: 'document_request',
+      resourceId: doc.requestId,
+      newValue: {
+        requestId: doc.requestId,
+        type: doc.type,
+        zone: doc.zone,
+        approvedBy: user.username,
+        filesTotal: doc.files.length,
+        filesIngested: doc.files.length - failed,
+        filesFailed: failed,
+      },
+      status: failed === doc.files.length ? 'failure' : 'success',
+    }).catch(() => {})
+
     return {
       requestId: doc.requestId,
       status: 'processing',
@@ -343,8 +433,8 @@ export class RequestsService implements OnModuleInit {
       updatedAt: new Date(),
     }
 
-    const inserted = await this.docsCol.insertOne(docRecord)
-    const documentId = inserted.insertedId.toString()
+    await this.docsCol.insertOne(docRecord)
+    const documentId = docRecord.docId
 
     await this.col.updateOne(
       { _id: doc._id, 'files.fileId': f.fileId },
@@ -369,6 +459,23 @@ export class RequestsService implements OnModuleInit {
     })
 
     this.logger.log(`Queued ingest: file=${f.fileId} → doc=${documentId}`)
+  }
+
+  async syncStatus(id: string, user: { userId: string; roles: string[] }) {
+    if (!this.isAdmin(user.roles)) {
+      throw new ForbiddenException('Chỉ quản trị viên mới có thể đồng bộ trạng thái.')
+    }
+
+    const doc = await this.resolveDoc(id)
+    if (!doc) throw new NotFoundException('Không tìm thấy yêu cầu')
+    if (doc.status !== 'processing') {
+      return { requestId: doc.requestId, status: doc.status, synced: 0 }
+    }
+
+    await this._syncRequestStatus(doc)
+
+    const updated = await this.resolveDoc(id)
+    return { requestId: doc.requestId, status: updated?.status ?? doc.status }
   }
 
   async reject(
@@ -396,6 +503,20 @@ export class RequestsService implements OnModuleInit {
         },
       },
     )
+
+    writeAuditLog({
+      userId: user.userId,
+      action: 'reject_request',
+      resourceType: 'document_request',
+      resourceId: doc.requestId,
+      newValue: {
+        requestId: doc.requestId,
+        type: doc.type,
+        zone: doc.zone,
+        reason: reason ?? '',
+      },
+      status: 'success',
+    }).catch(() => {})
 
     return { requestId: doc.requestId, status: 'rejected' }
   }

@@ -321,6 +321,37 @@ def _update_job(
 
     db.documents.update_one({"docId": document_id}, {"$set": doc_set})
 
+    # When a document finishes (completed or failed), sync status back to document_requests.
+    # The documents record carries requestId + requestFileId so we can do this without extra lookups.
+    if status in ("completed", "failed"):
+        doc = db.documents.find_one(
+            {"docId": document_id},
+            {"requestId": 1, "requestFileId": 1},
+        )
+        if doc and doc.get("requestId"):
+            request_id = doc["requestId"]
+            file_id = doc.get("requestFileId")
+            # documents uses 'completed', but document_requests.files uses 'done'
+            file_status = "done" if status == "completed" else "failed"
+            db.document_requests.update_one(
+                {"requestId": request_id, "files.fileId": file_id},
+                {"$set": {"files.$.ingestStatus": file_status}},
+            )
+            # If every file is now terminal (done or failed), close the request
+            request = db.document_requests.find_one(
+                {"requestId": request_id, "status": "processing"},
+                {"files": 1},
+            )
+            if request:
+                files = request.get("files", [])
+                if files and all(
+                    f.get("ingestStatus") in ("done", "failed") for f in files
+                ):
+                    db.document_requests.update_one(
+                        {"requestId": request_id},
+                        {"$set": {"status": "done"}},
+                    )
+
 
 async def process_document(job: dict) -> dict:
     job = _validate_job(job)

@@ -63,6 +63,9 @@ function humanizeAction(action: string): string {
     'session.revoke': 'Thu hồi đăng nhập',
     'auth.login': 'Đăng nhập',
     'auth.logout': 'Đăng xuất',
+    'update_scope': 'Cập nhật phân quyền tài liệu',
+    'approve_request': 'Phê duyệt yêu cầu tài liệu',
+    'reject_request': 'Từ chối yêu cầu tài liệu',
   }
 
   if (knownLabels[action]) return knownLabels[action]
@@ -72,9 +75,9 @@ function humanizeAction(action: string): string {
   if (action.includes('auth')) return 'Hoạt động đăng nhập'
 
   return action
-    .split('.')
+    .split(/[._]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' / ')
+    .join(' ')
 }
 
 function humanizeResourceType(resourceType: string | null): string {
@@ -86,6 +89,7 @@ function humanizeResourceType(resourceType: string | null): string {
     user: 'Tài khoản người dùng',
     audit: 'Nhật ký kiểm toán',
     document: 'Tài liệu',
+    document_request: 'Yêu cầu tài liệu',
     rag: 'Trợ lý AI tra cứu',
     gateway: 'Kết nối dịch vụ',
   }
