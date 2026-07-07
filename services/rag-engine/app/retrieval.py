@@ -209,20 +209,40 @@ def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
     return sorted(citations, key=_key)
 
 
-async def retrieve_citations(query: str, user: dict) -> RetrievalResult:
+async def retrieve_citations(
+    query: str,
+    user: dict,
+    scope_doc_ids: list[str] | None = None,
+) -> RetrievalResult:
     """
     Retrieve parent citations from child-vector hits.
 
     Access metadata remains source-of-truth in Mongo `documents`, but we also
     push the accessible document ids down into Milvus before vector search.
     Mongo post-filtering stays as defense in depth.
+
+    When `scope_doc_ids` is provided (e.g. the user is asking about one opened
+    document), retrieval is further narrowed to the intersection of that scope
+    with the user's accessible documents — so answers can only be grounded in
+    the requested document(s), and never leak content the user cannot access.
     """
     query_text = query.strip()
     if not query_text:
         return RetrievalResult(citations=[])
 
+    # Normalize the requested scope into a clean set of doc ids.
+    scope_set: set[str] | None = None
+    if scope_doc_ids:
+        scope_set = {d.strip() for d in scope_doc_ids if d and d.strip()}
+        if not scope_set:
+            scope_set = None
+
     user_id = user.get("userId")
-    cached = cache.get_retrieval(query_text, user_id)
+    # Scoped retrieval must not share a cache entry with full-corpus retrieval.
+    cache_user_id = user_id
+    if scope_set:
+        cache_user_id = f"{user_id}::docs::{','.join(sorted(scope_set))}"
+    cached = cache.get_retrieval(query_text, cache_user_id)
     if cached:
         logger.debug("Cache hit for retrieval query: %s", query_text[:50])
         if isinstance(cached, dict) and "citations" in cached:
@@ -254,13 +274,27 @@ async def retrieve_citations(query: str, user: dict) -> RetrievalResult:
             )
             if not accessible_doc_ids:
                 return RetrievalResult(citations=[])
+            # Narrow to the requested document scope, keeping ACL as the ceiling.
+            if scope_set is not None:
+                accessible_doc_ids = [
+                    d for d in accessible_doc_ids if d in scope_set
+                ]
+                if not accessible_doc_ids:
+                    return RetrievalResult(citations=[])
             milvus_expr = build_milvus_document_expr(accessible_doc_ids)
         except Exception:
             logger.warning(
                 "ACL push-down failed; continuing with post-filter retrieval only."
             )
-            accessible_doc_ids = None
-            milvus_expr = None
+            # Even if the ACL push-down fails, still honour an explicit doc scope
+            # so the answer stays confined to the requested document(s). Mongo
+            # security post-filtering below remains the source of truth.
+            if scope_set is not None:
+                accessible_doc_ids = sorted(scope_set)
+                milvus_expr = build_milvus_document_expr(accessible_doc_ids)
+            else:
+                accessible_doc_ids = None
+                milvus_expr = None
 
         try:
             hits = search_vectors(vector, RETRIEVAL_TOP_K, expr=milvus_expr)
@@ -404,7 +438,7 @@ async def retrieve_citations(query: str, user: dict) -> RetrievalResult:
     cache.set_retrieval(
         query_text,
         {"citations": selected, "security_denied_all": False},
-        user_id,
+        cache_user_id,
     )
     logger.debug("Cache miss for retrieval query: %s", query_text[:50])
     return RetrievalResult(citations=selected)

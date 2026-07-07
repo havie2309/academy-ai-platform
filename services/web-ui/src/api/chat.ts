@@ -113,11 +113,15 @@ export const chatApi = {
     content: string,
     handlers: StreamHandlers,
     signal?: AbortSignal,
+    docIds?: string[],
   ): Promise<void> {
     const res = await fetchWithAuth(`/api/chat/sessions/${sessionId}/messages/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({
+        content,
+        ...(docIds && docIds.length ? { doc_ids: docIds } : {}),
+      }),
       signal,
     })
 

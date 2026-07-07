@@ -51,6 +51,7 @@ export class RagService {
     messages: RagMessage[],
     user: RagUserContext,
     sessionId?: string,
+    docIds: string[] = [],
   ): Promise<RagChatResult> {
     if (!this.enabled) throw new Error('RAG disabled')
 
@@ -61,6 +62,7 @@ export class RagService {
         query,
         sessionId: sessionId ?? null,
         messages,
+        docIds,
         user: {
           userId: user.userId,
           username: user.username,
@@ -102,6 +104,7 @@ export class RagService {
     sessionId: string | undefined,
     onMeta: (citations: ChatCitationDto[], metaRoute?: string) => void,
     onToken: (delta: string) => void,
+    docIds: string[] = [],
   ): Promise<RagChatResult> {
     if (!this.enabled) throw new Error('RAG disabled')
 
@@ -112,6 +115,7 @@ export class RagService {
         query,
         sessionId: sessionId ?? null,
         messages,
+        docIds,
         user: {
           userId: user.userId,
           username: user.username,
@@ -193,6 +197,7 @@ export class RagService {
   async retrieveCitations(
     query: string,
     user: RagUserContext,
+    docIds: string[] = [],
   ): Promise<ChatCitationDto[]> {
     if (!this.enabled) {
       return resolveCitations(query)
@@ -204,6 +209,7 @@ export class RagService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query,
+          docIds,
           user: {
             userId: user.userId,
             username: user.username,

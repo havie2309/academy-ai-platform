@@ -281,6 +281,7 @@ export class ChatService implements OnModuleInit {
     content: string,
     ragUser: RagUserContext,
     res: Response,
+    docIds: string[] = [],
   ): Promise<void> {
     initSse(res)
 
@@ -334,6 +335,7 @@ export class ChatService implements OnModuleInit {
             answer += delta
             writeSseEvent(res, 'token', { delta })
           },
+          docIds,
         )
         // After stream finishes, we have final answer and citations.
         answer = result.answer
@@ -345,7 +347,7 @@ export class ChatService implements OnModuleInit {
         this.logger.warn(
           `rag-engine /v1/chat/stream lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
         )
-        const citations = await this.rag.retrieveCitations(text, ragUser)
+        const citations = await this.rag.retrieveCitations(text, ragUser, docIds)
         clientCitations = this.toClientCitations(citations)
         // Send meta with assistant ID
         writeSseEvent(res, 'meta', {
