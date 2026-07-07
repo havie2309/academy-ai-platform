@@ -42,7 +42,7 @@ export default function RequireAuth({ allowedRoles, publicRoutes = DEFAULT_PUBLI
   if (allowedRoles && allowedRoles.length > 0) {
     const hasRole = hasAllowedRole(user.roles, allowedRoles)
     if (!hasRole) {
-      return <Navigate to="/chat" replace />
+      return <Navigate to="/" replace />
     }
   }
 

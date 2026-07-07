@@ -4,6 +4,7 @@ import {
   Database,
   FileText,
   GraduationCap,
+  Home,
   LayoutDashboard,
   LogIn,
   LogOut,
@@ -26,6 +27,7 @@ export default function Sidebar() {
   const { sessions, loading, removeSession } = useChatSessions()
   const [docsOpen, setDocsOpen] = useState(location.pathname === '/docs')
   const [sidebarWidth, setSidebarWidth] = useState(256)
+  const isChatRoute = location.pathname.startsWith('/chat')
 
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -55,6 +57,7 @@ export default function Sidebar() {
   const isSystemAdmin = !isAnonymous && hasAllowedRole(user?.roles, ['ADMIN'])
 
   const navItems = [
+    { icon: Home, label: 'Trang chủ', href: '/' },
     { icon: MessageSquare, label: 'Chat AI', href: '/chat' },
     ...(isAdmin
       ? [{ icon: LayoutDashboard, label: 'Dashboard', href: '/admin' }]
@@ -150,19 +153,23 @@ export default function Sidebar() {
         className="absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize hover:bg-blue-400/30 active:bg-blue-400/50"
       />
       <div className="px-5 pb-5 pt-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">
+        <button
+          type="button"
+          onClick={() => navigate('/')}
+          className="flex items-center gap-3 text-left focus:outline-none select-none cursor-pointer group/brand"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20 transition-transform group-hover/brand:scale-105">
             <GraduationCap size={18} />
           </div>
           <div>
-            <p className="text-base font-bold leading-tight tracking-tight text-slate-800">
+            <p className="text-base font-bold leading-tight tracking-tight text-slate-800 transition-colors group-hover/brand:text-blue-600">
               EduMind
             </p>
             <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
               Trợ lý ảo nội bộ
             </p>
           </div>
-        </div>
+        </button>
       </div>
 
       <div className="px-4 pb-4">
@@ -177,8 +184,10 @@ export default function Sidebar() {
         </button>
       </div>
 
-      <div className="space-y-2 px-3">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="space-y-2 px-3">
         {renderNavButton(navItems[0])}
+        {renderNavButton(navItems[1])}
 
         {/* Tài liệu dropdown */}
         <div>
@@ -234,16 +243,17 @@ export default function Sidebar() {
           )}
         </div>
 
-        {navItems.slice(1).map(renderNavButton)}
-      </div>
+          {navItems.slice(2).map(renderNavButton)}
+        </div>
 
-      <div className="mt-6 flex-1 overflow-y-auto px-3">
-        <div className="px-3 py-2">
+        {isChatRoute && (
+          <div className="mt-6 min-h-0 flex-1 overflow-y-auto px-3">
+          <div className="px-3 py-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Hội thoại gần đây
           </p>
-        </div>
-        <div className="space-y-1">
+          </div>
+          <div className="space-y-1">
           {loading && <p className="px-3 py-2 text-xs text-slate-400">Đang tải…</p>}
           {!loading && sessions.length === 0 && (
             <p className="px-3 py-2 text-xs text-slate-400">
@@ -281,7 +291,9 @@ export default function Sidebar() {
               </div>
             )
           })}
-        </div>
+          </div>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-slate-100 bg-slate-50/50 p-4">

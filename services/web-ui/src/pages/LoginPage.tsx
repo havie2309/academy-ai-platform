@@ -26,7 +26,7 @@ export default function LoginPage() {
       localStorage.setItem("access_token", access_token);
       localStorage.setItem("user", JSON.stringify(user));
       const isAdmin = isAdminLikeRole(user.roles);
-      navigate(isAdmin ? "/admin" : "/chat");
+      navigate(isAdmin ? "/admin" : "/");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng nhập thất bại.";
       setError(msg);
@@ -39,7 +39,7 @@ export default function LoginPage() {
     // Clear any existing session (optional)
     authApi.clearLocalSession();
     // Navigate to chat – the app will treat as anonymous
-    navigate("/chat");
+    navigate("/");
   }
 
   return (

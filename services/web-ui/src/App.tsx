@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ChatLayout from './layouts/ChatLayout.tsx'
+import HomePage from './pages/HomePage.tsx'
 import ChatPage from './pages/ChatPage.tsx'
 import DocsPage from './pages/DocsPage.tsx'
 import KhoDuLieuPage from './pages/KhoDuLieuPage.tsx'
@@ -18,7 +19,7 @@ function App() {
 
         <Route element={<RequireAuth />}>
           <Route element={<ChatLayout />}>
-            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
             <Route path="/docs" element={<DocsPage />} />
@@ -36,7 +37,7 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/chat" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )
