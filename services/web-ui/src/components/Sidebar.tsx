@@ -25,6 +25,22 @@ export default function Sidebar() {
   const { sessionId: activeSessionId } = useParams()
   const { sessions, loading, removeSession } = useChatSessions()
   const [docsOpen, setDocsOpen] = useState(location.pathname === '/docs')
+  const [sidebarWidth, setSidebarWidth] = useState(256)
+
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (mv: globalThis.MouseEvent) => {
+      setSidebarWidth(Math.max(180, Math.min(420, startW + mv.clientX - startX)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   const user = authApi.getUser()
   const isAuthenticated = authApi.isAuthenticated()
@@ -124,7 +140,15 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200/80 bg-white shadow-[1px_0_10px_rgba(0,0,0,0.02)]">
+    <aside
+      style={{ width: sidebarWidth }}
+      className="relative flex h-full shrink-0 flex-col border-r border-slate-200/80 bg-white shadow-[1px_0_10px_rgba(0,0,0,0.02)]"
+    >
+      {/* Resize handle */}
+      <div
+        onMouseDown={onResizeStart}
+        className="absolute right-0 top-0 z-10 h-full w-1 cursor-col-resize hover:bg-blue-400/30 active:bg-blue-400/50"
+      />
       <div className="px-5 pb-5 pt-6">
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/20">

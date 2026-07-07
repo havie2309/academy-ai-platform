@@ -11,6 +11,8 @@ import { ChatService } from './chat/chat.service'
 import { IngestQueueService } from './ingest/ingest-queue.service'
 import { DocumentsController } from './documents/documents.controller'
 import { DocumentsService } from './documents/documents.service'
+import { RequestsController } from './requests/requests.controller'
+import { RequestsService } from './requests/requests.service'
 import { RagService } from './rag/rag.service'
 
 @Module({
@@ -26,11 +28,12 @@ import { RagService } from './rag/rag.service'
     CommonModule,
     RedisModule,
   ],
-  controllers: [ChatController, DocumentsController],
+  controllers: [ChatController, DocumentsController, RequestsController],
   providers: [
     ChatService,
     ChatCacheService,
     DocumentsService,
+    RequestsService,
     IngestQueueService,
     RagService,
     JwtStrategy,

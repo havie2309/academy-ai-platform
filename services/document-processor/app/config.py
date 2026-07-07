@@ -70,3 +70,9 @@ PADDLEOCR_LANG = os.getenv("PADDLEOCR_LANG", "vi")
 
 SECURITY_RANK = {"public": 1, "internal": 2, "restricted": 3, "confidential": 4}
 ALLOW_ADVERSARIAL_DOCS = os.getenv("ALLOW_ADVERSARIAL_DOCS", "false").lower() == "true"
+
+# Requeue scanner
+REQUEUE_ENABLED = os.getenv("REQUEUE_ENABLED", "true").lower() != "false"
+REQUEUE_AFTER_MINUTES = int(os.getenv("REQUEUE_AFTER_MINUTES", "5"))
+REQUEUE_SCAN_INTERVAL_SEC = int(os.getenv("REQUEUE_SCAN_INTERVAL_SEC", "120"))
+REQUEUE_MAX_ATTEMPTS = int(os.getenv("REQUEUE_MAX_ATTEMPTS", "3"))

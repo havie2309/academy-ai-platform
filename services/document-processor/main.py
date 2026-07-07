@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.config import INGEST_ALLOW_DIRECT_FALLBACK, INGEST_TRANSPORT
 from app.consumer import enqueue_job, run_consumer_in_background
 from app.pipeline import process_document
+from app.requeue import run_requeue_in_background, scan_and_requeue
 from app.sample_consumer import consume_sample_jobs
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,8 @@ async def lifespan(_app: FastAPI):
             logger.info(f"Sample processing complete: {result}")
         except Exception:
             logger.exception("Sample processing failed")
+
+    run_requeue_in_background()
 
     yield
 
@@ -79,6 +82,13 @@ async def process_endpoint(body: ProcessJob, background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_run)
     return {"accepted": True, "documentId": body.documentId, "transport": "background"}
+
+
+@app.post("/v1/requeue")
+async def trigger_requeue(background_tasks: BackgroundTasks):
+    """Manually trigger a requeue scan — useful for debugging stuck documents."""
+    background_tasks.add_task(scan_and_requeue)
+    return {"accepted": True, "message": "Requeue scan triggered in background"}
 
 
 @app.post("/v1/process/sync")
