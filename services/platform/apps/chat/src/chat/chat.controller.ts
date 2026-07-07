@@ -99,7 +99,7 @@ export class ChatController {
     @Req() req: { user: AuthUser },
     @Res() res: Response,
     @Param('sessionId') sessionId: string,
-    @Body() body: { content: string },
+    @Body() body: { content: string; doc_ids?: string[] },
   ) {
     const ragUser = await toRagUser(req.user)
     return this.chat.streamMessage(
@@ -108,6 +108,7 @@ export class ChatController {
       body.content,
       ragUser,
       res,
+      body.doc_ids ?? [],
     )
   }
 

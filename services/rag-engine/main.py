@@ -46,6 +46,8 @@ class RetrieveUser(BaseModel):
 class RetrieveRequest(BaseModel):
     query: str = Field(..., min_length=1)
     user: RetrieveUser | None = None
+    # Optional document scope (intersected with the caller's ACL).
+    docIds: list[str] = []
 
 
 class ChatMessage(BaseModel):
@@ -58,6 +60,10 @@ class ChatRequest(BaseModel):
     sessionId: str | None = None
     messages: list[ChatMessage] = []
     user: RetrieveUser | None = None
+    # When set, retrieval is confined to these document ids (intersected with
+    # the caller's ACL). Used by "Tra cứu tài liệu" to answer strictly from the
+    # document the user has opened.
+    docIds: list[str] = []
 
 
 def _gateway_roles(raw: str | None) -> list[str]:
@@ -232,8 +238,12 @@ def _reject_payload() -> dict:
     }
 
 
-async def _retrieve_for_rag(query: str, user: dict) -> tuple[list[dict], dict | None]:
-    result = await retrieve_citations(query, user)
+async def _retrieve_for_rag(
+    query: str,
+    user: dict,
+    scope_doc_ids: list[str] | None = None,
+) -> tuple[list[dict], dict | None]:
+    result = await retrieve_citations(query, user, scope_doc_ids=scope_doc_ids)
     if isinstance(result, list):
         return result, None
     if result.security_denied_all:
@@ -402,7 +412,9 @@ async def retrieve(body: RetrieveRequest, request: Request):
     if refusal:
         return retrieve_refusal_payload(refusal)
     try:
-        citations, doc_refusal = await _retrieve_for_rag(body.query, user)
+        citations, doc_refusal = await _retrieve_for_rag(
+            body.query, user, scope_doc_ids=body.docIds
+        )
         if doc_refusal:
             return {
                 **retrieve_refusal_payload(doc_refusal),
@@ -447,7 +459,9 @@ async def chat(body: ChatRequest, request: Request):
             "refusal",
         )
         return refusal
-    clarification = await check_query_clarity(body.query)
+    # A doc-scoped question already has a concrete target, so skip the
+    # ambiguity/route detours and go straight to grounded RAG retrieval.
+    clarification = None if body.docIds else await check_query_clarity(body.query)
     if clarification:
         _write_session_context(
             body.sessionId,
@@ -457,7 +471,7 @@ async def chat(body: ChatRequest, request: Request):
             "clarify",
         )
         return clarification
-    route = classify_route(body.query)
+    route = "rag" if body.docIds else classify_route(body.query)
     if route == "sql":
         try:
             result = await run_sql_query(body.query, user)
@@ -498,7 +512,9 @@ async def chat(body: ChatRequest, request: Request):
         }
 
     try:
-        citations, doc_refusal = await _retrieve_for_rag(body.query, user)
+        citations, doc_refusal = await _retrieve_for_rag(
+            body.query, user, scope_doc_ids=body.docIds
+        )
     except Exception as exc:
         raise HTTPException(503, f"retrieval failed: {exc}") from exc
     if doc_refusal:
@@ -539,8 +555,18 @@ async def chat_stream(body: ChatRequest, request: Request):
     """Streaming turn: SQL streams markdown answer; RAG streams citations + tokens."""
     user = _resolved_user(body.user, request)
     refusal = await maybe_refuse_query(body.query, user)
-    clarification = None if refusal else await check_query_clarity(body.query)
-    route = "refusal" if refusal else ("clarify" if clarification else classify_route(body.query))
+    # Doc-scoped questions skip clarify/route detours and go straight to RAG.
+    clarification = (
+        None if (refusal or body.docIds) else await check_query_clarity(body.query)
+    )
+    if refusal:
+        route = "refusal"
+    elif clarification:
+        route = "clarify"
+    elif body.docIds:
+        route = "rag"
+    else:
+        route = classify_route(body.query)
     history = _resolve_chat_history(
         body.sessionId,
         body.query,
@@ -617,7 +643,9 @@ async def chat_stream(body: ChatRequest, request: Request):
 
         # --- RAG flow ---
         try:
-            citations, doc_refusal = await _retrieve_for_rag(body.query, user)
+            citations, doc_refusal = await _retrieve_for_rag(
+                body.query, user, scope_doc_ids=body.docIds
+            )
         except Exception as exc:
             yield _sse("error", {"message": f"retrieval failed: {exc}"})
             return
