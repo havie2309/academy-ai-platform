@@ -80,11 +80,20 @@ function normalizePath(pathname: string): string {
 // NEW: Check if path is public
 // ============================================================
 
+// GET /api/documents endpoints that are intentionally public (no JWT required).
+// Downstream canView() still enforces security level for anonymous users (maxSecurityLevel=1).
+const PUBLIC_DOCUMENTS_PATHS = new Set([
+  '/api/documents',
+  '/api/documents/ingest-statuses',
+])
+const INGEST_STATUS_RE = /^\/api\/documents\/[^/]+\/ingest-status$/
+
 export function isPublicPath(pathname: string, method?: string): boolean {
   const path = normalizePath(pathname)
   if (PUBLIC_ROUTES.has(path)) return true
-  if (method === 'GET' && path.startsWith('/api/documents')) {
-    return true
+  if (method === 'GET') {
+    if (PUBLIC_DOCUMENTS_PATHS.has(path)) return true
+    if (INGEST_STATUS_RE.test(path)) return true
   }
   for (const prefix of PUBLIC_PREFIXES) {
     if (path.startsWith(prefix)) return true
