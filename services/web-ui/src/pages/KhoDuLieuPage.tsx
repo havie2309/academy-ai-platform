@@ -8,6 +8,7 @@ import {
   MoreVertical,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
   Trash2,
   Upload,
@@ -742,6 +743,20 @@ export default function KhoDuLieuPage() {
     }
   }
 
+  const [syncingId, setSyncingId] = useState<string | null>(null)
+  const quickSync = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation()
+    setSyncingId(id)
+    try {
+      await requestsApi.syncStatus(id)
+      await load()
+    } catch {
+      // silent
+    } finally {
+      setSyncingId(null)
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   return (
@@ -916,9 +931,23 @@ export default function KhoDuLieuPage() {
                             <td className="whitespace-nowrap px-3 py-3 text-xs tabular-nums text-slate-500">{fmtDate(d.createdAt)}</td>
                             <td className="px-3 py-3 text-[13px] text-slate-600">{d.by}</td>
                             <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                              <button className="flex h-7 w-7 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600">
-                                <MoreVertical size={14} />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                {d.status === 'processing' && (
+                                  <button
+                                    onClick={(e) => quickSync(e, d.id)}
+                                    disabled={syncingId === d.id}
+                                    title="Đồng bộ trạng thái"
+                                    className="flex h-7 w-7 items-center justify-center rounded text-blue-400 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40"
+                                  >
+                                    {syncingId === d.id
+                                      ? <Loader2 size={13} className="animate-spin" />
+                                      : <RotateCcw size={13} />}
+                                  </button>
+                                )}
+                                <button className="flex h-7 w-7 items-center justify-center rounded text-slate-300 hover:bg-slate-100 hover:text-slate-600">
+                                  <MoreVertical size={14} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))

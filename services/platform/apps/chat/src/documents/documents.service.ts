@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs'
 import { readFile, unlink } from 'node:fs/promises'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { IngestQueueService } from '../ingest/ingest-queue.service'
+import { writeAuditLog } from '../../../../src/common/audit-log'
 
 export interface UploadedFileLike {
   originalname: string
@@ -124,7 +125,7 @@ const SECURITY_RANK: Record<SecurityLevel, number> = {
   confidential: 4,
 }
 
-const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2']
+const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2', 'P7']
 const ROLE_CODE_RE = /^[A-Za-z0-9_-]+$/
 
 const CATEGORY_SECURITY_DEFAULTS: Record<
@@ -490,7 +491,7 @@ export class DocumentsService implements OnModuleInit {
   async list(user: RequestUser) {
     this.ensureReady()
     const rows = await this.documents
-      .find({})
+      .find({ isLatestVersion: { $ne: false } })
       .sort({ createdAt: -1 })
       .limit(500)
       .toArray()
@@ -862,7 +863,7 @@ export class DocumentsService implements OnModuleInit {
       userId: 'preview-user',
       roles: [role],
       department: null,
-      maxSecurityLevel: role === 'Admin' || role === 'BGD' || role === 'P2' ? 4 : 2
+      maxSecurityLevel: ADMIN_ROLES.includes(role) ? 4 : 2,
     };
     
     const allDocs = await this.documents.find({}).toArray();
@@ -983,6 +984,28 @@ export class DocumentsService implements OnModuleInit {
         },
       },
     )
+
+    writeAuditLog({
+      userId: user.userId,
+      action: 'update_scope',
+      resourceType: 'document',
+      resourceId: docId,
+      oldValue: {
+        securityLevel: doc.securityLevel,
+        scopeType: doc.scopeType,
+        accessRoleCodes: doc.accessRoleCodes,
+        accessDepartmentCodes: doc.accessDepartmentCodes,
+        accessUserIds: doc.accessUserIds,
+      },
+      newValue: {
+        securityLevel: sanitized.securityLevel,
+        scopeType: sanitized.scopeType,
+        accessRoleCodes: sanitized.scopeType === 'role' ? sanitized.roleCodes : [],
+        accessDepartmentCodes: sanitized.scopeType === 'department' ? sanitized.departmentCodes : [],
+        accessUserIds: sanitized.scopeType === 'custom' ? sanitized.userIds : [],
+      },
+      status: 'success',
+    }).catch(() => {})
 
     return { updated: true }
   }

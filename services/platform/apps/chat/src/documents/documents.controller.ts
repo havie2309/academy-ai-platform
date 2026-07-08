@@ -46,7 +46,7 @@ const SECURITY_LEVELS: SecurityLevel[] = [
 ]
 const SCOPE_TYPES: AccessScopeType[] = ['all', 'role', 'department', 'custom']
 
-const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2']
+const ADMIN_ROLES = ['ADMIN', 'Admin', 'BGD', 'P2', 'P7']
 const SECURITY_RANK: Record<SecurityLevel, number> = {
   public: 1,
   internal: 2,
@@ -197,7 +197,7 @@ export class DocumentsController {
     const isAdmin = user.roles.some((r) => ADMIN_ROLES.includes(r))
     if (!isAdmin && SECURITY_RANK[securityLevel] > (user.maxSecurityLevel ?? 1)) {
       throw new ForbiddenException(
-        `Vai trò của bạn chỉ được upload tài liệu tối đa mức "${SECURITY_LEVELS[user.maxSecurityLevel - 1]}".`,
+        `Vai trò của bạn chỉ được upload tài liệu tối đa mức "${SECURITY_LEVELS[(user.maxSecurityLevel ?? 1) - 1]}".`,
       )
     }
 
@@ -303,7 +303,7 @@ export class DocumentsController {
     const isAdmin = user.roles.some((r) => ADMIN_ROLES.includes(r))
     if (!isAdmin && SECURITY_RANK[securityLevel] > (user.maxSecurityLevel ?? 1)) {
       throw new ForbiddenException(
-        `Vai trò của bạn chỉ được đặt mức mật tối đa "${SECURITY_LEVELS[user.maxSecurityLevel - 1]}".`,
+        `Vai trò của bạn chỉ được đặt mức mật tối đa "${SECURITY_LEVELS[(user.maxSecurityLevel ?? 1) - 1]}".`,
       )
     }
     return this.docs.updateScope(
