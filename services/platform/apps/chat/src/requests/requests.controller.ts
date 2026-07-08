@@ -84,4 +84,11 @@ export class RequestsController {
     const user = extractUser(req)
     return this.svc.reject(id, { userId: user.userId, roles: user.roles }, body.reason)
   }
+
+  /** POST /api/documents/requests/:id/sync-status — đồng bộ trạng thái ingest về request */
+  @Post(':id/sync-status')
+  syncStatus(@Req() req: Request, @Param('id') id: string) {
+    const user = extractUser(req)
+    return this.svc.syncStatus(id, { userId: user.userId, roles: user.roles })
+  }
 }
