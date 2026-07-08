@@ -197,23 +197,44 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+_NO_INFO_PHRASES = (
+    "không tìm thấy thông tin",
+    "khong tim thay thong tin",
+    "không có thông tin",
+    "không có đủ thông tin",
+    "chưa tìm thấy thông tin",
+    "chưa tìm thấy tài liệu",
+    "không tìm thấy tài liệu",
+    "tài liệu không đề cập",
+    "không được đề cập",
+    "chưa có thông tin",
+    "không có trong tài liệu",
+    "không tìm thấy nội dung",
+)
+
+# Returned when RAG retrieval finds nothing at all (0 citations)
+_NO_CITATIONS_ANSWER = (
+    "Tôi không tìm thấy tài liệu nào liên quan đến câu hỏi này trong kho dữ liệu. "
+    "Bạn có thể thử diễn đạt lại câu hỏi, hoặc liên hệ bộ phận phụ trách để "
+    "bổ sung tài liệu vào hệ thống."
+)
+
+# Returned when citations exist but LLM couldn't derive a direct answer
+_PARTIAL_INFO_ANSWER = (
+    "Tôi tìm thấy một số tài liệu liên quan nhưng chưa có câu trả lời trực tiếp "
+    "cho câu hỏi này. Dưới đây là các tài liệu có thể hữu ích:"
+)
+
+
 def _is_no_info_answer(answer: str) -> bool:
     text = answer.strip().lower()
-    return (
-        "không tìm thấy thông tin" in text
-        or "khong tim thay thong tin" in text
-        or "không có thông tin" in text
-    )
+    return any(phrase in text for phrase in _NO_INFO_PHRASES)
 
 
 def _maybe_replace_refusal(answer: str) -> str:
-    """Replace the default refusal message with a more explanatory one."""
+    """When LLM says it couldn't find info despite having citations, replace with a clearer message."""
     if _is_no_info_answer(answer):
-        return (
-            "Tôi không tìm thấy câu trả lời trực tiếp cho câu hỏi của bạn trong "
-            "các tài liệu đã tìm kiếm. Tuy nhiên, đây là những phần liên quan "
-            "nhất mà tôi đã xem xét:"
-        )
+        return _PARTIAL_INFO_ANSWER
     return answer
 
 
@@ -224,9 +245,9 @@ def _fold_text(text: str) -> str:
 
 
 REJECT_ANSWER = (
-    "Toi khong tim thay thong tin nay trong tai lieu duoc cung cap. "
-    "Hien tro ly chi ho tro cau hoi ve dao tao, khao thi, tai lieu noi bo "
-    "va cac tac vu hoc vu lien quan."
+    "Câu hỏi này nằm ngoài phạm vi hỗ trợ của trợ lý. "
+    "Hiện trợ lý chỉ hỗ trợ các câu hỏi về đào tạo, khảo thí, tài liệu nội bộ "
+    "và các tác vụ học vụ liên quan."
 )
 
 
@@ -527,9 +548,8 @@ async def chat(body: ChatRequest, request: Request):
         )
         return doc_refusal
     if not citations:
-        no_info = "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
-        _write_session_context(body.sessionId, user, history, no_info, "rag")
-        return {"answer": no_info, "citations": [], "route": "rag"}
+        _write_session_context(body.sessionId, user, history, _NO_CITATIONS_ANSWER, "rag")
+        return {"answer": _NO_CITATIONS_ANSWER, "citations": [], "route": "rag"}
     try:
         answer, used_chunk_ids, reference_chunk_ids = await complete_chat_structured(
             history, citations
@@ -672,13 +692,12 @@ async def chat_stream(body: ChatRequest, request: Request):
             return
 
         if not citations:
-            no_info = "Tôi không tìm thấy thông tin này trong tài liệu được cung cấp."
-            _write_session_context(body.sessionId, user, history, no_info, "rag")
+            _write_session_context(body.sessionId, user, history, _NO_CITATIONS_ANSWER, "rag")
             yield _sse("meta", {"citations": [], "route": "rag"})
             step = 24
-            for i in range(0, len(no_info), step):
-                yield _sse("token", {"delta": no_info[i : i + step]})
-            yield _sse("done", {"answer": no_info, "route": "rag"})
+            for i in range(0, len(_NO_CITATIONS_ANSWER), step):
+                yield _sse("token", {"delta": _NO_CITATIONS_ANSWER[i : i + step]})
+            yield _sse("done", {"answer": _NO_CITATIONS_ANSWER, "route": "rag"})
             return
 
         # Normal RAG: stream answer from LLM (plain text, no JSON)
