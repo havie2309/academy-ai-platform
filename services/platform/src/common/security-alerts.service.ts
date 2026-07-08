@@ -131,13 +131,15 @@ export class SecurityAlertsService implements OnModuleInit {
   }
 
   async recordAlert(input: SecurityAlertInput): Promise<SecurityAlertRecord> {
+    // Normalize userId: if it's 'anonymous' or empty, set to null
+    const userId = input.userId && input.userId !== 'anonymous' ? input.userId : null
+
     const {
       fingerprint,
       ruleCode,
       severity,
       title,
       summary,
-      userId,
       username,
       sessionId,
       ipAddress,
@@ -249,7 +251,7 @@ export class SecurityAlertsService implements OnModuleInit {
         SEVERITY_RANK[severity],
         title,
         summary,
-        userId ?? null,
+        userId,  // <-- use the normalized userId
         username ?? null,
         sessionId ?? null,
         ipAddress ?? null,

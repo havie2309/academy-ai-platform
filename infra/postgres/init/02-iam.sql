@@ -88,7 +88,7 @@ CREATE TABLE user_sessions (
 CREATE TABLE login_logs (
     log_id SERIAL PRIMARY KEY,
     user_id VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
-    event_type VARCHAR(50) NOT NULL CHECK (event_type IN ('login_success', 'login_failed', 'logout', 'token_refresh')),
+    event_type VARCHAR(50) NOT NULL CHECK (event_type IN ('login_success', 'login_failed', 'logout', 'token_refresh', 'password_change', 'password_change_failed')),
     ip_address VARCHAR(50),
     user_agent TEXT,
     success BOOLEAN DEFAULT TRUE,

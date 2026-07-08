@@ -15,13 +15,15 @@ export interface AuditLogInput {
 
 export async function writeAuditLog(entry: AuditLogInput): Promise<void> {
   const pool = getSharedPostgresPool()
+  // Normalize userId: if it's 'anonymous' or empty, set to null
+  const userId = entry.userId && entry.userId !== 'anonymous' ? entry.userId : null
   await pool.query(
     `INSERT INTO audit_log (
        user_id, action, resource_type, resource_id, old_value, new_value,
        ip_address, user_agent, status, reason
      ) VALUES ($1, $2, $3, $4, $5, $6, NULLIF($7, '')::inet, $8, $9, $10)`,
     [
-      entry.userId ?? null,
+      userId,
       entry.action,
       entry.resourceType ?? null,
       entry.resourceId ?? null,

@@ -4,6 +4,26 @@ $runner = Join-Path $root 'scripts\run-with-log.ps1'
 & .\scripts\up-code.ps1
 docker compose stop user-management     # outdated container, run `npm run start:dev user-management` to start a new one
 
+function Start-Ollama {
+    $command = "ollama serve"
+    $encodedCommand = [Convert]::ToBase64String(
+        [System.Text.Encoding]::Unicode.GetBytes($command)
+    )
+    Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+        '-NoProfile',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        $runner,
+        '-Name',
+        'ollama',
+        '-WorkingDirectory',
+        $root,                     # any directory works, root is fine
+        '-EncodedCommand',
+        $encodedCommand
+    )
+}
+
 function Start-NestDevApp {
     param(
         [string]$Name
@@ -51,6 +71,9 @@ function Start-PythonService {
         $encodedCommand
     )
 }
+
+# Start Ollama
+Start-Ollama
 
 # Start NestJS services
 Start-NestDevApp -Name 'api-gateway'
