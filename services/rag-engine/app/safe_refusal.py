@@ -57,6 +57,37 @@ CLARIFICATION_TEMPLATES: dict[str, str] = {
     "default": "Bạn có thể cung cấp thêm thông tin cụ thể hơn không?",
 }
 
+# Per-topic clarification messages for TIME ambiguity — keyed by the matched hint
+_TIME_CLARIFICATION_BY_TOPIC: dict[str, str] = {
+    "lich thi":           "Bạn muốn xem **lịch thi** của năm học và học kỳ nào? Ví dụ: năm học 2025-2026, học kỳ 1.",
+    "lịch thi":           "Bạn muốn xem **lịch thi** của năm học và học kỳ nào? Ví dụ: năm học 2025-2026, học kỳ 1.",
+    "thoi khoa bieu":     "Bạn muốn xem **thời khóa biểu** năm học và học kỳ nào?",
+    "thời khóa biểu":     "Bạn muốn xem **thời khóa biểu** năm học và học kỳ nào?",
+    "hoc phi":            "Học phí thay đổi theo từng năm. Bạn muốn biết **học phí** năm học nào?",
+    "học phí":            "Học phí thay đổi theo từng năm. Bạn muốn biết **học phí** năm học nào?",
+    "dang ky tin chi":    "Bạn muốn biết thông tin **đăng ký tín chỉ** của năm học và học kỳ nào?",
+    "đăng ký tín chỉ":    "Bạn muốn biết thông tin **đăng ký tín chỉ** của năm học và học kỳ nào?",
+    "dang ky hoc phan":   "Bạn muốn biết thông tin **đăng ký học phần** của năm học và học kỳ nào?",
+    "đăng ký học phần":   "Bạn muốn biết thông tin **đăng ký học phần** của năm học và học kỳ nào?",
+    "lich hoc":           "Bạn muốn xem **lịch học** của năm học và học kỳ nào?",
+    "lịch học":           "Bạn muốn xem **lịch học** của năm học và học kỳ nào?",
+    "thi cuoi ky":        "Bạn muốn biết thông tin **thi cuối kỳ** của năm học và học kỳ nào?",
+    "thi cuối kỳ":        "Bạn muốn biết thông tin **thi cuối kỳ** của năm học và học kỳ nào?",
+    "kiem tra cuoi ky":   "Bạn muốn biết thông tin **kiểm tra cuối kỳ** của năm học và học kỳ nào?",
+    "kiểm tra cuối kỳ":   "Bạn muốn biết thông tin **kiểm tra cuối kỳ** của năm học và học kỳ nào?",
+    "tuyen sinh":         "Bạn muốn biết thông tin **tuyển sinh** năm học nào?",
+    "tuyển sinh":         "Bạn muốn biết thông tin **tuyển sinh** năm học nào?",
+    "hoc bong":           "Tiêu chí **học bổng** có thể thay đổi theo năm. Bạn muốn biết thông tin năm học nào?",
+    "học bổng":           "Tiêu chí **học bổng** có thể thay đổi theo năm. Bạn muốn biết thông tin năm học nào?",
+    "deadline nop":       "Bạn muốn biết **deadline nộp** của năm học và học kỳ nào?",
+    "hạn nộp":            "Bạn muốn biết **hạn nộp** của năm học và học kỳ nào?",
+    "han nop":            "Bạn muốn biết **hạn nộp** của năm học và học kỳ nào?",
+    "tot nghiep":         "Bạn muốn biết thông tin **tốt nghiệp** của năm học nào?",
+    "tốt nghiệp":         "Bạn muốn biết thông tin **tốt nghiệp** của năm học nào?",
+    "bao ve luan van":    "Bạn muốn biết lịch **bảo vệ luận văn** của năm học nào?",
+    "bảo vệ luận văn":    "Bạn muốn biết lịch **bảo vệ luận văn** của năm học nào?",
+}
+
 # Chỉ các từ liên quan đáp án/nội dung thi mới cần check year.
 # "lịch thi", "mẫu đề thi", "ôn tập" KHÔNG nằm ở đây → để guardrail thường xử lý.
 _ANSWER_HINTS = (
@@ -127,6 +158,13 @@ _TIME_SENSITIVE_HINTS = (
     "tuyển sinh",
     "hoc bong",
     "học bổng",
+    "deadline nop",
+    "han nop",
+    "hạn nộp",
+    "tot nghiep",
+    "tốt nghiệp",
+    "bao ve luan van",
+    "bảo vệ luận văn",
 )
 
 # Queries asking about a course without naming which → SUBJECT ambiguous
@@ -282,23 +320,36 @@ def _has_temporal_qualifier(folded: str) -> bool:
     )
 
 
-def _detect_ambiguity_type(folded: str) -> str | None:
+def _detect_ambiguity_type(folded: str) -> tuple[str, str] | None:
     """
-    Rule-based: returns template key if query is ambiguous, None if clear.
+    Rule-based: returns (ambiguity_type, matched_hint) if query is ambiguous, None if clear.
 
     Layer 1 (active): keyword + missing-qualifier pattern matching.
     Layer 2 (placeholder): Qwen classify — swap _detect_ambiguity_type for an
     async LLM call that returns TIME/SUBJECT/PERSON/CLEAR to handle open-ended
     phrasing that keywords miss, without changing the callers.
     """
-    if any(_fold_text(h) in folded for h in _TIME_SENSITIVE_HINTS):
-        if not _has_temporal_qualifier(folded):
-            return "time"
-    if any(_fold_text(h) in folded for h in _SUBJECT_SENSITIVE_HINTS):
-        return "subject"
-    if any(_fold_text(h) in folded for h in _PERSON_SENSITIVE_HINTS):
-        return "person"
+    for h in _TIME_SENSITIVE_HINTS:
+        if _fold_text(h) in folded:
+            if not _has_temporal_qualifier(folded):
+                return ("time", h)
+    for h in _SUBJECT_SENSITIVE_HINTS:
+        if _fold_text(h) in folded:
+            return ("subject", h)
+    for h in _PERSON_SENSITIVE_HINTS:
+        if _fold_text(h) in folded:
+            return ("person", h)
     return None
+
+
+def _build_clarification_message(ambiguity_type: str, matched_hint: str) -> str:
+    """Build a topic-aware clarification message instead of a generic one."""
+    if ambiguity_type == "time":
+        return _TIME_CLARIFICATION_BY_TOPIC.get(
+            matched_hint,
+            CLARIFICATION_TEMPLATES["time"],
+        )
+    return CLARIFICATION_TEMPLATES.get(ambiguity_type, CLARIFICATION_TEMPLATES["default"])
 
 
 async def check_query_clarity(query: str) -> dict | None:
@@ -310,10 +361,11 @@ async def check_query_clarity(query: str) -> dict | None:
     folded = _fold_text(query)
     if _has_answer_hint(folded):
         return None
-    ambiguity_type = _detect_ambiguity_type(folded)
-    if ambiguity_type is None:
+    result = _detect_ambiguity_type(folded)
+    if result is None:
         return None
-    message = CLARIFICATION_TEMPLATES.get(ambiguity_type, CLARIFICATION_TEMPLATES["default"])
+    ambiguity_type, matched_hint = result
+    message = _build_clarification_message(ambiguity_type, matched_hint)
     return {
         "answer": message,
         "citations": [],
