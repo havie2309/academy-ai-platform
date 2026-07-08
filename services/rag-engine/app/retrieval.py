@@ -39,6 +39,8 @@ class RetrievalResult:
     citations: list[dict]
     security_denied_all: bool = False
     primary_denial: DocumentSecurityDecision | None = None
+    max_score: float | None = None          # max rerank score
+    reranked_candidates: list[dict] | None = None  # full list with scores
 
 
 
@@ -158,37 +160,42 @@ def _filter_old_conflict_docs(query: str, citations: list[dict]) -> list[dict]:
 
 
 def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
+    """Apply thresholds and return only chunks that pass. No fallback."""
     if not citations:
         return []
+
+    # Vector score filter
     after_vector = [
-        citation
-        for citation in citations
-        if float(citation.get("score", 0.0) or 0.0) >= VECTOR_SCORE_MIN
+        c for c in citations
+        if float(c.get("score", 0.0) or 0.0) >= VECTOR_SCORE_MIN
     ]
     if not after_vector:
-        after_vector = citations[:]
+        return []  # No fallback – return empty
 
+    # Rerank scores
     rerank_scores = [
-        float(citation.get("rerank_score"))
-        for citation in after_vector
-        if citation.get("rerank_score") is not None
+        float(c.get("rerank_score"))
+        for c in after_vector
+        if c.get("rerank_score") is not None
     ]
     if not rerank_scores:
         return after_vector
 
     top = max(rerank_scores)
     floor = max(RERANK_SCORE_MIN, top - RERANK_SCORE_DELTA)
+
+    # Keep those with rerank_score >= floor AND >= hard_min
     after_rerank = [
-        citation
-        for citation in after_vector
-        if citation.get("rerank_score") is None
-        or float(citation.get("rerank_score")) >= floor
+        c for c in after_vector
+        if c.get("rerank_score") is None  # keep those without rerank score? (shouldn't happen)
+        or float(c.get("rerank_score")) >= floor
     ]
-    return after_rerank or after_vector
+    return after_rerank  # may be empty
 
 
 _SECURITY_PRIORITY = {"confidential": 4, "restricted": 3, "internal": 2, "public": 1}
 _SECURITY_THRESHOLD = 1.5
+_BOOST_FACTOR = 1.0
 
 
 def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
@@ -207,6 +214,21 @@ def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
         return (1, 0, -score)
 
     return sorted(citations, key=_key)
+
+
+def _apply_security_boost(citations: list[dict]) -> list[dict]:
+    for c in citations:
+        sec = c.get("security_level", "public")
+        priority = _SECURITY_PRIORITY.get(sec, 1)
+        # Boost only for levels above public
+        boost = _BOOST_FACTOR * (priority - 1)
+        if boost > 0:
+            if c.get("rerank_score") is not None:
+                c["rerank_score"] += boost
+            else:
+                # If no rerank score, set a high default (trusted docs without score)
+                c["rerank_score"] = 10.0 + boost
+    return citations
 
 
 async def retrieve_citations(
@@ -236,23 +258,6 @@ async def retrieve_citations(
         scope_set = {d.strip() for d in scope_doc_ids if d and d.strip()}
         if not scope_set:
             scope_set = None
-
-    user_id = user.get("userId")
-    # Scoped retrieval must not share a cache entry with full-corpus retrieval.
-    cache_user_id = user_id
-    if scope_set:
-        cache_user_id = f"{user_id}::docs::{','.join(sorted(scope_set))}"
-    cached = cache.get_retrieval(query_text, cache_user_id)
-    if cached:
-        logger.debug("Cache hit for retrieval query: %s", query_text[:50])
-        if isinstance(cached, dict) and "citations" in cached:
-            return RetrievalResult(
-                citations=cached.get("citations") or [],
-                security_denied_all=bool(cached.get("security_denied_all")),
-            )
-        if isinstance(cached, list):
-            return RetrievalResult(citations=cached)
-
 
     try:
         vector = await embed_query(query_text)
@@ -428,6 +433,8 @@ async def retrieve_citations(
         citations.append(_build_citation(row, row.get("chunkId"), best_score))
 
     reranked = await rerank_citations(query_text, citations)
+    max_score = max((c.get("rerank_score") for c in reranked if c.get("rerank_score") is not None), default=None)
+    reranked = _apply_security_boost(reranked)
     selected = _apply_score_thresholds(reranked)
     selected = _filter_old_conflict_docs(query_text, selected)
     selected = _apply_year_policy(query_text, selected)
@@ -435,10 +442,9 @@ async def retrieve_citations(
     selected = limit_chunks_per_doc(selected, MAX_CHUNKS_PER_DOC)
     selected = limit_context_budget(selected)
 
-    cache.set_retrieval(
-        query_text,
-        {"citations": selected, "security_denied_all": False},
-        cache_user_id,
+    return RetrievalResult(
+        citations=selected,
+        max_score=max_score,
+        reranked_candidates=reranked
     )
-    logger.debug("Cache miss for retrieval query: %s", query_text[:50])
-    return RetrievalResult(citations=selected)
+

@@ -28,6 +28,7 @@ export default function ChatPage() {
   const abortRef = useRef<AbortController | null>(null)
   const skipLoadRef = useRef<string | null>(null)
   const pollingRef = useRef<number | null>(null)
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -386,7 +387,7 @@ export default function ChatPage() {
                       msg.citations.length > 0 &&
                       msg.status !== 'streaming' &&
                       msg.status !== 'loading' && (
-                        <CitationList citations={msg.citations} />
+                        <CitationList citations={msg.citations} showScores={isAdmin} />
                       )}
                   </div>
                 )}

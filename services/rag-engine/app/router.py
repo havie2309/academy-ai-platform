@@ -125,6 +125,23 @@ _REJECT_HINTS = (
     "ve may bay",
 )
 
+DML_KEYWORDS = (
+    "xóa",
+    "cập nhật",
+    "chèn",
+    "xoá",
+    "delete",
+    "update",
+    "insert",
+    "drop",
+    "alter",
+    "truncate",
+    "removing",
+    "remover",
+    "sửa",
+    "thay đổi",
+)
+
 
 def _fold(text: str) -> str:
     lowered = text.lower()
@@ -154,8 +171,15 @@ def _looks_like_reject(text: str) -> bool:
     return True
 
 
+def _looks_like_dml(text: str) -> bool:
+    """Check if the query contains DML keywords (data modification intent)."""
+    return _contains_any(text, DML_KEYWORDS)
+
+
 def classify_route(query: str) -> str:
     folded = _fold(query)
+    if _looks_like_dml(folded):
+        return "dml_denied"
     for hint in _SQL_HINTS:
         if _fold(hint) in folded:
             return "sql"

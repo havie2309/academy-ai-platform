@@ -1,3 +1,5 @@
+// services/platform/apps/admin-config/src/admin-config.service.ts
+
 import {
   BadRequestException,
   ForbiddenException,
@@ -49,15 +51,35 @@ export interface StoredAdminConfig<T> {
 const RAG_POLICY_KEY = 'rag_policy'
 const DEFAULT_SAFE_REFUSAL =
   'Xin lỗi, tôi không thể trả lời câu hỏi này theo chính sách an toàn hiện tại.'
-const DEFAULT_BLACKLIST = [
-  'đề thi mất',
-  'đáp án đề thi',
+
+// Legacy fallback constants (used when upgrading from old keyword-only policy)
+const LEGACY_BLACKLIST_RULE_ID = 'legacy-keyword-blacklist'
+const LEGACY_BLACKLIST_RULE_LABEL = 'Từ khóa bị chặn (legacy)'
+
+// Absolute no‑go terms (keyword-based, high precision)
+const ABSOLUTE_KEYWORD_PHRASES = [
+  'truy cập trái phép',
   'mật khẩu hệ thống',
   'bypass quyền',
   'vượt quyền truy cập',
 ]
-const DEFAULT_GUARDRAIL_RULE_ID = 'default-keyword-blocklist'
-const DEFAULT_GUARDRAIL_RULE_LABEL = 'Danh sách từ khóa bị chặn'
+
+// Refined semantic phrases (longer, intent-specific)
+const SEMANTIC_PHRASES = [
+  'hướng dẫn từng bước gian lận trong phòng thi',
+  'thủ thuật mang tài liệu cấm vào phòng thi',
+  'yêu cầu cung cấp đáp án đề thi hiện tại',
+  'cách thức vượt tường lửa hệ thống',
+  'chiến lược lấy cắp dữ liệu nội bộ',
+]
+
+const SEMANTIC_SYNONYMS = [
+  'mẹo gian lận trong kỳ thi',
+  'cách giấu tài liệu trong phòng thi',
+  'xin đáp án đề thi',
+  'hack tài khoản',
+  'đánh cắp thông tin',
+]
 
 function normalizeUnique(values: string[] | undefined): string[] {
   const seen = new Set<string>()
@@ -75,11 +97,23 @@ function normalizeUnique(values: string[] | undefined): string[] {
 
 function defaultGuardrailRules(): GuardrailRule[] {
   return [
+    // Semantic rule – the primary guardrail for exam/cheating queries
     {
-      id: DEFAULT_GUARDRAIL_RULE_ID,
-      label: DEFAULT_GUARDRAIL_RULE_LABEL,
+      id: 'default-semantic-blocklist',
+      label: 'Chặn theo ngữ nghĩa (demo)',
       enabled: true,
-      phrases: [...DEFAULT_BLACKLIST],
+      phrases: SEMANTIC_PHRASES,
+      matchMode: 'semantic',
+      semanticThreshold: 0.88,
+      synonyms: SEMANTIC_SYNONYMS,
+    },
+    // Fallback keyword rule for absolute terms – avoids false positives
+    {
+      id: 'default-keyword-credentials',
+      label: 'Từ khóa tuyệt đối',
+      enabled: true,
+      phrases: ABSOLUTE_KEYWORD_PHRASES,
+      matchMode: 'substring',
     },
   ]
 }
@@ -140,10 +174,20 @@ function migrateLegacyPolicy(
         ? normalizeRules(value.guardrailRules)
         : normalizeRules([
             {
-              id: DEFAULT_GUARDRAIL_RULE_ID,
-              label: DEFAULT_GUARDRAIL_RULE_LABEL,
+              id: 'default-semantic-blocklist',
+              label: 'Chặn theo ngữ nghĩa (demo)',
               enabled: true,
-              phrases: value.blacklistKeywords ?? DEFAULT_BLACKLIST,
+              phrases: SEMANTIC_PHRASES,
+              matchMode: 'semantic',
+              semanticThreshold: 0.88,
+              synonyms: SEMANTIC_SYNONYMS,
+            },
+            {
+              id: 'default-keyword-credentials',
+              label: 'Từ khóa tuyệt đối',
+              enabled: true,
+              phrases: ABSOLUTE_KEYWORD_PHRASES,
+              matchMode: 'substring',
             },
           ]),
     safeRefusalMessage:
@@ -211,22 +255,30 @@ export class AdminConfigService implements OnModuleInit {
       throw new BadRequestException('safeRefusalMessage khong duoc de trong.')
     }
 
+    // If guardrailRules is provided, use them.
+    // Otherwise, if blacklistKeywords is provided (legacy), convert to a keyword rule.
+    let guardrailRules: GuardrailRule[]
+    if (patch.guardrailRules != null) {
+      guardrailRules = normalizeRules(patch.guardrailRules)
+    } else if (patch.blacklistKeywords != null) {
+      // Legacy blacklist: create a single keyword rule with the provided phrases.
+      const legacyRule: GuardrailRulePatch = {
+        id: LEGACY_BLACKLIST_RULE_ID,
+        label: LEGACY_BLACKLIST_RULE_LABEL,
+        enabled: true,
+        phrases: patch.blacklistKeywords,
+        matchMode: 'substring',
+      }
+      guardrailRules = normalizeRules([legacyRule])
+    } else {
+      // Keep current rules.
+      guardrailRules = current.guardrailRules
+    }
+
     return {
       enabled:
         typeof patch.enabled === 'boolean' ? patch.enabled : current.enabled,
-      guardrailRules:
-        patch.guardrailRules != null
-          ? normalizeRules(patch.guardrailRules)
-          : patch.blacklistKeywords != null
-            ? normalizeRules([
-                {
-                  id: DEFAULT_GUARDRAIL_RULE_ID,
-                  label: DEFAULT_GUARDRAIL_RULE_LABEL,
-                  enabled: true,
-                  phrases: patch.blacklistKeywords,
-                },
-              ])
-            : current.guardrailRules,
+      guardrailRules,
       safeRefusalMessage,
     }
   }

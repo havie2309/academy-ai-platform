@@ -3,6 +3,7 @@ import type { ChatCitation } from '../api/chat'
 
 interface CitationListProps {
   citations: ChatCitation[]
+  showScores?: boolean
 }
 
 interface CitationGroup {
@@ -13,6 +14,7 @@ interface CitationGroup {
   pages: number[]
   sections: string[]
   matchCount: number
+  rerankScore: number | null // best score in group
 }
 
 function compactText(value: string | undefined, max = 180): string {
@@ -54,6 +56,7 @@ function buildGroups(citations: ChatCitation[]): CitationGroup[] {
     const snippet = compactText(citation.snippet)
     const title = citation.title.trim() || 'Tài liệu'
     const source = citation.source.trim()
+    const rerankScore = citation.rerank_score != null ? Number(citation.rerank_score) : null
 
     const existing = groups.get(key)
     if (!existing) {
@@ -65,6 +68,7 @@ function buildGroups(citations: ChatCitation[]): CitationGroup[] {
         pages: citation.page != null ? [citation.page] : [],
         sections: section ? [section] : [],
         matchCount: 1,
+        rerankScore,
       })
       continue
     }
@@ -77,15 +81,38 @@ function buildGroups(citations: ChatCitation[]): CitationGroup[] {
     if (section && !existing.sections.includes(section)) {
       existing.sections.push(section)
     }
+    // Keep highest rerank score
+    if (rerankScore != null) {
+      if (existing.rerankScore == null || rerankScore > existing.rerankScore) {
+        existing.rerankScore = rerankScore
+      }
+    }
   }
 
   return [...groups.values()]
 }
 
-export default function CitationList({ citations }: CitationListProps) {
+export default function CitationList({ citations, showScores = false }: CitationListProps) {
   if (!citations.length) return null
 
-  const groups = buildGroups(citations)
+  let groups = buildGroups(citations)
+
+  // If showing scores, sort groups by rerankScore descending (highest first)
+  if (showScores) {
+    groups = groups.sort((a, b) => {
+      const aScore = a.rerankScore ?? -Infinity
+      const bScore = b.rerankScore ?? -Infinity
+      return bScore - aScore
+    })
+  }
+
+  // Compute max score for normalization (only among groups with scores)
+  const maxScore = showScores
+    ? groups.reduce((max, g) => {
+        const s = g.rerankScore ?? -Infinity
+        return s > max ? s : max
+      }, -Infinity)
+    : null
 
   return (
     <div className="mt-2 px-1" data-testid="citation-list">
@@ -100,6 +127,10 @@ export default function CitationList({ citations }: CitationListProps) {
           const showSource =
             !!group.source &&
             group.source.trim().toLowerCase() !== group.title.trim().toLowerCase()
+
+          const scoreDisplay = showScores && group.rerankScore != null
+            ? group.rerankScore.toFixed(2)
+            : null
 
           return (
             <div
@@ -118,6 +149,12 @@ export default function CitationList({ citations }: CitationListProps) {
                     <span className="min-w-0 text-xs font-semibold leading-snug text-slate-700">
                       {group.title}
                     </span>
+
+                    {scoreDisplay && (
+                      <span className="shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                        {scoreDisplay}
+                      </span>
+                    )}
 
                     {pageLabel && (
                       <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">

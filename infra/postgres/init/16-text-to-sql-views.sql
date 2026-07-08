@@ -16,17 +16,19 @@ FROM hoc_vien;
 
 CREATE OR REPLACE VIEW sql_curated.v_diem_mon AS
 SELECT
-    ma_hv,
-    ho_ten_hv AS ho_ten,
-    ma_mon,
-    ten_mon,
-    so_tin_chi,
-    ten_hoc_ky,
-    diem_tong_ket,
-    diem_chu,
-    diem_he4,
-    dat
-FROM diem;
+    hv.ma_hv,
+    hv.ho_ten,
+    hv.ma_lop,
+    d.ma_mon,
+    d.ten_mon,
+    d.so_tin_chi,
+    d.ten_hoc_ky,
+    d.diem_tong_ket,
+    d.diem_chu,
+    d.diem_he4,
+    d.dat
+FROM diem d
+JOIN hoc_vien hv ON hv.id = d.hoc_vien_id;
 
 CREATE OR REPLACE VIEW sql_curated.v_ket_qua_hoc_ky AS
 SELECT

@@ -7,15 +7,16 @@ SQL_SCHEMA = "sql_curated"
 CURATED_VIEW_DESCRIPTIONS: dict[str, str] = {
     "v_hoc_vien_gpa": (
         "1 dòng / học viên. Dùng cho GPA tích lũy, tín chỉ tích lũy, "
-        "mức cảnh báo học tập hiện tại."
+        "mức cảnh báo học tập hiện tại. Có ma_lop."
     ),
     "v_diem_mon": (
         "Nhiều dòng / học viên theo từng môn học. Dùng cho bảng điểm, "
-        "điểm tổng kết, điểm chữ, điểm hệ 4."
+        "điểm tổng kết, điểm chữ, điểm hệ 4. **Có ma_lop và ten_hoc_ky** – "
+        "đây là view duy nhất có điểm từng môn kèm lớp."
     ),
     "v_ket_qua_hoc_ky": (
         "Nhiều dòng / học viên theo từng học kỳ. Dùng cho GPA học kỳ, "
-        "xếp loại, số tín chỉ đạt, điểm rèn luyện."
+        "xếp loại, số tín chỉ đạt, điểm rèn luyện. **Không có ma_lop hay diem_tong_ket.**"
     ),
     "v_lop_hoc_phan_giang_day": (
         "Các lớp học phần giảng viên phụ trách. Dùng cho lịch dạy / lớp "
@@ -42,11 +43,12 @@ CURATED_VIEWS: dict[str, list[tuple[str, str]]] = {
     "v_diem_mon": [
         ("ma_hv", "Mã học viên"),
         ("ho_ten", "Họ tên"),
+        ("ma_lop", "Mã lớp"),          # <-- added
         ("ma_mon", "Mã môn"),
         ("ten_mon", "Tên môn"),
         ("so_tin_chi", "Số tín chỉ"),
-        ("ten_hoc_ky", "Tên học kỳ"),
-        ("diem_tong_ket", "Điểm tổng kết"),
+        ("ten_hoc_ky", "Tên học kỳ (đầy đủ: 'Học kỳ X Năm học YYYY-YYYY')"),
+        ("diem_tong_ket", "Điểm tổng kết (thang 10)"),
         ("diem_chu", "Điểm chữ"),
         ("diem_he4", "Điểm hệ 4"),
         ("dat", "Đạt môn (true/false)"),
@@ -123,6 +125,13 @@ SQL_FEW_SHOT_EXAMPLES: tuple[tuple[str, str], ...] = (
         "FROM sql_curated.v_ket_qua_hoc_ky WHERE muc_canh_bao > 0 "
         "GROUP BY ten_hoc_ky ORDER BY ten_hoc_ky DESC LIMIT 20",
     ),
+    # NEW: Class average by semester – demonstrates using v_diem_mon with LIKE
+    (
+        "Thống kê điểm trung bình học kỳ 1 của học viên lớp K63A.",
+        "SELECT AVG(diem_tong_ket) AS diem_trung_binh_hoc_ky_1 "
+        "FROM sql_curated.v_diem_mon "
+        "WHERE ma_lop = 'K63A' AND ten_hoc_ky LIKE '%Học kỳ 1%' LIMIT 100",
+    ),
 )
 
 
@@ -141,6 +150,11 @@ def build_schema_prompt() -> str:
         "Nếu câu hỏi hỏi 'bao nhiêu' hoặc 'thống kê', ưu tiên COUNT/GROUP BY thay vì liệt kê toàn bộ chi tiết.",
         "Nếu câu hỏi hỏi lịch dạy thì dùng v_lop_hoc_phan_giang_day; nếu hỏi lịch thi thì dùng v_lich_thi_tong_quan.",
         "Nếu câu hỏi hỏi GPA tích lũy chung thì ưu tiên v_hoc_vien_gpa; nếu hỏi theo học kỳ thì ưu tiên v_ket_qua_hoc_ky.",
+        "Nếu câu hỏi hỏi điểm từng môn hoặc trung bình điểm của một lớp trong một học kỳ, "
+        "hãy dùng v_diem_mon (có ma_lop và diem_tong_ket).",
+        "",
+        "QUAN TRỌNG: `ten_hoc_ky` trong v_diem_mon có định dạng 'Học kỳ X Năm học YYYY-YYYY'. "
+        "Để lọc theo học kỳ, dùng `LIKE '%Học kỳ X%'`, không dùng `= 'Học kỳ X'` vì sẽ không khớp.",
     ]
     for view, columns in CURATED_VIEWS.items():
         description = CURATED_VIEW_DESCRIPTIONS.get(view, "")

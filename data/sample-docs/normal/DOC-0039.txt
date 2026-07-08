@@ -1,0 +1,35 @@
+============================================================
+               Đáp án đề thi môn Hệ điều hành               
+============================================================
+Phân loại: Đáp án
+Nguồn: Phòng Chính trị
+Ngày tạo: 07/07/2026
+============================================================
+
+
+ĐÁP ÁN ĐỀ THI MÔN: Hệ điều hành
+(Đề số 955)
+
+--- PHẦN I: TRẮC NGHIỆM ---
+Câu 1: A
+Câu 2: D
+Câu 3: D
+Câu 4: D
+Câu 5: D
+Câu 6: D
+Câu 7: B
+Câu 8: A
+Câu 9: D
+Câu 10: A
+
+--- PHẦN II: ĐÚNG/SAI ---
+Câu 1: Sai
+Câu 2: Đúng
+Câu 3: Sai
+Câu 4: Sai
+Câu 5: Đúng
+
+--- PHẦN III: TỰ LUẬN (GỢI Ý) ---
+Câu 1: Gợi ý: Bộ nhớ ảo còn hỗ trợ bảo vệ bộ nhớ giữa các tiến trình và cung cấp cơ chế ánh xạ file vào bộ nhớ (memory-mapped file).
+Câu 2: Gợi ý: Quản lý không gian trống sử dụng bitmap hoặc danh sách liên kết. Cơ chế nhật ký (journaling) giúp phục hồi hệ thống file sau sự cố.
+Câu 3: Gợi ý: Các phương pháp cấp phát không gian trên đĩa: contiguous, linked, và indexed. Mỗi phương pháp có ưu nhược điểm về tốc độ truy cập, độ lãng phí, và khả năng mở rộng.

@@ -18,6 +18,9 @@ export interface ChatCitation {
   snippet: string
   source: string
   section_path?: string
+  rerank_score?: number
+  security_level?: string
+  vector_score?: number
 }
 
 export interface ChatSession {

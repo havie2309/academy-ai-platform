@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS policy_events (
     user_id VARCHAR(20) REFERENCES users(user_id) ON DELETE SET NULL,
     question TEXT,
     status VARCHAR(20) DEFAULT 'blocked' CHECK (status IN ('blocked', 'allowed', 'error')),
+    reason TEXT,
     created_at TIMESTAMP DEFAULT NOW()
 );
 

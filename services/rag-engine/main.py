@@ -14,10 +14,14 @@ from app.config import SESSION_CONTEXT_MAX_MESSAGES
 from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
-from app.router import classify_route
+from app.router import classify_route, DML_KEYWORDS
 from app.safe_refusal import _load_example_embeddings, check_query_clarity, maybe_refuse_query, retrieve_refusal_payload
 from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -256,6 +260,19 @@ def _reject_payload() -> dict:
         "answer": REJECT_ANSWER,
         "citations": [],
         "route": "reject",
+    }
+
+
+DML_DENIED_ANSWER = (
+    "Lệnh xóa/cập nhật dữ liệu không được hỗ trợ. "
+    "Hệ thống chỉ cho phép truy vấn dữ liệu (SELECT) thông qua Text‑to‑SQL."
+)
+
+def _dml_denied_payload() -> dict:
+    return {
+        "answer": DML_DENIED_ANSWER,
+        "citations": [],
+        "route": "dml_denied",
     }
 
 
@@ -531,6 +548,16 @@ async def chat(body: ChatRequest, request: Request):
             "citations": [],
             "route": "task_assist",
         }
+    if route == "dml_denied":
+        payload = _dml_denied_payload()
+        _write_session_context(
+            body.sessionId,
+            user,
+            history,
+            str(payload.get("answer") or ""),
+            "dml_denied",
+        )
+        return payload
 
     try:
         citations, doc_refusal = await _retrieve_for_rag(
@@ -561,7 +588,8 @@ async def chat(body: ChatRequest, request: Request):
         citations, used_chunk_ids, reference_chunk_ids, answer
     )
     # Keep citations even if answer is "no info" – always show retrieved sources
-    answer = _maybe_replace_refusal(answer)
+    if citations:
+        answer = _maybe_replace_refusal(answer)
     _write_session_context(body.sessionId, user, history, answer, "rag")
     return {
         "answer": answer,
@@ -661,6 +689,15 @@ async def chat_stream(body: ChatRequest, request: Request):
             yield _sse("done", {"answer": answer, "route": "task_assist"})
             return
 
+        if route == "dml_denied":
+            answer = DML_DENIED_ANSWER
+            _write_session_context(body.sessionId, user, history, answer, "dml_denied")
+            yield _sse("meta", {"citations": [], "route": "dml_denied"})
+            for delta in answer:
+                yield _sse("token", {"delta": delta})
+            yield _sse("done", {"answer": answer, "route": "dml_denied"})
+            return
+
         # --- RAG flow ---
         try:
             citations, doc_refusal = await _retrieve_for_rag(
@@ -719,7 +756,8 @@ async def chat_stream(body: ChatRequest, request: Request):
         if not full_answer:
             full_answer = "Không nhận được phản hồi từ LLM."
         # Replace refusal message if needed, but keep citations (already sent in meta)
-        full_answer = _maybe_replace_refusal(full_answer)
+        if citations:
+            full_answer = _maybe_replace_refusal(full_answer)
 
         _write_session_context(body.sessionId, user, history, full_answer, "rag")
         yield _sse("done", {"answer": full_answer, "route": "rag"})
