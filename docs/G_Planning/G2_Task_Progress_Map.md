@@ -15,6 +15,14 @@
 | AI | Grounding, access filter truoc retrieval, rerank/context budget, safe refusal, eval harness, SQL format/safety nen, **real token streaming, persistent streaming messages, refusal message replacement** |
 | Admin | Health view, policy editor, quota/token ops, account management, audit viewer/export, gateway hardening regression, **chat monitoring (K-13)**, security alerts dashboard (K-18) |
 | ETL | Source/job/run schema, scheduler, transform/load, lineage/error log |
+| Sample docs | Topic-aligned adversarial triples (2 normal + 1 adversarial per topic); richer corpus with exam papers, answer keys, question banks, revision outlines, announcements, guidelines, meeting minutes. (`generate_sample_docs.py`) |
+| SQL schema | Extended `login_logs` event types; added `reason` column to `policy_events`; updated `v_diem_mon` view with `ma_lop`. |
+| Guardrail policy | Switched default to **semantic** (threshold 0.88) with absolute keyword fallback (e.g., "mật khẩu hệ thống"). |
+| DML rejection | Added DML detection and dedicated `dml_denied` route with a clear refusal message. |
+| Retrieval | Added security boost for internal/restricted docs; hard rerank threshold (`RERANK_KEEP_MIN_SCORE`); tracking of `max_score`. |
+| UI | Admin users now see rerank scores in citation cards (normalized and sorted). |
+| Dev tools | Added `rag-cli.py` – interactive CLI tester with `--debug` flag; improved `start-dev.ps1` (Ollama logging) and `stop-dev.ps1` (kill by port). |
+| Audit/security | Normalized `'anonymous'` user ID to `null` in `audit_log` and `security_alerts` to avoid FK violations. |
 
 ## 3. Hoan thanh mot phan
 

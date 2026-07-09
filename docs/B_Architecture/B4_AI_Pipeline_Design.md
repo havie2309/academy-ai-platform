@@ -21,16 +21,18 @@
 6. Upsert metadata vào MongoDB, vector vào Milvus.
 7. Cập nhật `processing_jobs` và `documents`.
 
-## 3. Pipeline RAG
+### 3. Pipeline RAG
 
 1. Nhận câu hỏi và user scope.
 2. Classify route.
-3. Nếu route `rag`: embed query, retrieve top-k child chunks.
+3. Nếu route `rag`: embed query, retrieve top‑k child chunks.
 4. Filter theo quyền truy cập tài liệu.
 5. Rerank, chọn context.
-6. **Streaming generation**: Gọi `stream_chat` (yield token-by-token) thay vì chờ full response. Đầu ra là plain text, không yêu cầu JSON.
-7. Resolve citations từ chunk sang document/section/page.
-8. Citations được gửi trong sự kiện `meta` ngay sau retrieval và **không bị xóa** nếu câu trả lời là refusal.
+6. **Security boost** được áp dụng: tài liệu được cộng điểm theo `securityLevel`.
+7. Áp dụng ngưỡng cứng `RERANK_KEEP_MIN_SCORE` để loại bỏ chunk có điểm quá thấp.
+8. **Streaming generation**: Gọi `stream_chat` (yield token-by-token).
+9. Resolve citations và gửi cùng `meta` event.
+10. Nếu route `dml_denied`, trả về thông báo cụ thể mà không gọi LLM.
 
 ## 4. Multi-turn session context
 
@@ -44,7 +46,8 @@
 - Chặn sớm ở `rag-engine` trước retrieval/SQL/generation.
 - Từ chối phải trả về route rõ ràng để UI phân biệt với lỗi hệ thống.
 - Blacklist keyword chỉ là lớp ngoài; cần kết hợp scope và business rule.
-- **Refusal message replacement**: Khi LLM kết luận "không tìm thấy thông tin", câu trả lời được thay thế bằng thông báo giải thích rõ ràng hơn và **các citations được giữ lại** để minh bạch với người dùng.
+- Các truy vấn DML (xóa, cập nhật, chèn) được định tuyến sang `dml_denied` với thông báo rõ ràng, không qua RAG/SQL.
+- Refusal message replacement: Khi LLM kết luận "không tìm thấy thông tin", câu trả lời được thay thế bằng thông báo giải thích rõ ràng hơn và **các citations được giữ lại** để minh bạch với người dùng.
 
 ## 6. Text-to-SQL
 

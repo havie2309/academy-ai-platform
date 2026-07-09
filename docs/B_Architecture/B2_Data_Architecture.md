@@ -50,6 +50,7 @@
 - `sql_catalog_entries`
 - curated views trong schema `sql_curated`
 - readonly role `pm2_readonly`
+- **View `v_diem_mon` đã được cập nhật để bao gồm `ma_lop`** (từ `hoc_vien`), hỗ trợ truy vấn theo lớp.
 
 ## 4. Chuẩn metadata tài liệu
 

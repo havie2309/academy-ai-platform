@@ -96,6 +96,11 @@ Nếu dùng Mode B:
 - Tạo/xóa chat session
 - Nếu test RAG: upload tài liệu và hỏi lại nội dung đã index
 
+### 2.7. Công cụ kiểm thử RAG
+
+- `rag-cli.py` – chạy tương tác, tự động khởi động các container cần thiết (PostgreSQL, MongoDB, Milvus, Redis) và các service AI (embedding, rerank, rag-engine, Ollama).
+- Logs được ghi vào `./rag_logs/`.
+
 ## 3. Target architecture
 
 - Mục tiêu sau này vẫn là tách **máy nền tảng** và **máy mô hình**.

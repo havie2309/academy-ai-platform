@@ -43,12 +43,20 @@
 
 - cache TTL
 - session context TTL
-- `RETRIEVAL_TOP_K=10` (mặc định trước đây 30)
-- `RERANK_TOP_K=4` (trước đây 8)
-- `MAX_CHUNKS_PER_DOC=2` (trước đây 3)
+- `RETRIEVAL_TOP_K=20` (mặc định trước đây 30)
+- `RERANK_TOP_K=6` (trước đây 8)
+- `RERANK_SCORE_MIN` – đã giảm từ -8 xuống -2 để áp dụng tighter filtering (cùng với `RERANK_SCORE_DELTA`).
+- `MAX_CHUNKS_PER_DOC=3`
 - `RERANK_DOC_MAX_CHARS=1800`: giới hạn độ dài mỗi candidate trước khi gọi rerank
 - `RAG_CONTEXT_MAX_CHARS=1800` (trước đây 6000) – giảm để tăng tốc generation và cải thiện first-token latency
 - refusal policy fetch key
+
+### Guardrail
+
+- `GUARDRAIL_SEMANTIC_THRESHOLD` – mặc định 0.88 (được đặt trong code, có thể ghi đè qua env).
+- `GUARDRAIL_FUZZY_ENABLED` – vẫn giữ true.
+- `GUARDRAIL_HEURISTIC_POLICY_ENABLED` – true.
+- `GUARDRAIL_LLM_ENABLED` – false.
 
 ### SQL route
 
