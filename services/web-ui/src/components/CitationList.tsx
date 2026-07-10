@@ -106,14 +106,6 @@ export default function CitationList({ citations, showScores = false }: Citation
     })
   }
 
-  // Compute max score for normalization (only among groups with scores)
-  const maxScore = showScores
-    ? groups.reduce((max, g) => {
-        const s = g.rerankScore ?? -Infinity
-        return s > max ? s : max
-      }, -Infinity)
-    : null
-
   return (
     <div className="mt-2 px-1" data-testid="citation-list">
       <div className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-slate-400">

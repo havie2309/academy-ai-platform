@@ -6,7 +6,7 @@ import { authApi } from '../api/auth'
 import { useChatSessions } from '../contexts/ChatSessionContext'
 import ChatMarkdown from '../components/ChatMarkdown'
 import CitationList from '../components/CitationList'
-
+import { useChatAssistantMode } from '../lib/chatAssistantMode'
 
 const suggestions = [
   { icon: Calendar, text: 'Lịch thi học kỳ 2 khi nào?', category: 'Khảo thí' },
@@ -18,6 +18,7 @@ export default function ChatPage() {
   const { sessionId } = useParams<{ sessionId?: string }>()
   const navigate = useNavigate()
   const { createSession, removeSession, upsertSession } = useChatSessions()
+  const { mode } = useChatAssistantMode()
   const user = authApi.getUser()
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -29,6 +30,7 @@ export default function ChatPage() {
   const skipLoadRef = useRef<string | null>(null)
   const pollingRef = useRef<number | null>(null)
   const isAdmin = user?.roles?.includes('ADMIN') ?? false
+  const isCentralizedAssistant = mode === 'centralized'
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -39,6 +41,11 @@ export default function ChatPage() {
   }, [])
 
   useEffect(() => {
+    if (!isCentralizedAssistant) {
+      setLoadingHistory(false)
+      return
+    }
+
     if (!sessionId) {
       setMessages([])
       setInput('')
@@ -71,12 +78,20 @@ export default function ChatPage() {
     return () => {
       cancelled = true
     }
-  }, [sessionId])
+  }, [isCentralizedAssistant, sessionId])
 
   useEffect(() => {
+    if (!isCentralizedAssistant) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+        pollingRef.current = null
+      }
+      return
+    }
+
     if (!sessionId) return
 
-    const streamingMsg = messages.find(m => m.status === 'streaming')
+    const streamingMsg = messages.find((m) => m.status === 'streaming')
     if (!streamingMsg) {
       if (pollingRef.current) {
         clearInterval(pollingRef.current)
@@ -85,18 +100,14 @@ export default function ChatPage() {
       return
     }
 
-    // If already polling, skip creating another interval
     if (pollingRef.current) return
 
     pollingRef.current = window.setInterval(async () => {
       try {
         const updatedMessages = await chatApi.listMessages(sessionId)
-        const updated = updatedMessages.find(m => m.id === streamingMsg.id)
+        const updated = updatedMessages.find((m) => m.id === streamingMsg.id)
         if (updated) {
-          setMessages(prev =>
-            prev.map(m => (m.id === updated.id ? updated : m))
-          )
-          // If the message is no longer streaming, stop polling
+          setMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
           if (updated.status !== 'streaming') {
             if (pollingRef.current) {
               clearInterval(pollingRef.current)
@@ -107,7 +118,7 @@ export default function ChatPage() {
       } catch (err) {
         console.warn('Polling error:', err)
       }
-    }, 3000) // Poll every 3 seconds
+    }, 3000)
 
     return () => {
       if (pollingRef.current) {
@@ -115,9 +126,18 @@ export default function ChatPage() {
         pollingRef.current = null
       }
     }
-  }, [sessionId, messages])
+  }, [isCentralizedAssistant, sessionId, messages])
+
+  useEffect(() => {
+    if (isCentralizedAssistant) return
+
+    abortRef.current?.abort()
+    setLoading(false)
+  }, [isCentralizedAssistant])
 
   const send = async (text?: string) => {
+    if (!isCentralizedAssistant) return
+
     const content = text || input
     if (!content.trim() || loading) return
 
@@ -136,7 +156,6 @@ export default function ChatPage() {
       created_at: new Date().toISOString(),
     }
 
-    // Temporary assistant message (shows loading bubble immediately)
     const tempAssistant: ChatMessage = {
       id: `temp-assistant-${Date.now()}`,
       session_id: sessionId ?? '',
@@ -162,13 +181,10 @@ export default function ChatPage() {
         content,
         {
           onMeta: (meta) => {
-            // Replace temporary messages with real ones
             setMessages((prev) => {
-              // Remove temp assistant and optimistic user
               const filtered = prev.filter(
                 (m) => m.id !== optimisticUser.id && m.id !== tempAssistant.id,
               )
-              // Add real user message and streaming assistant
               const streamingAssistant: ChatMessage = {
                 id: meta.assistant_message_id,
                 session_id: activeId!,
@@ -183,7 +199,6 @@ export default function ChatPage() {
             assistantMessageId = meta.assistant_message_id
           },
           onToken: (delta) => {
-            // Append token to the streaming message
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === assistantMessageId && m.status === 'streaming'
@@ -193,7 +208,6 @@ export default function ChatPage() {
             )
           },
           onDone: (result) => {
-            // Remove streaming message and add final completed one
             setMessages((prev) => {
               const filtered = prev.filter((m) => m.id !== assistantMessageId)
               return [...filtered, result.assistant_message]
@@ -205,7 +219,6 @@ export default function ChatPage() {
             }
           },
           onError: (detail) => {
-            // Remove streaming message (if exists) and add error
             setMessages((prev) => {
               const filtered = prev.filter(
                 (m) => m.id !== assistantMessageId && m.id !== tempAssistant.id,
@@ -266,24 +279,35 @@ export default function ChatPage() {
 
   const isEmpty = messages.length === 0 && !loadingHistory
   const displayName = user?.full_name?.split(' ').slice(-1)[0] ?? user?.username ?? 'bạn'
+  const modeLabel = isCentralizedAssistant ? 'Trợ lý ảo tập trung' : 'Trợ lý ảo cá nhân'
+
   return (
-    <div className="flex flex-col h-full bg-slate-50/50" data-testid="chat-page">
-      <div className="h-15 border-b border-slate-200/60 bg-white/85 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-10 shadow-[0_1px_3px_rgba(0,0,0,0.01)]">
+    <div className="flex h-full flex-col bg-slate-50/50" data-testid="chat-page">
+      <div className="flex h-15 shrink-0 items-center justify-between border-b border-slate-200/60 bg-white/85 px-6 shadow-[0_1px_3px_rgba(0,0,0,0.01)] backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${
+              isCentralizedAssistant ? 'animate-pulse bg-emerald-500' : 'bg-amber-400'
+            }`}
+          />
           <span className="text-sm font-bold text-slate-700">EduMind Assistant</span>
           {user?.roles[0] && (
-            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md bg-slate-100 text-slate-500">
+            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
               {user.roles[0]}
             </span>
           )}
+          <div className="ml-2 hidden items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 sm:flex">
+            <span className="text-[11px] font-semibold text-slate-500">Chế độ:</span>
+            <span className="text-sm font-semibold text-slate-700">{modeLabel}</span>
+          </div>
         </div>
-        {sessionId && messages.length > 0 && (
+
+        {isCentralizedAssistant && sessionId && messages.length > 0 && (
           <button
             type="button"
             onClick={handleDeleteSession}
             data-testid="chat-delete-session"
-            className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+            className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-400 transition-colors hover:text-red-500"
           >
             <Trash2 size={14} />
             Xóa hội thoại
@@ -292,14 +316,28 @@ export default function ChatPage() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {loadingHistory ? (
-          <div className="flex items-center justify-center h-full text-sm text-slate-400">
-            Đang tải hội thoại…
+        {!isCentralizedAssistant ? (
+          <div className="flex min-h-full items-center justify-center px-6 py-12">
+            <div className="w-full max-w-xl rounded-3xl border border-amber-200 bg-white p-8 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-amber-600">
+                <Sparkles size={26} />
+              </div>
+              <h2 className="text-2xl font-extrabold tracking-tight text-slate-800">
+                Trợ lý ảo cá nhân
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                Tính năng này hiện đang phát triển. Tạm thời bạn vẫn có thể dùng đầy đủ luồng chat hiện tại trong chế độ Trợ lý ảo tập trung.
+              </p>
+            </div>
+          </div>
+        ) : loadingHistory ? (
+          <div className="flex h-full items-center justify-center text-sm text-slate-400">
+            Đang tải hội thoại...
           </div>
         ) : isEmpty ? (
-          <div className="flex flex-col items-center justify-center min-h-full gap-8 px-6 py-12 relative overflow-hidden">
+          <div className="relative flex min-h-full flex-col items-center justify-center gap-8 overflow-hidden px-6 py-12">
             <div
-              className="absolute w-[800px] h-[500px] rounded-full pointer-events-none z-0 animate-glow-in"
+              className="pointer-events-none absolute z-0 h-[500px] w-[800px] rounded-full animate-glow-in"
               style={{
                 top: '45%',
                 left: '50%',
@@ -309,19 +347,19 @@ export default function ChatPage() {
               }}
             />
 
-            <div className="text-center max-w-lg relative z-10">
-              <div className="w-14 h-14 rounded-2xl bg-blue-50/80 backdrop-blur-sm text-blue-600 flex items-center justify-center mx-auto mb-4 shadow-sm border border-blue-100/30">
+            <div className="relative z-10 max-w-lg text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-100/30 bg-blue-50/80 text-blue-600 shadow-sm backdrop-blur-sm">
                 <Sparkles size={28} />
               </div>
-              <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-800">
                 Xin chào, {displayName}!
               </h2>
-              <p className="text-slate-500 mt-2 text-sm md:text-base leading-relaxed font-medium">
-                Trợ lý AI học viện — thông tin đáng tin cậy từ kho tri thức nội bộ.
+              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-500 md:text-base">
+                Trợ lý AI học viện, thông tin đáng tin cậy từ kho tri thức nội bộ.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 w-full max-w-3xl mt-4 relative z-10">
+            <div className="relative z-10 mt-4 grid w-full max-w-3xl grid-cols-1 gap-3.5 md:grid-cols-3">
               {suggestions.map(({ icon: Icon, text, category }) => (
                 <div
                   key={text}
@@ -332,12 +370,14 @@ export default function ChatPage() {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') send(text)
                   }}
-                  className="flex w-full min-w-0 flex-col items-start rounded-2xl border border-slate-200/60 bg-white/90 backdrop-blur-sm px-6 py-5 text-left shadow-sm transition-all select-none cursor-pointer hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md group"
+                  className="group flex min-w-0 cursor-pointer select-none flex-col items-start rounded-2xl border border-slate-200/60 bg-white/90 px-6 py-5 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-blue-50/20 hover:shadow-md"
                 >
                   <div className="mb-3 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-100">
                     <Icon size={16} />
                   </div>
-                  <span className="mb-1.5 w-full text-[10px] font-bold uppercase text-slate-400">{category}</span>
+                  <span className="mb-1.5 w-full text-[10px] font-bold uppercase text-slate-400">
+                    {category}
+                  </span>
                   <span className="w-full break-words text-sm font-semibold leading-snug text-slate-700 group-hover:text-slate-900">
                     {text}
                   </span>
@@ -346,37 +386,37 @@ export default function ChatPage() {
             </div>
           </div>
         ) : (
-          <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+          <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
             {messages.map((msg) => (
               <div
                 key={msg.id}
                 data-testid={`chat-message-${msg.role}`}
-                className={`flex gap-4 w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex w-full gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.role === 'assistant' && (
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold shrink-0 shadow-sm bg-blue-600">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white shadow-sm">
                     AI
                   </div>
                 )}
 
                 {msg.role === 'user' ? (
-                  <div className="rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap shadow-sm bg-blue-600 text-white rounded-tr-none font-medium max-w-[80%]">
+                  <div className="max-w-[80%] rounded-2xl rounded-tr-none bg-blue-600 px-4 py-3 text-sm font-medium leading-relaxed whitespace-pre-wrap text-white shadow-sm">
                     {msg.content}
                   </div>
                 ) : msg.error ? (
-                  <div className="flex flex-col max-w-[80%] gap-1 min-w-0 flex-1">
-                    <div className="rounded-2xl px-4 py-3 shadow-sm bg-red-50 text-red-700 border border-red-200 rounded-tl-none text-sm leading-relaxed whitespace-pre-wrap font-medium">
+                  <div className="flex min-w-0 max-w-[80%] flex-1 flex-col gap-1">
+                    <div className="rounded-2xl rounded-tl-none border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-relaxed whitespace-pre-wrap text-red-700 shadow-sm">
                       {msg.content}
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col max-w-[80%] gap-1 min-w-0 flex-1">
-                    <div className="rounded-2xl px-4 py-3 shadow-sm bg-white text-slate-800 border border-slate-200/50 rounded-tl-none">
+                  <div className="flex min-w-0 max-w-[80%] flex-1 flex-col gap-1">
+                    <div className="rounded-2xl rounded-tl-none border border-slate-200/50 bg-white px-4 py-3 text-slate-800 shadow-sm">
                       {msg.status === 'loading' || (msg.status === 'streaming' && !msg.content) ? (
                         <div className="flex items-center gap-1.5 py-1">
-                          <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                          <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                          <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-blue-400 [animation-delay:0ms]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-blue-400 [animation-delay:150ms]" />
+                          <span className="h-2 w-2 animate-bounce rounded-full bg-blue-400 [animation-delay:300ms]" />
                         </div>
                       ) : (
                         <ChatMarkdown content={msg.content} />
@@ -400,6 +440,13 @@ export default function ChatPage() {
 
       <div className="shrink-0 px-4 pb-6 pt-2">
         <div className="mx-auto max-w-3xl">
+          <div className="mb-3 flex items-center justify-end sm:hidden">
+            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
+              <span className="font-semibold text-slate-500">Chế độ: </span>
+              <span className="font-semibold text-slate-700">{modeLabel}</span>
+            </div>
+          </div>
+
           <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-sm transition-all focus-within:border-blue-500 focus-within:shadow-[0_0_0_4px_rgba(59,130,246,0.08)]">
             <textarea
               value={input}
@@ -407,28 +454,33 @@ export default function ChatPage() {
               onKeyDown={handleKey}
               data-testid="chat-input"
               aria-label="Chat input"
-              placeholder="Nhập câu hỏi tại đây..."
+              placeholder={
+                isCentralizedAssistant
+                  ? 'Nhập câu hỏi tại đây...'
+                  : 'Trợ lý ảo cá nhân đang phát triển'
+              }
               rows={1}
-              disabled={loadingHistory || loading}
-              className="flex-1 bg-transparent text-slate-800 text-sm resize-none outline-none placeholder-slate-400 max-h-32 leading-relaxed min-h-[24px]"
+              disabled={!isCentralizedAssistant || loadingHistory || loading}
+              className="min-h-[24px] max-h-32 flex-1 resize-none bg-transparent text-sm leading-relaxed text-slate-800 outline-none placeholder-slate-400"
             />
             <button
               type="button"
               onClick={() => send()}
-              disabled={!input.trim() || loading || loadingHistory}
+              disabled={!isCentralizedAssistant || !input.trim() || loading || loadingHistory}
               data-testid="chat-send"
               aria-label="Send message"
-              className="w-9 h-9 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-200 text-white flex items-center justify-center transition-all shrink-0 cursor-pointer disabled:cursor-not-allowed shadow-md shadow-blue-600/10 disabled:shadow-none"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-blue-600 text-white shadow-md shadow-blue-600/10 transition-all hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:shadow-none"
             >
               <ArrowUp size={16} />
             </button>
           </div>
-          <p className="text-center text-[11px] text-slate-400 mt-2 font-medium">
-            Trợ lý có thể đưa ra câu trả lời chưa chính xác. Vui lòng kiểm chứng thông tin quan trọng.
+          <p className="mt-2 text-center text-[11px] font-medium text-slate-400">
+            {isCentralizedAssistant
+              ? 'Trợ lý có thể đưa ra câu trả lời chưa chính xác. Vui lòng kiểm chứng thông tin quan trọng.'
+              : 'Trợ lý ảo cá nhân đang được phát triển và sẽ sớm được cập nhật.'}
           </p>
         </div>
       </div>
     </div>
   )
 }
-
