@@ -28,6 +28,14 @@ from app.config import (
     LLM_TIMEOUT,
     OPENAI_API_KEY,
     OPENAI_MODEL,
+    SUMMARY_LLM_PROVIDER,
+    SUMMARY_LLM_BASE_URL,
+    SUMMARY_LLM_MODEL,
+    SUMMARY_LLM_FALLBACK_PROVIDER,
+    SUMMARY_LLM_FALLBACK_BASE_URL,
+    SUMMARY_LLM_FALLBACK_MODEL,
+    SUMMARY_LLM_RETRY_ATTEMPTS,
+    SUMMARY_LLM_TIMEOUT,
 )
 
 SYSTEM_PROMPT = """
@@ -386,6 +394,7 @@ def build_task_assist_messages(history: list[dict]) -> list[dict]:
 # ------------------------------------------------------------------
 
 def _resolve_llm_target() -> ChatCompletionTarget:
+    """Resolve the default (RAG chat) LLM target."""
     try:
         return resolve_chat_target(
             provider=LLM_PROVIDER,
@@ -398,7 +407,35 @@ def _resolve_llm_target() -> ChatCompletionTarget:
         raise LlmError(str(exc)) from exc
 
 
-def _llm_fallback_targets() -> list[ChatCompletionTarget]:
+def _resolve_summary_target() -> ChatCompletionTarget:
+    """
+    Resolve the summarization-specific LLM target.
+    Falls back to the default LLM config if summary-specific vars are not set.
+    """
+    provider = SUMMARY_LLM_PROVIDER or LLM_PROVIDER
+    base_url = SUMMARY_LLM_BASE_URL or LLM_BASE_URL
+    model = SUMMARY_LLM_MODEL or LLM_MODEL
+
+    # Determine which OpenAI model to use if provider is 'openai'
+    openai_model = model if provider == "openai" else OPENAI_MODEL
+
+    try:
+        return resolve_chat_target(
+            provider=provider,
+            base_url=base_url,
+            model=model,
+            openai_api_key=OPENAI_API_KEY,
+            openai_model=openai_model,
+        )
+    except ValueError as exc:
+        raise LlmError(str(exc)) from exc
+
+
+def _llm_fallback_targets(target: ChatCompletionTarget) -> list[ChatCompletionTarget]:
+    """
+    Build fallback targets for a given primary target.
+    Reuses the global fallback config, but could be extended to per-task fallbacks.
+    """
     has_fallback = bool(
         LLM_FALLBACK_PROVIDER or LLM_FALLBACK_BASE_URL or LLM_FALLBACK_MODEL
     )
@@ -418,8 +455,8 @@ def _llm_fallback_targets() -> list[ChatCompletionTarget]:
     except ValueError as exc:
         raise LlmError(str(exc)) from exc
 
-    primary = _resolve_llm_target()
-    if (fallback.url, fallback.model) == (primary.url, primary.model):
+    # Avoid duplicate target
+    if (fallback.url, fallback.model) == (target.url, target.model):
         return []
     return [fallback]
 
@@ -524,12 +561,15 @@ async def stream_chat(
     require_json: bool = False,
     force_answer_from_context: bool = False,
     force_expand_answer: bool = False,
+    target_override: ChatCompletionTarget | None = None,  # NEW
 ) -> AsyncIterator[str]:
     """
-    Stream answer token deltas using AI client (with retry/fallback).
-    The extra parameters are passed to build_messages to control prompt behaviour.
+    Stream answer token deltas using AI client.
+
+    If `target_override` is provided, it uses that target instead of the default.
+    This allows summarization to use its own dedicated config.
     """
-    target = _resolve_llm_target()
+    target = target_override or _resolve_llm_target()
     messages = build_messages(
         history,
         citations,
@@ -542,7 +582,7 @@ async def stream_chat(
             target,
             messages,
             timeout=LLM_TIMEOUT,
-            fallback_targets=_llm_fallback_targets(),
+            fallback_targets=_llm_fallback_targets(target),
         ):
             yield delta
     except (AIClientError, httpx.HTTPError) as exc:

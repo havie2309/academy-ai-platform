@@ -340,4 +340,16 @@ export const docsApi = {
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()
   },
+
+  /**
+   * Stream a summary for a document.
+   * Returns a Response object with a readable stream (SSE).
+   */
+  async summarizeStream(id: string, signal?: AbortSignal): Promise<Response> {
+    return fetchWithAuth(`/api/documents/${id}/summarize/stream`, {
+      method: 'POST',
+      headers: { Accept: 'text/event-stream' },
+      signal,
+    })
+  },
 }

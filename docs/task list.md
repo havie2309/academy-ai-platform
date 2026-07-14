@@ -191,7 +191,7 @@
 
 | Loại | Mô tả                                            | MS  | Tiến độ | Evidence |
 | ---- | ------------------------------------------------ | --- | ------- | -------- |
-| AI   | J-01 · Tóm tắt tài liệu (kể cả tài liệu hạn chế) | M6  |         |          |
+| AI   | J-01 · Tóm tắt tài liệu (kể cả tài liệu hạn chế) | M6 | `[x]` | `summarize.py` + `documents.service.ts` + `DocsPage.tsx`: sử dụng parent chunks, cache MongoDB (`document_summaries`), sinh ngầm với distributed lock (`summary_jobs`), cấu hình LLM riêng (`SUMMARY_*`), streaming SSE với hỗ trợ abort. |
 | AI   | J-02 · Hỗ trợ bài tập, giải thích từng bước      | M6  |         |          |
 | AI   | J-03 · Sinh, làm, chấm quiz và giải thích đáp án | M6  |         |          |
 | AI   | J-04 · Tiến trình học và soạn giáo án            | M6  |         |          |

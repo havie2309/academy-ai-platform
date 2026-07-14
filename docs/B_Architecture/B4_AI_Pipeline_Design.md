@@ -21,7 +21,7 @@
 6. Upsert metadata vào MongoDB, vector vào Milvus.
 7. Cập nhật `processing_jobs` và `documents`.
 
-### 3. Pipeline RAG
+## 3. Pipeline RAG
 
 1. Nhận câu hỏi và user scope.
 2. Classify route.
@@ -66,7 +66,18 @@
 5. Load Postgres/Mongo.
 6. Ghi `etl_lineage` và `etl_error_logs`.
 
-## 8. Regression bắt buộc
+## 8. Summarization pipeline (J-01)
+
+1. Người dùng yêu cầu tóm tắt tài liệu qua `POST /api/documents/:id/summarize/stream`.
+2. Backend kiểm tra quyền `canView()`.
+3. `rag-engine` kiểm tra cache MongoDB (`document_summaries`) với `configHash + promptHash`.
+4. Nếu cache miss, lấy lock (`summary_jobs`) để tránh sinh trùng lặp.
+5. Lấy parent chunks theo thứ tự, cắt ngắn đến `SUMMARY_MAX_CHARS`.
+6. Xây dựng prompt và stream sinh LLM với cấu hình `SUMMARY_LLM_*`.
+7. Lưu toàn bộ tóm tắt vào cache, giải phóng lock.
+8. Nếu client ngắt kết nối, quá trình sinh vẫn tiếp tục và kết quả được cache.
+
+## 9. Regression bắt buộc
 
 | Nhánh | Phải có bằng chứng |
 |-------|---------------------|
@@ -78,7 +89,7 @@
 | ETL | Mapping, load, lineage, retry/error log |
 | Streaming | Real token streaming hoạt động, UI cập nhật từng token |
 
-## 9. Điểm đang chuyển trạng thái
+## 10. Điểm đang chuyển trạng thái
 
 - Parent-child retrieval là hướng mới và cần được xem là chuẩn đích.
 - Metadata push-down cho vector search chưa hoàn toàn hoàn tất.

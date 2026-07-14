@@ -42,6 +42,7 @@
 | DEC-PM2-32 | Tăng boost bảo mật cho tài liệu internal/restricted | Ưu tiên tài liệu chính thống, lọc bỏ các chunk có điểm số quá thấp. | Active |
 | DEC-PM2-33 | Thêm `rag-cli.py` để kiểm thử RAG tương tác | Hỗ trợ debug nhanh và hiển thị điểm số rerank khi cần. | Active |
 | DEC-PM2-34 | Bổ sung mẫu tài liệu conflict theo nhóm chủ đề (2 bình thường + 1 đối nghịch) | Cho phép hệ thống thể hiện khả năng chọn nguồn tin cậy. | Active |
+| DEC-PM2-35 | Tóm tắt tài liệu (J-01) dùng MongoDB cache + distributed lock + sinh ngầm khi client ngắt kết nối | Tránh sinh lại tóm tắt nhiều lần, tiết kiệm tài nguyên LLM trên máy 16GB RAM. Cache bền vững trong MongoDB thay vì Redis để không chiếm RAM. | Active |
 
 ## 3. Hệ quả thực tế
 

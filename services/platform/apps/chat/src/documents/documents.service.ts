@@ -13,6 +13,8 @@ import { readFile, unlink } from 'node:fs/promises'
 import { Collection, Db, MongoClient } from 'mongodb'
 import { IngestQueueService } from '../ingest/ingest-queue.service'
 import { writeAuditLog } from '../../../../src/common/audit-log'
+import type { Response } from 'express'
+import { initSse, writeSseEvent, writeSseError } from '../chat/chat-sse.util'
 
 export interface UploadedFileLike {
   originalname: string
@@ -1008,5 +1010,111 @@ export class DocumentsService implements OnModuleInit {
     }).catch(() => {})
 
     return { updated: true }
+  }
+
+  /**
+   * Stream a summary for a document.
+   * Checks permission, fetches from cache if available, otherwise generates via rag-engine.
+   */
+  async summarizeStream(
+    docId: string,
+    user: RequestUser,
+    res: Response,
+  ): Promise<void> {
+    initSse(res)
+
+    try {
+      // 1. Check permission
+      const doc = await this.documents.findOne({ docId })
+      if (!doc) {
+        writeSseError(res, 'Không tìm thấy tài liệu.')
+        return
+      }
+      if (!this.canView(doc, user)) {
+        writeSseError(res, 'Bạn không có quyền xem tài liệu này.')
+        return
+      }
+
+      // 2. Send meta event
+      writeSseEvent(res, 'meta', {
+        document_id: docId,
+        title: doc.title || 'Tài liệu',
+        route: 'summary',
+      })
+
+      // 3. Call rag-engine summarization endpoint
+      const ragUrl = this.config.get<string>('RAG_ENGINE_URL', 'http://localhost:8000')
+      const maxChars = Number(this.config.get('SUMMARY_MAX_CHARS', 1500)) || 1500;
+      const url = `${ragUrl.replace(/\/+$/, '')}/v1/summarize/stream`
+
+      const fetchRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: docId,
+          user: {
+            userId: user.userId,
+            username: user.userId,
+            roles: user.roles,
+            department: user.department,
+            maxSecurityLevel: user.maxSecurityLevel,
+          },
+          max_chars: maxChars,
+        }),
+      })
+
+      if (!fetchRes.ok || !fetchRes.body) {
+        const body = fetchRes.body ? await fetchRes.text() : ''
+        throw new Error(`rag-engine /v1/summarize/stream ${fetchRes.status}: ${body.slice(0, 200)}`)
+      }
+
+      // 4. Proxy SSE events from rag-engine to the client
+      const reader = fetchRes.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() ?? ''
+
+        for (const block of lines) {
+          if (!block.trim()) continue
+          const linesInBlock = block.split('\n')
+          let event = 'message'
+          let dataLines: string[] = []
+
+          for (const line of linesInBlock) {
+            if (line.startsWith('event:')) {
+              event = line.slice(6).trim()
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).trim())
+            }
+          }
+
+          if (dataLines.length === 0) continue
+          const payload = JSON.parse(dataLines.join('\n'))
+
+          if (event === 'token') {
+            writeSseEvent(res, 'token', { delta: payload.delta })
+          } else if (event === 'done') {
+            writeSseEvent(res, 'done', {
+              answer: payload.answer,
+              route: 'summary',
+            })
+          } else if (event === 'error') {
+            writeSseEvent(res, 'error', { message: payload.message })
+          }
+        }
+      }
+
+      res.end()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể tạo tóm tắt.'
+      writeSseError(res, message)
+    }
   }
 }
