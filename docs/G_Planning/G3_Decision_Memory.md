@@ -38,6 +38,10 @@
 | DEC-PM2-28 | Polling fallback cho SSE bị mất: frontend poll mỗi 3s khi message có `status: 'streaming'` | Đảm bảo câu trả lời vẫn xuất hiện ngay cả khi SSE bị ngắt; tránh over‑engineering với resumable streams | Active |
 | DEC-PM2-29 | Luôn hiển thị citations và thay thế refusal message bằng văn bản giải thích rõ hơn | Tăng tính minh bạch và tin cậy; người dùng hiểu hệ thống đã tìm kiếm dù không tìm thấy câu trả lời trực tiếp | Active |
 | DEC-PM2-30 | Giảm `RAG_CONTEXT_MAX_CHARS` từ 6000 xuống 1800 và điều chỉnh retrieval/rerank config | Cải thiện first-token latency và tổng thời gian generation trên CPU | Active |
+| DEC-PM2-31 | Thêm route `dml_denied` riêng cho lệnh xóa/cập nhật dữ liệu | Tránh nhầm lẫn với lỗi "không tìm thấy" thông thường. | Active |
+| DEC-PM2-32 | Tăng boost bảo mật cho tài liệu internal/restricted | Ưu tiên tài liệu chính thống, lọc bỏ các chunk có điểm số quá thấp. | Active |
+| DEC-PM2-33 | Thêm `rag-cli.py` để kiểm thử RAG tương tác | Hỗ trợ debug nhanh và hiển thị điểm số rerank khi cần. | Active |
+| DEC-PM2-34 | Bổ sung mẫu tài liệu conflict theo nhóm chủ đề (2 bình thường + 1 đối nghịch) | Cho phép hệ thống thể hiện khả năng chọn nguồn tin cậy. | Active |
 | DEC-PM2-35 | Tóm tắt tài liệu (J-01) dùng MongoDB cache + distributed lock + sinh ngầm khi client ngắt kết nối | Tránh sinh lại tóm tắt nhiều lần, tiết kiệm tài nguyên LLM trên máy 16GB RAM. Cache bền vững trong MongoDB thay vì Redis để không chiếm RAM. | Active |
 
 ## 3. Hệ quả thực tế

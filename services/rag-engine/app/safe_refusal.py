@@ -134,6 +134,16 @@ _CURRENT_RELATIVE_HINTS = (
     "năm học này",
     "hien tai",
     "hiện tại",
+    "sap toi",
+    "sắp tới",
+    "tuan toi",
+    "tuần tới",
+    "tuan sau",
+    "tuần sau",
+    "nam toi",
+    "năm tới",
+    "nam sau",
+    "năm sau",
 )
 
 # Queries about schedules/fees/exams without year/semester → TIME ambiguous
@@ -180,6 +190,24 @@ _SUBJECT_SENSITIVE_HINTS = (
     "thi mon",
     "thi môn",
 )
+
+# Terminators in folded form (no diacritics)
+_SUBJECT_TERMINATORS = (
+    "cua", "trong", "nam", "hoc", "ky", "cuoi", "giua", "nay", "do", "moi", "cu", "nay",
+    "sau", "truoc", "toi", "thi", "ket", "qua", "diem", "de", "cuong", "tai", "lieu",
+    "noi", "dung", "chuong", "trinh", "mon", "phan", "sinh", "vien", "giang", "day",
+    "tap", "on", "luyen", "tham", "khao", "chinh", "thuc", "bo", "sung", "them", "nhat",
+    "thuong", "tren", "duoi", "vao", "ra", "di", "den", "tu", "ve", "voi", "cho", "va",
+    "hoac", "hay", "roi", "thi", "ma", "neu", "khi", "nhung", "boi", "vi", "do", "tai",
+    "theo", "qua", "sau", "truoc", "ngoai", "ben", "canh", "bang",
+)
+_TERMINATOR_PATTERN = "|".join(re.escape(w) for w in _SUBJECT_TERMINATORS)
+
+# Generic words in folded form (used to trim trailing noise)
+_GENERIC_SUBJECT_WORDS = {
+    "hoc", "moi", "cu", "nay", "do", "ky", "thi", "cuoi", "giua", "tren", "duoi",
+    "cua", "trong", "va", "cho", "voi",
+}
 
 # Only trigger PERSON clarification when the query explicitly leaves "who" open
 # ("ai" = who). Avoids false positives for "điểm của Nguyễn Văn A".
@@ -304,13 +332,39 @@ def _extract_academic_year(folded: str) -> str | None:
     return None
 
 
+def _extract_single_year(folded: str) -> str | None:
+    """Extract a standalone 4-digit year (e.g., '2025') from the folded text."""
+    m = re.search(r"\b(20\d{2})\b", folded)
+    if m:
+        return m.group(1)
+    return None
+
+
+def _extract_subject_from_query(folded: str) -> str | None:
+    """
+    Extract a subject name that follows the word "môn".
+    Looks for "môn <subject>" and returns the subject if not generic.
+    """
+    pattern = r"mon\s+([a-zà-ỹ][a-zà-ỹ\s]*?)(?=\s+(?:%s)\b|$)" % _TERMINATOR_PATTERN
+    match = re.search(pattern, folded)
+    if match:
+        subject = match.group(1).strip()
+        # Trim trailing generic words (e.g., "học" from "môn học")
+        words = subject.split()
+        while words and words[-1] in _GENERIC_SUBJECT_WORDS:
+            words.pop()
+        if words:
+            return " ".join(words)
+    return None
+
+
 def _has_answer_hint(folded: str) -> bool:
     return any(_fold_text(hint) in folded for hint in _ANSWER_HINTS)
 
 
 def _has_temporal_qualifier(folded: str) -> bool:
     """Returns True if query already specifies which year/semester."""
-    if _YEAR_PAIR_RE.search(folded):
+    if _extract_single_year(folded) or _extract_academic_year(folded):
         return True
     if re.search(r"hoc ky \d", folded) or re.search(r"\bky \d\b", folded):
         return True
@@ -335,7 +389,11 @@ def _detect_ambiguity_type(folded: str) -> tuple[str, str] | None:
                 return ("time", h)
     for h in _SUBJECT_SENSITIVE_HINTS:
         if _fold_text(h) in folded:
-            return ("subject", h)
+            if not _extract_subject_from_query(folded):
+                return ("subject", h)
+            else:
+                print(h)
+    print()
     for h in _PERSON_SENSITIVE_HINTS:
         if _fold_text(h) in folded:
             return ("person", h)
@@ -383,6 +441,11 @@ def _classify_year_context(folded: str, current_year: str) -> str:
     explicit = _extract_academic_year(folded)
     if explicit is not None:
         return "ALLOW" if explicit != current_year else "BLOCK"
+    
+    single_year = _extract_single_year(folded)
+    if single_year is not None:
+        current_calendar_year = str(datetime.now().year)
+        return "ALLOW" if single_year != current_calendar_year else "BLOCK"
 
     if any(_fold_text(h) in folded for h in _PAST_RELATIVE_HINTS):
         return "ALLOW"

@@ -186,7 +186,6 @@ def launch_service(path: str, port: int, name: str) -> None:
             # Write to log file
             log_file.write(line)
             log_file.flush()
-            print(f"[{name}] {line.rstrip()}")
         proc.stdout.close()
 
     thread = threading.Thread(target=reader_thread, args=(proc, log_file, name), daemon=True)
@@ -302,7 +301,7 @@ def send_query(query: str, session_id: str = "cli-session") -> Optional[Dict[str
         },
     }
     try:
-        resp = requests.post(RAG_CHAT_URL, json=payload, timeout=120)
+        resp = requests.post(RAG_CHAT_URL, json=payload, timeout=300)
         resp.raise_for_status()
         return resp.json()
     except requests.exceptions.ConnectionError:

@@ -14,7 +14,7 @@ from app.config import SESSION_CONTEXT_MAX_MESSAGES, SUMMARY_MAX_CHARS, SUMMARY_
 from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
-from app.router import classify_route, DML_KEYWORDS
+from app.router import classify_route
 from app.safe_refusal import _load_example_embeddings, check_query_clarity, maybe_refuse_query, retrieve_refusal_payload
 from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
@@ -299,12 +299,21 @@ def _fallback_selected_citations(retrieved: list[dict], answer: str) -> list[dic
     if not retrieved:
         return []
 
-    answer_tokens = _keyword_tokens(answer)
-    if not answer_tokens:
-        return retrieved[:3]
+    # 1. Separate by security
+    internal = [c for c in retrieved if c.get("security_level") != "public"]
+    public = [c for c in retrieved if c.get("security_level") == "public"]
 
+    # 2. If we have internal docs, try to match them first
+    candidates = internal if internal else public
+    answer_tokens = _keyword_tokens(answer)
+    
+    if not answer_tokens:
+        # No tokens to match, just take top internal docs
+        return (internal[:3] if len(internal) >= 3 else internal + public[:3-len(internal)])[:3]
+
+    # 3. Rank by token overlap
     ranked: list[tuple[int, int, dict]] = []
-    for index, citation in enumerate(retrieved):
+    for index, citation in enumerate(candidates):
         haystack = " ".join(
             [
                 _compact_ws(citation.get("title")),
@@ -318,16 +327,24 @@ def _fallback_selected_citations(retrieved: list[dict], answer: str) -> list[dic
 
     ranked.sort(reverse=True)
     best_overlap = ranked[0][0]
+    
     if best_overlap <= 0:
-        return retrieved[:3]
+        # No overlap, return internal docs (or top public if none)
+        return internal[:3] if internal else public[:3]
 
+    # 4. Keep docs that are near the best overlap
     threshold = best_overlap if best_overlap < 2 else best_overlap - 1
     matched = [
-        citation for overlap, _, citation in ranked if overlap > 0 and overlap >= threshold
+        citation for overlap, _, citation in ranked
+        if overlap > 0 and overlap >= threshold
     ]
-    if matched:
-        return matched[:3]
-    return retrieved[:3]
+    
+    # 5. If we had internal docs but matched only public (shouldn't happen if internal had overlap)
+    # We prioritize matched internal docs over public ones
+    matched_internal = [c for c in matched if c.get("security_level") != "public"]
+    if matched_internal:
+        return matched_internal[:3]
+    return matched[:3] if matched else (internal[:3] if internal else public[:3])
 
 
 def _select_used_citations(
