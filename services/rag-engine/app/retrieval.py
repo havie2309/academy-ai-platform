@@ -29,7 +29,7 @@ from app.guardrails.document_security import (
 )
 from app.milvus_search import search_vectors
 from app.rerank import limit_context_budget, rerank_citations
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 cache = RedisCache()
 
@@ -62,7 +62,7 @@ COMPARE_KEYWORDS = (
     "quy định mới",
     "quy dinh moi",
 )
-OLD_DOC_KEYWORDS = ("conflict", "cũ", "cu", "old")
+OLD_CONFLICT_RE = re.compile(r"\b(conflict|cũ|old)\b", re.IGNORECASE)
 YEAR_RE = re.compile(r"(20\d{2})(?:\D+(20\d{2}))?")
 
 
@@ -153,7 +153,8 @@ def _filter_old_conflict_docs(query: str, citations: list[dict]) -> list[dict]:
     filtered = []
     for citation in citations:
         text = _doc_text(citation)
-        if any(keyword in text for keyword in OLD_DOC_KEYWORDS):
+        # Only filter if the word boundary matches exactly
+        if OLD_CONFLICT_RE.search(text):
             continue
         filtered.append(citation)
     return filtered
@@ -195,7 +196,12 @@ def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
 
 _SECURITY_PRIORITY = {"confidential": 4, "restricted": 3, "internal": 2, "public": 1}
 _SECURITY_THRESHOLD = 1.5
-_BOOST_FACTOR = 1.0
+_BOOST_MAP = {
+    "confidential": 4.5,
+    "restricted": 3.5,
+    "internal": 2.5,
+    "public": 0.0,
+}
 
 
 def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
@@ -217,17 +223,20 @@ def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
 
 
 def _apply_security_boost(citations: list[dict]) -> list[dict]:
+    """
+    Apply a flat additive boost to internal/restricted/confidential docs.
+    This preserves absolute score meaning (thresholds still work) while
+    ensuring authoritative docs beat adversarial ones when scores are close.
+    """
+    if not citations:
+        return citations
+    
     for c in citations:
         sec = c.get("security_level", "public")
-        priority = _SECURITY_PRIORITY.get(sec, 1)
-        # Boost only for levels above public
-        boost = _BOOST_FACTOR * (priority - 1)
-        if boost > 0:
-            if c.get("rerank_score") is not None:
-                c["rerank_score"] += boost
-            else:
-                # If no rerank score, set a high default (trusted docs without score)
-                c["rerank_score"] = 10.0 + boost
+        boost = _BOOST_MAP.get(sec, 0.0)
+        if boost > 0 and c.get("rerank_score") is not None:
+            c["rerank_score"] = float(c["rerank_score"]) + boost
+    
     return citations
 
 

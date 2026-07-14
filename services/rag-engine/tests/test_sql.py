@@ -29,6 +29,18 @@ class SqlGuardrailAndScopeTests(unittest.TestCase):
 
     def test_classify_route_rejects_obvious_off_topic_query(self):
         self.assertEqual(classify_route("Thoi tiet hom nay the nao?"), "reject")
+    
+    def test_classify_route_dml_denied(self):
+        # DML keywords should be routed to dml_denied
+        self.assertEqual(classify_route("Xóa dữ liệu học viên"), "dml_denied")
+        self.assertEqual(classify_route("Cập nhật điểm số"), "dml_denied")
+        self.assertEqual(classify_route("Chèn sinh viên mới"), "dml_denied")
+        self.assertEqual(classify_route("DROP TABLE users"), "dml_denied")
+        self.assertEqual(classify_route("Sửa quy định"), "dml_denied")
+        
+        # But queries about policies should stay rag/sql
+        self.assertEqual(classify_route("Quy định về thi"), "rag")
+        self.assertEqual(classify_route("Lịch thi học kỳ"), "sql")  # SQL hint
 
     def test_guardrail_blocks_delete(self):
         with self.assertRaises(SqlGuardrailError):

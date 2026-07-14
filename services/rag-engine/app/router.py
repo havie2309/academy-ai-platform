@@ -125,7 +125,7 @@ _REJECT_HINTS = (
     "ve may bay",
 )
 
-DML_KEYWORDS = (
+_DML_KEYWORDS = (
     "xóa",
     "cập nhật",
     "chèn",
@@ -142,6 +142,29 @@ DML_KEYWORDS = (
     "thay đổi",
 )
 
+_RAG_FORCE_KEYWORDS = (
+    # Existing policy phrases
+    "theo quy định",
+    "theo quy che",
+    "theo nội quy",
+    "theo quy chế",
+    "quy định của học viện",
+    "nội quy học viện",
+    "quy chế đào tạo",
+    "theo luật",
+    "theo chính sách",
+    "đáp án",
+    "chính thức",
+    # Action/state questions that are policy-related
+    "có được",
+    "được phép",
+    "bị cấm",
+    "nghiêm cấm",
+    "có bắt buộc",
+    "không được phép",
+    "có bị hủy",
+    "có được mang",
+)
 
 def _fold(text: str) -> str:
     lowered = text.lower()
@@ -173,11 +196,21 @@ def _looks_like_reject(text: str) -> bool:
 
 def _looks_like_dml(text: str) -> bool:
     """Check if the query contains DML keywords (data modification intent)."""
-    return _contains_any(text, DML_KEYWORDS)
+    return _contains_any(text, _DML_KEYWORDS)
+
+
+def _force_rag(text: str) -> bool:
+    """
+    If the query explicitly asks about policies, rules, or regulations,
+    force RAG to ground the answer in documents.
+    """
+    return _contains_any(text, _RAG_FORCE_KEYWORDS)
 
 
 def classify_route(query: str) -> str:
     folded = _fold(query)
+    if _force_rag(folded):
+        return "rag"
     if _looks_like_dml(folded):
         return "dml_denied"
     for hint in _SQL_HINTS:
