@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.cache import RedisCache
-from app.config import SESSION_CONTEXT_MAX_MESSAGES
+from app.config import SESSION_CONTEXT_MAX_MESSAGES, SUMMARY_MAX_CHARS, SUMMARY_LLM_MODEL
 from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
@@ -18,6 +18,7 @@ from app.router import classify_route, DML_KEYWORDS
 from app.safe_refusal import _load_example_embeddings, check_query_clarity, maybe_refuse_query, retrieve_refusal_payload
 from app.sql_execute import close_pool, init_pool
 from app.sql_pipeline import SqlPipelineError, run_sql_query
+from app.summarize import stream_document_summary
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -766,4 +767,69 @@ async def chat_stream(body: ChatRequest, request: Request):
         event_source(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )
+
+@app.post("/v1/summarize/stream")
+async def summarize_stream(body: dict, request: Request):
+    """Stream a summary for a single document."""
+    # 1. Parse user from body and convert to RetrieveUser if needed
+    explicit_user = body.get("user")
+    if explicit_user and isinstance(explicit_user, dict):
+        explicit_user = RetrieveUser(**explicit_user)
+    
+    # 2. Resolve user (body takes precedence over headers)
+    user = _resolved_user(explicit_user, request)
+
+    document_id = body.get("document_id")
+    if not document_id:
+        raise HTTPException(400, "document_id is required")
+
+    max_chars_raw = body.get("max_chars")
+    if max_chars_raw is not None:
+        try:
+            max_chars = int(max_chars_raw)
+        except (ValueError, TypeError):
+            max_chars = SUMMARY_MAX_CHARS
+    else:
+        max_chars = SUMMARY_MAX_CHARS
+
+    async def event_source():
+        disconnected = False
+
+        async def check_disconnect():
+            nonlocal disconnected
+            if not disconnected:
+                disconnected = await request.is_disconnected()
+            return disconnected
+
+        try:
+            yield _sse("meta", {"document_id": document_id, "route": "summary"})
+
+            # The generator continues even if client disconnects
+            async for chunk in stream_document_summary(
+                document_id,
+                user,
+                max_chars,
+                check_disconnect=check_disconnect,
+            ):
+                # Only send tokens if still connected
+                if not disconnected:
+                    yield _sse("token", {"delta": chunk})
+                # else: still consuming chunks to complete generation
+
+            # Only send 'done' if still connected
+            if not disconnected:
+                yield _sse("done", {"route": "summary"})
+        except Exception as exc:
+            logger.error(f"Summarization failed: {exc}")
+            if not disconnected:
+                yield _sse("error", {"message": str(exc)})
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )

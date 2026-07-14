@@ -347,4 +347,15 @@ export class DocumentsController {
     }
     return this.docs.previewRoleAccess(role)
   }
+
+  @Post(':id/summarize/stream')
+  @UseGuards(AuthGuard('jwt'))
+  async summarizeStream(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const user = extractUserFromRequest(req)
+    return this.docs.summarizeStream(id, toRequestUser(user), res)
+  }
 }

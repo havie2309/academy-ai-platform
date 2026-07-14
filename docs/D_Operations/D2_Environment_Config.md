@@ -84,6 +84,20 @@
 
 Cac bien nay duoc `api-gateway` su dung de bao ve upstream khoi qua tai va loi lan truyen.
 
+### Summarization (J-01)
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `SUMMARY_MAX_CHARS` | `1500` | Số ký tự tối đa lấy từ tài liệu để tóm tắt |
+| `SUMMARY_LLM_PROVIDER` | `ollama` | Provider cho tóm tắt (ollama/openai) |
+| `SUMMARY_LLM_BASE_URL` | `http://localhost:11434` | Endpoint cho tóm tắt |
+| `SUMMARY_LLM_MODEL` | `qwen2.5:3b` | Model cho tóm tắt |
+| `SUMMARY_LLM_FALLBACK_PROVIDER` | - | Fallback provider (tùy chọn) |
+| `SUMMARY_LLM_FALLBACK_BASE_URL` | - | Fallback endpoint (tùy chọn) |
+| `SUMMARY_LLM_FALLBACK_MODEL` | - | Fallback model (tùy chọn) |
+| `SUMMARY_LLM_RETRY_ATTEMPTS` | `2` | Số lần thử lại khi lỗi |
+| `SUMMARY_LLM_TIMEOUT` | `60` | Timeout (giây) cho tóm tắt |
+
 ## 4. Quy tac quan ly secret
 
 - Khong commit `.env` that.

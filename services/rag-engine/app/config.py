@@ -44,6 +44,23 @@ OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "120"))
 
+# --- Summarization ------------------------------------------------------------
+SUMMARY_MAX_CHARS = int(os.getenv("SUMMARY_MAX_CHARS", "1500"))
+SUMMARY_LLM_PROVIDER = os.getenv("SUMMARY_LLM_PROVIDER", LLM_PROVIDER).strip().lower()
+SUMMARY_LLM_BASE_URL = os.getenv("SUMMARY_LLM_BASE_URL", LLM_BASE_URL).strip()
+SUMMARY_LLM_MODEL = os.getenv("SUMMARY_LLM_MODEL", LLM_MODEL).strip()
+SUMMARY_LLM_FALLBACK_PROVIDER = (
+    os.getenv("SUMMARY_LLM_FALLBACK_PROVIDER", LLM_FALLBACK_PROVIDER).strip().lower()
+)
+SUMMARY_LLM_FALLBACK_BASE_URL = (
+    os.getenv("SUMMARY_LLM_FALLBACK_BASE_URL", LLM_FALLBACK_BASE_URL).strip()
+)
+SUMMARY_LLM_FALLBACK_MODEL = (
+    os.getenv("SUMMARY_LLM_FALLBACK_MODEL", LLM_FALLBACK_MODEL).strip()
+)
+SUMMARY_LLM_RETRY_ATTEMPTS = int(os.getenv("SUMMARY_LLM_RETRY_ATTEMPTS", "2"))
+SUMMARY_LLM_TIMEOUT = float(os.getenv("SUMMARY_LLM_TIMEOUT", "60"))
+
 # --- Text-to-SQL LLM target --------------------------------------------------
 # Allow SQL generation to use a dedicated model (for example qwen2.5:3b on the AI
 # host) without affecting the general RAG answer model.

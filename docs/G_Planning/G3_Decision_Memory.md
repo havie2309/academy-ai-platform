@@ -38,6 +38,7 @@
 | DEC-PM2-28 | Polling fallback cho SSE bị mất: frontend poll mỗi 3s khi message có `status: 'streaming'` | Đảm bảo câu trả lời vẫn xuất hiện ngay cả khi SSE bị ngắt; tránh over‑engineering với resumable streams | Active |
 | DEC-PM2-29 | Luôn hiển thị citations và thay thế refusal message bằng văn bản giải thích rõ hơn | Tăng tính minh bạch và tin cậy; người dùng hiểu hệ thống đã tìm kiếm dù không tìm thấy câu trả lời trực tiếp | Active |
 | DEC-PM2-30 | Giảm `RAG_CONTEXT_MAX_CHARS` từ 6000 xuống 1800 và điều chỉnh retrieval/rerank config | Cải thiện first-token latency và tổng thời gian generation trên CPU | Active |
+| DEC-PM2-35 | Tóm tắt tài liệu (J-01) dùng MongoDB cache + distributed lock + sinh ngầm khi client ngắt kết nối | Tránh sinh lại tóm tắt nhiều lần, tiết kiệm tài nguyên LLM trên máy 16GB RAM. Cache bền vững trong MongoDB thay vì Redis để không chiếm RAM. | Active |
 
 ## 3. Hệ quả thực tế
 

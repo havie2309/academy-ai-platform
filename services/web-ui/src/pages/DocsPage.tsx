@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Eye, CheckCircle, AlertCircle } from 'lucide-react'
 import {
   Search,
   FileText,
@@ -19,6 +18,10 @@ import {
   EyeOff,
   LogIn,
   Settings2,
+  Eye,
+  CheckCircle,
+  AlertCircle,
+  Sparkles,
 } from 'lucide-react'
 import {
   docsApi,
@@ -573,6 +576,13 @@ export default function DocsPage() {
   const [uploading, setUploading] = useState(false)
   const [userMaxSecurityLevel, setUserMaxSecurityLevel] = useState<number>(isAdmin ? 4 : 2)
 
+  // Summary modal state
+  const [summaryDocId, setSummaryDocId] = useState<string | null>(null)
+  const [summaryContent, setSummaryContent] = useState('')
+  const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string | null>(null)
+  const [summaryStreaming, setSummaryStreaming] = useState(false)
+
   const [scopeEditDoc, setScopeEditDoc] = useState<DocItem | null>(null)
   const [scopeEditLevel, setScopeEditLevel] = useState<SecurityLevel>('internal')
   const [scopeEditType, setScopeEditType] = useState<AccessScopeType>('all')
@@ -830,6 +840,110 @@ export default function DocsPage() {
       setError(err instanceof Error ? err.message : 'Không thể tải chunk preview.')
     } finally {
       setPreviewLoading(false)
+    }
+  }
+
+  // Add ref for abort controller
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Add a close handler that aborts and clears
+  const closeSummary = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+    setSummaryDocId(null)
+    setSummaryContent('')
+    setSummaryLoading(false)
+    setSummaryStreaming(false)
+    setSummaryError(null)
+  }
+
+  const openSummary = async (doc: DocItem) => {
+    // Cancel any ongoing request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+      abortControllerRef.current = null
+    }
+
+    // Reset state
+    setSummaryDocId(doc.id)
+    setSummaryContent('')
+    setSummaryError(null)
+    setSummaryLoading(true)
+    setSummaryStreaming(false)
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    try {
+      const response = await docsApi.summarizeStream(doc.id, controller.signal)
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Lỗi ${response.status}`)
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error('Không thể đọc stream.')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+      setSummaryLoading(false)
+      setSummaryStreaming(true)
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() ?? ''
+
+        for (const block of lines) {
+          if (!block.trim()) continue
+          const linesInBlock = block.split('\n')
+          let event = 'message'
+          let dataLines: string[] = []
+
+          for (const line of linesInBlock) {
+            if (line.startsWith('event:')) {
+              event = line.slice(6).trim()
+            } else if (line.startsWith('data:')) {
+              dataLines.push(line.slice(5).trim())
+            }
+          }
+
+          if (dataLines.length === 0) continue
+
+          try {
+            const payload = JSON.parse(dataLines.join('\n'))
+            if (event === 'token') {
+              setSummaryContent(prev => prev + (payload.delta || ''))
+            } else if (event === 'done') {
+              setSummaryStreaming(false)
+              setSummaryLoading(false)
+            } else if (event === 'error') {
+              setSummaryError(payload.message || 'Lỗi không xác định')
+              setSummaryStreaming(false)
+              setSummaryLoading(false)
+            }
+          } catch {
+            // Skip malformed JSON
+          }
+        }
+      }
+    } catch (err) {
+      // Ignore abort errors (they are expected when closing the modal)
+      if (err instanceof Error && err.name === 'AbortError') {
+        return
+      }
+      setSummaryError(err instanceof Error ? err.message : 'Không thể tạo tóm tắt.')
+      setSummaryLoading(false)
+      setSummaryStreaming(false)
+    } finally {
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null
+      }
     }
   }
 
@@ -1170,6 +1284,15 @@ export default function DocsPage() {
                       className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
                     >
                       <Eye size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openSummary(doc)}
+                      disabled={doc.ingest_status !== 'completed' || busyId === doc.id}
+                      title={doc.ingest_status === 'completed' ? 'Tóm tắt tài liệu' : 'Chưa có chunks để tóm tắt'}
+                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
+                    >
+                      <Sparkles size={13} />
                     </button>
                     <button
                       type="button"
@@ -1555,6 +1678,110 @@ export default function DocsPage() {
                   setPreviewChunks([])
                 }}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Summary Modal */}
+      {summaryDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl max-h-[80vh] bg-white rounded-2xl shadow-xl border border-slate-200 p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                <Sparkles className="text-amber-500" size={18} />
+                Tóm tắt tài liệu
+              </h2>
+              <button
+                type="button"
+                onClick={closeSummary}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="text-sm text-slate-500 mb-4 shrink-0">
+              {docs.find(d => d.id === summaryDocId)?.title || 'Tài liệu'}
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl p-4 border border-slate-200 min-h-[200px] max-h-[400px]">
+              {/* Loading state before first token */}
+              {summaryLoading && !summaryStreaming && (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <Loader2 className="animate-spin mr-2" size={20} />
+                  <span>Đang tạo tóm tắt...</span>
+                </div>
+              )}
+
+              {/* Streaming but no content yet (first token not arrived) */}
+              {summaryStreaming && !summaryContent && (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <span className="mr-2">Đang tạo tóm tắt...</span>
+                  <span className="inline-block w-1 h-4 bg-amber-500 animate-pulse" />
+                </div>
+              )}
+
+              {/* Content exists (partial or full) */}
+              {summaryContent && (
+                <div className="prose prose-sm max-w-none">
+                  {summaryContent.split('\n').map((line, idx) => {
+                    const trimmed = line.trim()
+                    if (!trimmed) return <br key={idx} />
+                    if (trimmed.startsWith('-') || trimmed.startsWith('•')) {
+                      return (
+                        <div key={idx} className="flex items-start gap-2 py-0.5">
+                          <span className="text-amber-500">•</span>
+                          <span className="text-slate-700">{trimmed.slice(1).trim()}</span>
+                        </div>
+                      )
+                    }
+                    return <p key={idx} className="text-slate-700 mb-1">{trimmed}</p>
+                  })}
+                  {summaryStreaming && (
+                    <span className="inline-block w-1 h-4 bg-amber-500 animate-pulse ml-0.5 align-middle" />
+                  )}
+                </div>
+              )}
+
+              {/* Error state */}
+              {summaryError && (
+                <div className="text-red-600 text-sm">
+                  <AlertCircle size={16} className="inline mr-2" />
+                  {summaryError}
+                </div>
+              )}
+
+              {/* Empty state (no content, not loading, no error) */}
+              {!summaryContent && !summaryLoading && !summaryStreaming && !summaryError && (
+                <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                  Chưa có nội dung tóm tắt.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (summaryContent && !summaryStreaming) {
+                    navigator.clipboard?.writeText(summaryContent)
+                      .then(() => {})
+                      .catch(() => {})
+                  }
+                }}
+                disabled={!summaryContent || summaryStreaming}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-40"
+              >
+                Sao chép
+              </button>
+              <button
+                type="button"
+                onClick={closeSummary}
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all cursor-pointer"
               >
                 Đóng
               </button>

@@ -5,6 +5,8 @@
 // Collections
 db.createCollection("documents");
 db.createCollection("document_chunks");
+db.createCollection("document_summaries");
+db.createCollection("summary_jobs");
 db.createCollection("processing_jobs");
 db.createCollection("chat_sessions");
 db.createCollection("chat_messages");
@@ -20,6 +22,14 @@ db.document_chunks.createIndex({ milvusVectorId: 1 }, { unique: true, sparse: tr
 db.document_chunks.createIndex({ "metadata.ownerUnitCode": 1 });
 db.document_chunks.createIndex({ "metadata.securityLevel": 1 });
 db.document_chunks.createIndex({ chunkText: "text" });
+
+db.document_summaries.createIndex(
+    { documentId: 1, provider: 1, baseUrl: 1, model: 1, promptHash: 1 },
+    { unique: true }
+);
+
+db.summary_jobs.createIndex({ documentId: 1 }, { unique: true });
+db.summary_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 db.processing_jobs.createIndex({ documentId: 1 });
 db.processing_jobs.createIndex({ status: 1, createdAt: -1 });
