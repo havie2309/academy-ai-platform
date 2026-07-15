@@ -249,6 +249,11 @@ export function attachGatewayUserHeaders(
   const user = req.gatewayUser
   if (!user) return
 
+  const internalSecret = process.env.GATEWAY_INTERNAL_SHARED_SECRET
+  if (internalSecret) {
+    setHeader('x-gateway-internal-secret', internalSecret)
+  }
+
   setHeader('x-gateway-user-id', user.userId)
   setHeader('x-gateway-username', user.username)
   setHeader('x-gateway-roles', user.roles.join(','))
