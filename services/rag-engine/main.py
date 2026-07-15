@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.cache import RedisCache
-from app.config import SESSION_CONTEXT_MAX_MESSAGES, SUMMARY_MAX_CHARS, SUMMARY_LLM_MODEL
+from app.config import GATEWAY_INTERNAL_SHARED_SECRET, SESSION_CONTEXT_MAX_MESSAGES, SUMMARY_MAX_CHARS, SUMMARY_LLM_MODEL
 from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
@@ -78,6 +78,12 @@ def _gateway_roles(raw: str | None) -> list[str]:
 
 
 def _gateway_user(request: Request) -> RetrieveUser | None:
+    # Reject requests that bypass the gateway when a shared secret is configured.
+    if GATEWAY_INTERNAL_SHARED_SECRET:
+        token = request.headers.get("x-gateway-internal-secret", "")
+        if token != GATEWAY_INTERNAL_SHARED_SECRET:
+            raise HTTPException(403, "forbidden: direct access not allowed")
+
     user_id = request.headers.get("x-gateway-user-id")
     if not user_id:
         return None

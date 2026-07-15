@@ -98,6 +98,11 @@ SQL_AUDIT_ENABLED = os.getenv("SQL_AUDIT_ENABLED", "true").lower() != "false"
 STAFF_SQL_ROLES = {"ADMIN", "BGD", "P2"}
 SELF_SCOPE_ROLES = {"HOC_VIEN", "GIANG_VIEN"}
 
+# --- Internal gateway auth ---------------------------------------------------
+# When set, every request must carry a matching x-gateway-internal-secret header.
+# Leave empty in local dev to skip enforcement.
+GATEWAY_INTERNAL_SHARED_SECRET = (os.getenv("GATEWAY_INTERNAL_SHARED_SECRET") or "").strip()
+
 # --- Safe refusal / admin-config ---------------------------------------------
 ADMIN_CONFIG_URL = (os.getenv("ADMIN_CONFIG_URL") or "http://127.0.0.1:3004").strip()
 ADMIN_CONFIG_INTERNAL_KEY = (os.getenv("ADMIN_CONFIG_INTERNAL_KEY") or "").strip()
