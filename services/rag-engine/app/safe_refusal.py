@@ -391,9 +391,6 @@ def _detect_ambiguity_type(folded: str) -> tuple[str, str] | None:
         if _fold_text(h) in folded:
             if not _extract_subject_from_query(folded):
                 return ("subject", h)
-            else:
-                print(h)
-    print()
     for h in _PERSON_SENSITIVE_HINTS:
         if _fold_text(h) in folded:
             return ("person", h)

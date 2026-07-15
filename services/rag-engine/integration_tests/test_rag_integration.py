@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Integration test for RAG authority selection.
+Integration test for RAG engine against live services.
 Requires local services (MongoDB, Milvus, Ollama) to be running.
-Run: python -m unittest discover -s tests -p "test_rag_integration.py" -v
+
+Run:
+    python -m unittest discover -s integration_tests -p "test_rag_integration.py" -v
+
+For retrieval-only tests (skip_llm=true), uses /v1/retrieve (fast, no LLM).
+For full tests, uses /v1/chat (includes LLM generation).
 """
 
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -14,10 +18,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import requests
-from app.rag_eval import evaluate_response, load_eval_cases, iter_eval_cases
+from app.rag_eval import evaluate_response, load_eval_cases
 
 RAG_CHAT_URL = "http://localhost:8000/v1/chat"
-CASES_PATH = Path(__file__).resolve().parents[3] / "eval" / "rag_cases.json"
+RAG_RETRIEVE_URL = "http://localhost:8000/v1/retrieve"
+INTEGRATION_CASES_PATH = Path(__file__).resolve().parents[3] / "eval" / "integration_rag_cases.json"
 
 
 class RagIntegrationTests(unittest.TestCase):
@@ -33,57 +38,143 @@ class RagIntegrationTests(unittest.TestCase):
             print("Run 'rag_cli.py' or start services manually first.")
             raise unittest.SkipTest("RAG engine not available")
 
-    def test_authority_conflict_live(self):
-        """Test that the live RAG engine picks the internal doc over adversarial."""
-        payload = load_eval_cases(CASES_PATH)
-        conflict_cases = []
-        for group, case in iter_eval_cases(payload):
-            if case.get("name", "").startswith("conflict_"):
-                conflict_cases.append(case)
-
-        if not conflict_cases:
-            self.skipTest("No authority conflict cases found in eval/rag_cases.json")
+    def test_all_integration_cases(self):
+        """Run all integration cases from eval/integration_rag_cases.json."""
+        payload = load_eval_cases(INTEGRATION_CASES_PATH)
+        integration_cases = payload.get("integration_cases", [])
+        if not integration_cases:
+            self.skipTest("No integration cases found in eval/integration_rag_cases.json")
 
         passed = 0
+        total = 0
         failed_results = []
-        for case in conflict_cases:
-            # Build request payload (same as rag_cli.py)
-            req = {
-                "query": case["question"],
-                "sessionId": "integration-test",
-                "messages": [],
-                "user": {
-                    "userId": "admin-1",
-                    "username": "admin",
-                    "roles": ["ADMIN"],
-                    "department": "P2",
-                    "maxSecurityLevel": 4,
-                    "scopeMaHv": None,
-                    "scopeMaGv": None,
-                },
-            }
-            try:
-                resp = requests.post(RAG_CHAT_URL, json=req, timeout=300)
-                self.assertEqual(resp.status_code, 200, f"API failed for {case['name']}")
-                result = resp.json()
-                eval_result = evaluate_response(
-                    result,
-                    case["expected"],
+
+        for case in integration_cases:
+            skip_llm = case.get("skip_llm", False)
+            # Handle nested cases (multi-user scenarios)
+            sub_cases = case.get("cases")
+            if sub_cases:
+                for sub in sub_cases:
+                    total += 1
+                    result = self._run_single_case(
+                        question=case["question"],
+                        user=sub["user"],
+                        expected=sub["expected"],
+                        doc_ids=case.get("docIds"),
+                        skip_llm=skip_llm,
+                        case_name=f"{case['name']} - {sub['user'].get('userId')}",
+                        category=case.get("category", "integration"),
+                    )
+                    if result["passed"]:
+                        passed += 1
+                    else:
+                        failed_results.append(result)
+            else:
+                total += 1
+                result = self._run_single_case(
+                    question=case["question"],
+                    user=case["user"],
+                    expected=case["expected"],
+                    doc_ids=case.get("docIds"),
+                    skip_llm=skip_llm,
                     case_name=case["name"],
-                    category=case.get("category", "authority"),
+                    category=case.get("category", "integration"),
                 )
-                if eval_result["passed"]:
+                if result["passed"]:
                     passed += 1
                 else:
-                    failed_results.append(eval_result)
-            except Exception as e:
-                failed_results.append({'name': case["name"], 'error': e})
+                    failed_results.append(result)
 
-        total = len(conflict_cases)
-        print(f"\n[Integration] Authority accuracy: {passed}/{total}")
+        print(f"\n[Integration] Passed: {passed}/{total}")
         if failed_results:
             for fail in failed_results:
-                print(f"\n  FAIL: {fail['name']}")
+                print(f"\n  FAIL: {fail.get('name')}")
                 for k, v in fail.items():
-                    print(f"    {k}: {v}")
-        self.assertEqual(passed, total, f"Authority cases failed: {[r['name'] for r in failed_results]}")
+                    if k not in ("passed", "name"):
+                        print(f"    {k}: {v}")
+        self.assertEqual(passed, total, f"Integration cases failed: {[r['name'] for r in failed_results]}")
+
+    def _run_single_case(self, *, question, user, expected, doc_ids, skip_llm, case_name, category):
+        """Execute one request (either retrieval-only or full chat) and validate."""
+        # If skip_llm is True, use /v1/retrieve (fast, no LLM)
+        if skip_llm:
+            return self._run_retrieval_only(question, user, expected, doc_ids, case_name, category)
+        else:
+            return self._run_chat(question, user, expected, doc_ids, case_name, category)
+
+    def _run_retrieval_only(self, question, user, expected, doc_ids, case_name, category):
+        """Call /v1/retrieve and validate citations against expected ACL."""
+        req = {
+            "query": question,
+            "user": user,
+        }
+        if doc_ids:
+            req["docIds"] = doc_ids
+
+        try:
+            resp = requests.post(RAG_RETRIEVE_URL, json=req, timeout=30)
+            if resp.status_code != 200:
+                return {
+                    "name": case_name,
+                    "category": category,
+                    "passed": False,
+                    "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
+                }
+            data = resp.json()
+            citations = data.get("citations", [])
+
+            # Validate against expected ACL
+            acceptable = set(expected.get("acceptable_doc_ids", []))
+            forbidden = expected.get("forbidden_doc_id")
+            actual_docs = {c.get("doc_id") for c in citations}
+
+            missing = acceptable - actual_docs if acceptable else set()
+            has_forbidden = forbidden in actual_docs if forbidden else False
+
+            passed = (not missing) and (not has_forbidden)
+            if passed:
+                return {"name": case_name, "category": category, "passed": True}
+            else:
+                return {
+                    "name": case_name,
+                    "category": category,
+                    "passed": False,
+                    "missing_acceptable": sorted(missing),
+                    "has_forbidden": has_forbidden,
+                    "actual_docs": sorted(actual_docs),
+                    "expected_acceptable": sorted(acceptable),
+                    "expected_forbidden": forbidden,
+                }
+        except Exception as e:
+            return {"name": case_name, "category": category, "passed": False, "error": str(e)}
+
+    def _run_chat(self, question, user, expected, doc_ids, case_name, category):
+        """Call /v1/chat and evaluate with the full LLM response."""
+        req = {
+            "query": question,
+            "sessionId": "integration-test",
+            "messages": [],
+            "user": user,
+        }
+        if doc_ids:
+            req["docIds"] = doc_ids
+
+        try:
+            resp = requests.post(RAG_CHAT_URL, json=req, timeout=300)
+            if resp.status_code != 200:
+                return {
+                    "name": case_name,
+                    "category": category,
+                    "passed": False,
+                    "error": f"HTTP {resp.status_code}: {resp.text[:200]}",
+                }
+            result = resp.json()
+            eval_result = evaluate_response(
+                result,
+                expected,
+                case_name=case_name,
+                category=category,
+            )
+            return eval_result
+        except Exception as e:
+            return {"name": case_name, "category": category, "passed": False, "error": str(e)}
