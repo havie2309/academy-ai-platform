@@ -18,8 +18,9 @@ from app.config import (
     SUMMARY_LLM_BASE_URL,
     SUMMARY_LLM_MODEL,
 )
-from app.generate import stream_chat, _resolve_summary_target
+from app.generate import stream_chat
 from app.access import can_view_chunk
+from app.target_resolver import resolve_summary_target
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Prompt template
@@ -272,7 +273,7 @@ async def stream_document_summary(
 
             prompt = build_summary_prompt(document_text)
             history = [{"role": "user", "content": prompt}]
-            target = _resolve_summary_target()
+            target = resolve_summary_target()
 
             full_summary = ""
             disconnected = False

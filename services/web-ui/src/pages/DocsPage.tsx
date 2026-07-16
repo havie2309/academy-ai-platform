@@ -22,6 +22,7 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
+  BookOpenText,
 } from 'lucide-react'
 import {
   docsApi,
@@ -34,6 +35,7 @@ import { authApi } from '../api/auth'
 import { API_BASE } from '../api/base'
 import { isAdminLikeRole } from '../lib/authz'
 import React from 'react'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType } from 'docx'
 
 const UPLOAD_CATEGORIES = ['Quy chế', 'Tài liệu môn học', 'Lịch thi', 'Khác']
 
@@ -583,6 +585,19 @@ export default function DocsPage() {
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryStreaming, setSummaryStreaming] = useState(false)
 
+  // Exercise modal state
+  const [exerciseDocId, setExerciseDocId] = useState<string | null>(null)
+  const [exerciseParsed, setExerciseParsed] = useState<any[] | null>(null)
+  const [exerciseLoading, setExerciseLoading] = useState(false)
+  const [exerciseError, setExerciseError] = useState<string | null>(null)
+  const [exerciseGenerated, setExerciseGenerated] = useState(false)
+  const [exerciseType, setExerciseType] = useState('multiple_choice')
+  const [exerciseCount, setExerciseCount] = useState(5)
+  const [exerciseDifficulty, setExerciseDifficulty] = useState('medium')
+  const [exerciseJobStatus, setExerciseJobStatus] = useState<'idle' | 'running' | 'completed' | 'not_found'>('idle')
+  const statusPollInterval = useRef<NodeJS.Timeout | null>(null)
+  const previousDocIdRef = useRef<string | null>(null)
+
   const [scopeEditDoc, setScopeEditDoc] = useState<DocItem | null>(null)
   const [scopeEditLevel, setScopeEditLevel] = useState<SecurityLevel>('internal')
   const [scopeEditType, setScopeEditType] = useState<AccessScopeType>('all')
@@ -947,6 +962,260 @@ export default function DocsPage() {
     }
   }
 
+  // Open modal – reset only if opening a different document
+  const openExercisesModal = (doc: DocItem) => {
+    const newDocId = doc.id
+    console.log('[Exercise] Opening modal for doc:', newDocId, 'previous:', previousDocIdRef.current)
+
+    // If opening a different document, reset state
+    if (previousDocIdRef.current !== newDocId) {
+      console.log('[Exercise] Different document – resetting state')
+      setExerciseParsed(null)
+      setExerciseError(null)
+      setExerciseLoading(true) // will be updated by polling
+      setExerciseGenerated(false)
+      setExerciseJobStatus('idle')
+      previousDocIdRef.current = newDocId
+    } else {
+      // Same document – keep state, just ensure polling is active
+      console.log('[Exercise] Same document – keeping state')
+      setExerciseLoading(false)
+    }
+    setExerciseDocId(newDocId)
+  }
+
+  // Polling effect
+  useEffect(() => {
+    if (!exerciseDocId) {
+      console.log('[Exercise] No docId – stopping polling (preserving state)')
+      if (statusPollInterval.current) {
+        clearTimeout(statusPollInterval.current)
+        statusPollInterval.current = null
+      }
+      // DO NOT reset loading/status – keep them for when modal reopens
+      return
+    }
+
+    console.log('[Exercise] Starting polling for doc:', exerciseDocId, 'status:', exerciseJobStatus)
+
+    let isMounted = true
+    let backoff = 3000
+
+    const checkStatus = async () => {
+      if (!isMounted) return
+      console.log('[Exercise] Checking status...')
+
+      try {
+        const status = await docsApi.getExerciseStatus(exerciseDocId, {
+          type: exerciseType,
+          count: exerciseCount,
+          difficulty: exerciseDifficulty,
+        })
+        console.log('[Exercise] Status response:', status)
+
+        if (status.status === 'completed' && status.exercises) {
+          console.log('[Exercise] Completed with exercises:', status.exercises.length)
+          setExerciseParsed(status.exercises)
+          setExerciseGenerated(true)
+          setExerciseJobStatus('completed')
+          setExerciseLoading(false)
+          if (statusPollInterval.current) {
+            clearTimeout(statusPollInterval.current)
+            statusPollInterval.current = null
+          }
+          return
+        } else if (status.status === 'running') {
+          console.log('[Exercise] Job is running')
+          setExerciseJobStatus('running')
+          setExerciseLoading(false)
+          setExerciseParsed(null)
+          setExerciseGenerated(false)
+          scheduleNext()
+        } else {
+          console.log('[Exercise] Status not found')
+          setExerciseJobStatus('not_found')
+          setExerciseParsed(null)
+          setExerciseGenerated(false)
+          setExerciseLoading(false)
+          if (statusPollInterval.current) {
+            clearTimeout(statusPollInterval.current)
+            statusPollInterval.current = null
+          }
+          return
+        }
+      } catch (err) {
+        console.error('[Exercise] Error checking status:', err)
+        if (err instanceof Error && (err.message.includes('401') || err.message.includes('Unauthorized'))) {
+          setExerciseError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+          setExerciseLoading(false)
+          setExerciseJobStatus('not_found')
+          if (statusPollInterval.current) {
+            clearTimeout(statusPollInterval.current)
+            statusPollInterval.current = null
+          }
+          return
+        }
+        backoff = Math.min(backoff * 1.5, 60000)
+        scheduleNext()
+      }
+    }
+
+    const scheduleNext = () => {
+      if (statusPollInterval.current) clearTimeout(statusPollInterval.current)
+      console.log('[Exercise] Scheduling next poll in', backoff, 'ms')
+      statusPollInterval.current = setTimeout(checkStatus, backoff)
+    }
+
+    // If status is already completed or not_found, don't poll
+    if (exerciseJobStatus === 'completed' || exerciseJobStatus === 'not_found') {
+      if (exerciseJobStatus === 'completed' && !exerciseParsed) {
+        // We have status completed but no parsed? Shouldn't happen, but fetch anyway
+        checkStatus()
+      }
+      return
+    }
+
+    // Initial check
+    if (exerciseJobStatus === 'idle') {
+      setExerciseLoading(true)
+    }
+    checkStatus()
+    scheduleNext()
+
+    return () => {
+      isMounted = false
+      if (statusPollInterval.current) {
+        clearTimeout(statusPollInterval.current)
+        statusPollInterval.current = null
+      }
+    }
+  }, [exerciseDocId, exerciseType, exerciseCount, exerciseDifficulty])
+
+  // Generate function
+  const generateExercises = async (forceRefresh: boolean = false) => {
+    console.log('[Exercise] Generate clicked, current status:', exerciseJobStatus, 'loading:', exerciseLoading)
+    if (exerciseLoading || exerciseJobStatus === 'running' || !exerciseDocId) {
+      console.log('[Exercise] Generate blocked')
+      return
+    }
+
+    setExerciseLoading(true)
+    setExerciseError(null)
+    setExerciseParsed(null)
+    setExerciseGenerated(false)
+    setExerciseJobStatus('running')
+
+    try {
+      console.log('[Exercise] Sending generate request...')
+      const exercises = await docsApi.generateExercises(exerciseDocId, {
+        type: exerciseType,
+        count: exerciseCount,
+        difficulty: exerciseDifficulty,
+        force_refresh: forceRefresh,
+      })
+      console.log('[Exercise] Generate request returned exercises:', exercises?.length)
+      if (exercises && exercises.length > 0) {
+        setExerciseParsed(exercises)
+        setExerciseGenerated(true)
+        setExerciseJobStatus('completed')
+        setExerciseLoading(false)
+        if (statusPollInterval.current) {
+          clearTimeout(statusPollInterval.current)
+          statusPollInterval.current = null
+        }
+      } else {
+        // No exercises returned – fallback to polling
+        setExerciseJobStatus('running')
+        setExerciseLoading(false)
+      }
+    } catch (err) {
+      console.error('[Exercise] Generate error:', err)
+      if (err instanceof Error && err.message.includes('503')) {
+        console.log('[Exercise] 503 - job already running')
+        setExerciseJobStatus('running')
+        setExerciseLoading(false)
+        return
+      }
+      setExerciseError(err instanceof Error ? err.message : 'Không thể tạo bài tập.')
+      setExerciseLoading(false)
+      setExerciseJobStatus('not_found')
+    }
+  }
+
+  // Close modal – stop polling but preserve state
+  const closeExercises = () => {
+    console.log('[Exercise] Closing modal, preserving status:', exerciseJobStatus)
+    if (statusPollInterval.current) {
+      clearTimeout(statusPollInterval.current)
+      statusPollInterval.current = null
+    }
+    // Set docId to null to hide modal, but keep state for when reopened
+    setExerciseDocId(null)
+  }
+
+  const downloadExercisesAsDocx = () => {
+    if (!exerciseParsed || exerciseParsed.length === 0) return;
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: [
+          new Paragraph({
+            text: 'Bài tập từ tài liệu',
+            heading: HeadingLevel.HEADING_1,
+            alignment: AlignmentType.CENTER,
+          }),
+          new Paragraph({ text: `Loại: ${exerciseType} | Số lượng: ${exerciseCount} | Độ khó: ${exerciseDifficulty}`, spacing: { after: 200 } }),
+          ...exerciseParsed.flatMap((item, idx) => {
+            const children = [
+              new Paragraph({
+                text: `Câu ${idx + 1}: ${item.question}`,
+                heading: HeadingLevel.HEADING_3,
+                spacing: { before: 200, after: 100 },
+              }),
+            ];
+            if (item.options && Array.isArray(item.options)) {
+              item.options.forEach((opt: string, oi: number) => {
+                children.push(new Paragraph({
+                  text: `  ${String.fromCharCode(65 + oi)}. ${opt.replace(/^[A-D]\.\s*/, '')}`,
+                  spacing: { after: 50 },
+                }));
+              });
+            }
+            if (item.answer) {
+              children.push(new Paragraph({
+                text: `Đáp án: ${item.answer}`,
+                spacing: { after: 50 },
+              }));
+            }
+            if (item.explanation) {
+              children.push(new Paragraph({
+                text: `Giải thích: ${item.explanation}`,
+                spacing: { after: 100 },
+              }));
+            }
+            if (item.model_answer) {
+              children.push(new Paragraph({
+                text: `Đáp án gợi ý: ${item.model_answer}`,
+                spacing: { after: 100 },
+              }));
+            }
+            return children;
+          }),
+        ],
+      }],
+    });
+
+    Packer.toBlob(doc).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bai-tap-${exerciseDocId}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+
   const canDelete = (doc: DocItem) =>
     isAdmin || doc.uploaded_by_id === currentUser?.id
 
@@ -1293,6 +1562,15 @@ export default function DocsPage() {
                       className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
                     >
                       <Sparkles size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openExercisesModal(doc)}
+                      disabled={doc.ingest_status !== 'completed' || busyId === doc.id}
+                      title={doc.ingest_status === 'completed' ? 'Tạo bài tập từ tài liệu' : 'Chưa thể tạo bài tập'}
+                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-green-50 hover:text-green-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
+                    >
+                      <BookOpenText size={13} />
                     </button>
                     <button
                       type="button"
@@ -1782,6 +2060,187 @@ export default function DocsPage() {
                 type="button"
                 onClick={closeSummary}
                 className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exercise Modal */}
+      {exerciseDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-xl border border-slate-200 p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                <BookOpenText className="text-green-500" size={18} />
+                Tạo bài tập từ tài liệu
+              </h2>
+              <button
+                type="button"
+                onClick={closeExercises}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="text-sm text-slate-500 mb-4 shrink-0">
+              {docs.find(d => d.id === exerciseDocId)?.title || 'Tài liệu'}
+            </div>
+
+            {/* Config row – always editable */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 shrink-0 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Loại:</label>
+                <select
+                  value={exerciseType}
+                  onChange={(e) => setExerciseType(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+                  disabled={exerciseLoading || exerciseJobStatus === 'running'}
+                >
+                  <option value="multiple_choice">Trắc nghiệm</option>
+                  <option value="short_answer">Tự luận</option>
+                  <option value="true_false">Đúng/Sai</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Số lượng:</label>
+                <select
+                  value={exerciseCount}
+                  onChange={(e) => setExerciseCount(Number(e.target.value))}
+                  className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+                  disabled={exerciseLoading || exerciseJobStatus === 'running'}
+                >
+                  <option value={3}>3</option>
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Độ khó:</label>
+                <select
+                  value={exerciseDifficulty}
+                  onChange={(e) => setExerciseDifficulty(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+                  disabled={exerciseLoading || exerciseJobStatus === 'running'}
+                >
+                  <option value="easy">Dễ</option>
+                  <option value="medium">Trung bình</option>
+                  <option value="hard">Khó</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => generateExercises(exerciseGenerated)}
+                disabled={exerciseLoading || exerciseJobStatus === 'running' || !exerciseDocId}
+                className="ml-auto px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all disabled:opacity-50"
+              >
+                {exerciseGenerated ? 'Tạo lại (ngẫu nhiên mới)' : 'Tạo bài tập'}
+              </button>
+            </div>
+
+            {/* Content area */}
+            <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl p-4 border border-slate-200 min-h-[200px] max-h-[500px]">
+              {/* Loading: initial check or generation in progress */}
+              {(exerciseLoading || exerciseJobStatus === 'idle' || exerciseJobStatus === 'running') && !exerciseParsed && (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <Loader2 className="animate-spin mr-2" size={20} />
+                  <span>
+                    {exerciseJobStatus === 'running'
+                      ? 'Đang tạo bài tập (ngầm)...'
+                      : exerciseLoading
+                      ? 'Đang tạo bài tập...'
+                      : 'Đang kiểm tra...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Error */}
+              {exerciseError && (
+                <div className="text-red-600 text-sm">
+                  <AlertCircle size={16} className="inline mr-2" />
+                  {exerciseError}
+                </div>
+              )}
+
+              {/* Parsed exercises */}
+              {exerciseParsed && exerciseParsed.length > 0 && (
+                <div className="space-y-6">
+                  {/* Render exercises as before */}
+                  {exerciseParsed.map((item, idx) => (
+                    <div key={idx} className="border-l-4 border-green-400 pl-4 bg-white p-4 rounded-lg shadow-sm">
+                      <p className="font-semibold text-slate-800">
+                        Câu {idx + 1}: {item.question}
+                      </p>
+                      {item.options && Array.isArray(item.options) && (
+                        <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                          {item.options.map((opt: string, oi: number) => (
+                            <li key={oi} className="flex items-start gap-2">
+                              <span className="font-mono text-xs text-slate-400">
+                                {String.fromCharCode(65 + oi)}.
+                              </span>
+                              <span>{opt.replace(/^[A-D]\.\s*/, '')}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.answer && (
+                        <p className="mt-2 text-sm font-semibold text-green-700">
+                          Đáp án: {item.answer}
+                        </p>
+                      )}
+                      {item.explanation && (
+                        <p className="mt-1 text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                          💡 {item.explanation}
+                        </p>
+                      )}
+                      {item.model_answer && (
+                        <p className="mt-2 text-sm text-slate-700 bg-slate-50 p-2 rounded">
+                          📝 {item.model_answer}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty state – only when not loading, not running, no error, no parsed */}
+              {!exerciseParsed && !exerciseLoading && exerciseJobStatus === 'not_found' && !exerciseError && (
+                <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                  Chọn cấu hình và nhấn "Tạo bài tập".
+                </div>
+              )}
+            </div>
+
+            {/* Footer with copy and close */}
+            <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (exerciseParsed) {
+                    navigator.clipboard?.writeText(JSON.stringify(exerciseParsed, null, 2))
+                      .catch(() => {})
+                  }
+                }}
+                disabled={!exerciseParsed}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-40"
+              >
+                Sao chép (JSON)
+              </button>
+              <button
+                type="button"
+                onClick={downloadExercisesAsDocx}
+                disabled={!exerciseParsed}
+                className="px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-sm font-semibold hover:bg-blue-100 transition-all cursor-pointer disabled:opacity-40"
+              >
+                Tải DOCX
+              </button>
+              <button
+                type="button"
+                onClick={closeExercises}
+                className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all cursor-pointer"
               >
                 Đóng
               </button>

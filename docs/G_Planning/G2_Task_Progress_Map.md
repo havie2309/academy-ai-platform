@@ -24,6 +24,7 @@
 | Dev tools | Added `rag-cli.py` – interactive CLI tester with `--debug` flag; improved `start-dev.ps1` (Ollama logging) and `stop-dev.ps1` (kill by port). |
 | Audit/security | Normalized `'anonymous'` user ID to `null` in `audit_log` and `security_alerts` to avoid FK violations. |
 | AI | J-01: Tóm tắt tài liệu (parent chunks + cache MongoDB + sinh ngầm + streaming) |
+| AI | J-02: Hỗ trợ bài tập, giải thích từng bước (parent chunks + cache MongoDB + sinh ngầm + DOCX export) |
 
 ## 3. Hoan thanh mot phan
 

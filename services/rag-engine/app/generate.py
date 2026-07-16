@@ -19,23 +19,12 @@ from ai_clients import (
 )
 
 from app.config import (
-    LLM_BASE_URL,
-    LLM_FALLBACK_BASE_URL,
-    LLM_FALLBACK_MODEL,
-    LLM_FALLBACK_PROVIDER,
-    LLM_MODEL,
-    LLM_PROVIDER,
     LLM_TIMEOUT,
-    OPENAI_API_KEY,
-    OPENAI_MODEL,
-    SUMMARY_LLM_PROVIDER,
-    SUMMARY_LLM_BASE_URL,
-    SUMMARY_LLM_MODEL,
-    SUMMARY_LLM_FALLBACK_PROVIDER,
-    SUMMARY_LLM_FALLBACK_BASE_URL,
-    SUMMARY_LLM_FALLBACK_MODEL,
-    SUMMARY_LLM_RETRY_ATTEMPTS,
-    SUMMARY_LLM_TIMEOUT,
+)
+
+from app.target_resolver import (
+    resolve_default_target,
+    fallback_targets,
 )
 
 SYSTEM_PROMPT = """
@@ -393,74 +382,6 @@ def build_task_assist_messages(history: list[dict]) -> list[dict]:
 # AI Client based implementations (retry/fallback/circuit-breaker)
 # ------------------------------------------------------------------
 
-def _resolve_llm_target() -> ChatCompletionTarget:
-    """Resolve the default (RAG chat) LLM target."""
-    try:
-        return resolve_chat_target(
-            provider=LLM_PROVIDER,
-            base_url=LLM_BASE_URL,
-            model=LLM_MODEL,
-            openai_api_key=OPENAI_API_KEY,
-            openai_model=OPENAI_MODEL,
-        )
-    except ValueError as exc:
-        raise LlmError(str(exc)) from exc
-
-
-def _resolve_summary_target() -> ChatCompletionTarget:
-    """
-    Resolve the summarization-specific LLM target.
-    Falls back to the default LLM config if summary-specific vars are not set.
-    """
-    provider = SUMMARY_LLM_PROVIDER or LLM_PROVIDER
-    base_url = SUMMARY_LLM_BASE_URL or LLM_BASE_URL
-    model = SUMMARY_LLM_MODEL or LLM_MODEL
-
-    # Determine which OpenAI model to use if provider is 'openai'
-    openai_model = model if provider == "openai" else OPENAI_MODEL
-
-    try:
-        return resolve_chat_target(
-            provider=provider,
-            base_url=base_url,
-            model=model,
-            openai_api_key=OPENAI_API_KEY,
-            openai_model=openai_model,
-        )
-    except ValueError as exc:
-        raise LlmError(str(exc)) from exc
-
-
-def _llm_fallback_targets(target: ChatCompletionTarget) -> list[ChatCompletionTarget]:
-    """
-    Build fallback targets for a given primary target.
-    Reuses the global fallback config, but could be extended to per-task fallbacks.
-    """
-    has_fallback = bool(
-        LLM_FALLBACK_PROVIDER or LLM_FALLBACK_BASE_URL or LLM_FALLBACK_MODEL
-    )
-    if not has_fallback:
-        return []
-
-    provider = LLM_FALLBACK_PROVIDER or ("ollama" if LLM_FALLBACK_BASE_URL else "openai")
-    model = LLM_FALLBACK_MODEL or (OPENAI_MODEL if provider == "openai" else LLM_MODEL)
-    try:
-        fallback = resolve_chat_target(
-            provider=provider,
-            base_url=LLM_FALLBACK_BASE_URL,
-            model=model,
-            openai_api_key=OPENAI_API_KEY,
-            openai_model=model,
-        )
-    except ValueError as exc:
-        raise LlmError(str(exc)) from exc
-
-    # Avoid duplicate target
-    if (fallback.url, fallback.model) == (target.url, target.model):
-        return []
-    return [fallback]
-
-
 async def complete_chat_raw(
     history: list[dict],
     citations: list[dict],
@@ -470,7 +391,7 @@ async def complete_chat_raw(
     force_expand_answer: bool = False,
 ) -> str:
     """Non-streaming grounded answer using AI client (with retry/fallback)."""
-    target = _resolve_llm_target()
+    target = resolve_default_target()
     messages = build_messages(
         history,
         citations,
@@ -484,7 +405,11 @@ async def complete_chat_raw(
             messages,
             temperature=0.3,
             timeout=LLM_TIMEOUT,
+<<<<<<< Updated upstream
             fallback_targets=_llm_fallback_targets(target),
+=======
+            fallback_targets=fallback_targets(),
+>>>>>>> Stashed changes
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc
@@ -536,7 +461,7 @@ async def complete_chat_structured(
 
 async def complete_task_assist(history: list[dict]) -> str:
     """Direct non-grounded helper answer with AI client."""
-    target = _resolve_llm_target()
+    target = resolve_default_target()
     messages = build_task_assist_messages(history)
     try:
         data = await create_chat_completion(
@@ -544,7 +469,11 @@ async def complete_task_assist(history: list[dict]) -> str:
             messages,
             temperature=0.4,
             timeout=LLM_TIMEOUT,
+<<<<<<< Updated upstream
             fallback_targets=_llm_fallback_targets(target),
+=======
+            fallback_targets=fallback_targets(),
+>>>>>>> Stashed changes
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc
@@ -569,7 +498,7 @@ async def stream_chat(
     If `target_override` is provided, it uses that target instead of the default.
     This allows summarization to use its own dedicated config.
     """
-    target = target_override or _resolve_llm_target()
+    target = target_override or resolve_default_target()
     messages = build_messages(
         history,
         citations,
@@ -582,7 +511,7 @@ async def stream_chat(
             target,
             messages,
             timeout=LLM_TIMEOUT,
-            fallback_targets=_llm_fallback_targets(target),
+            fallback_targets=fallback_targets(target),
         ):
             yield delta
     except (AIClientError, httpx.HTTPError) as exc:

@@ -18,8 +18,10 @@ from app.config import (
 from app.generate import (
     LlmError,
     _extract_json_object,
-    _llm_fallback_targets,
-    _resolve_llm_target,
+)
+from app.target_resolver import (
+    resolve_default_target,
+    fallback_targets,
 )
 from app.guardrails.normalize import fold_text, normalize_rules
 from app.guardrails.sensitive_signals import (
@@ -311,7 +313,7 @@ async def complete_llm_policy_judge(
     rules: list[GuardrailRule],
     user: dict | None = None,
 ) -> dict[str, Any]:
-    target = _resolve_llm_target()
+    target = resolve_default_target()
     roles = ", ".join((user or {}).get("roles") or []) or "unknown"
     rules_summary = [
         {
@@ -341,7 +343,7 @@ async def complete_llm_policy_judge(
             ],
             temperature=0.0,
             timeout=timeout,
-            fallback_targets=_llm_fallback_targets(),
+            fallback_targets=fallback_targets(),
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc

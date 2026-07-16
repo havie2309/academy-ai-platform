@@ -352,4 +352,43 @@ export const docsApi = {
       signal,
     })
   },
+
+  /**
+   * Generate exercises for a document (non-streaming).
+   * Returns the parsed exercises array.
+   */
+  async generateExercises(
+    id: string,
+    options: { type: string; count: number; difficulty: string; force_refresh?: boolean }
+  ): Promise<any[]> {
+    const res = await fetchWithAuth(`/api/documents/${id}/exercises`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options),
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    const data = await res.json()
+    return data.exercises || []
+  },
+
+  /**
+   * Get the status of an exercise generation job for a document and settings.
+   */
+  async getExerciseStatus(
+    id: string,
+    options: { type: string; count: number; difficulty: string }
+  ): Promise<{ status: 'completed' | 'running' | 'not_found'; exercises?: any[] }> {
+    const params = new URLSearchParams({
+      document_id: id,
+      type: options.type,
+      count: String(options.count),
+      difficulty: options.difficulty,
+    })
+    const res = await fetchWithAuth(`/api/documents/${id}/exercises/status?${params}`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
+    if (!res.ok) throw new Error(await parseError(res))
+    return res.json()
+  }
 }

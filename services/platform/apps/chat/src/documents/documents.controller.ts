@@ -358,4 +358,45 @@ export class DocumentsController {
     const user = extractUserFromRequest(req)
     return this.docs.summarizeStream(id, toRequestUser(user), res)
   }
+
+  @Post(':id/exercises')
+  @UseGuards(AuthGuard('jwt'))
+  async generateExercises(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { type?: string; count?: number; difficulty?: string; force_refresh?: boolean },
+    @Res() res: Response,
+  ) {
+    const user = extractUserFromRequest(req)
+    return this.docs.generateExercises(
+      id,
+      toRequestUser(user),
+      body.type || 'multiple_choice',
+      body.count || 5,
+      body.difficulty || 'medium',
+      body.force_refresh || false,
+      res
+    )
+  }
+
+  @Get(':id/exercises/status')
+  @UseGuards(AuthGuard('jwt'))
+  async getExerciseStatus(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Query('type') type: string,
+    @Query('count') count: string,
+    @Query('difficulty') difficulty: string,
+    @Res() res: Response,
+  ) {
+    const user = extractUserFromRequest(req)
+    return this.docs.getExerciseStatus(
+      id,
+      toRequestUser(user),
+      type || 'multiple_choice',
+      count ? parseInt(count, 10) : 5,
+      difficulty || 'medium',
+      res
+    )
+  }
 }

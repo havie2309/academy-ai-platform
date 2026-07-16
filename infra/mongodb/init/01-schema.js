@@ -15,6 +15,8 @@ db.createCollection("retrieval_logs");
 db.createCollection("sync_logs");
 db.createCollection("system_configs");
 db.createCollection("user_feedback");
+db.createCollection("document_exercises");
+db.createCollection("exercise_jobs");
 
 // Indexes
 db.document_chunks.createIndex({ documentId: 1, chunkIndex: 1 });
@@ -22,14 +24,6 @@ db.document_chunks.createIndex({ milvusVectorId: 1 }, { unique: true, sparse: tr
 db.document_chunks.createIndex({ "metadata.ownerUnitCode": 1 });
 db.document_chunks.createIndex({ "metadata.securityLevel": 1 });
 db.document_chunks.createIndex({ chunkText: "text" });
-
-db.document_summaries.createIndex(
-    { documentId: 1, provider: 1, baseUrl: 1, model: 1, promptHash: 1 },
-    { unique: true }
-);
-
-db.summary_jobs.createIndex({ documentId: 1 }, { unique: true });
-db.summary_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 db.processing_jobs.createIndex({ documentId: 1 });
 db.processing_jobs.createIndex({ status: 1, createdAt: -1 });
@@ -56,3 +50,19 @@ db.system_configs.createIndex({ key: 1 }, { unique: true });
 
 db.user_feedback.createIndex({ userId: 1, createdAt: -1 });
 db.user_feedback.createIndex({ messageId: 1 });
+
+db.document_summaries.createIndex(
+    { documentId: 1, provider: 1, baseUrl: 1, model: 1, promptHash: 1 },
+    { unique: true }
+);
+
+db.summary_jobs.createIndex({ documentId: 1 }, { unique: true });
+db.summary_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+db.document_exercises.createIndex(
+  { documentId: 1, configHash: 1, promptHash: 1, optionsHash: 1 },
+  { unique: true }
+);
+
+db.exercise_jobs.createIndex({ documentId: 1, configHash: 1, optionsHash: 1 }, { unique: true });
+db.exercise_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
