@@ -5,6 +5,7 @@ Lightweight RAG Engine CLI Tester - Fully Self-Contained.
 - Automatically starts AI services: embedding, rerank, rag-engine, AND Ollama.
 - Logs service output to ./rag_logs/ for debugging.
 - On exit, kills all spawned processes and runs `docker compose down`.
+- Sends internal secret header if GATEWAY_INTERNAL_SHARED_SECRET is set in env.
 """
 
 import os
@@ -35,6 +36,27 @@ RERANK_URL = "http://localhost:8002/health"
 RAG_URL = "http://localhost:8000/health"
 RAG_CHAT_URL = "http://localhost:8000/v1/chat"
 OLLAMA_API_TAGS = "http://localhost:11434/api/tags"
+
+
+def load_secret_from_platform_env() -> str:
+    """Read GATEWAY_INTERNAL_SHARED_SECRET from services/platform/.env."""
+    env_path = os.path.join(PROJECT_ROOT, "services", "platform", ".env")
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("GATEWAY_INTERNAL_SHARED_SECRET="):
+                    parts = line.split("=", 1)
+                    if len(parts) == 2:
+                        return parts[1].strip()
+    except FileNotFoundError:
+        pass
+    # Fallback to system env for flexibility
+    return os.getenv("GATEWAY_INTERNAL_SHARED_SECRET", "")
+
+
+# Read internal secret from services/platform/.env (or env var fallback)
+INTERNAL_SECRET = load_secret_from_platform_env()
 
 SERVICE_READY_TIMEOUT = 300  # 5 minutes
 CHECK_INTERVAL = 2
@@ -300,8 +322,14 @@ def send_query(query: str, session_id: str = "cli-session") -> Optional[Dict[str
             "scopeMaGv": None,
         },
     }
+
+    # Build headers – send secret if configured
+    headers = {}
+    if INTERNAL_SECRET:
+        headers["x-gateway-internal-secret"] = INTERNAL_SECRET
+
     try:
-        resp = requests.post(RAG_CHAT_URL, json=payload, timeout=300)
+        resp = requests.post(RAG_CHAT_URL, json=payload, headers=headers, timeout=300)
         resp.raise_for_status()
         return resp.json()
     except requests.exceptions.ConnectionError:
