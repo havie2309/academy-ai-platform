@@ -10,6 +10,7 @@ For retrieval-only tests (skip_llm=true), uses /v1/retrieve (fast, no LLM).
 For full tests, uses /v1/chat (includes LLM generation).
 """
 
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -19,6 +20,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import requests
 from app.rag_eval import evaluate_response, load_eval_cases
+
+# ----- Load .env files (same logic as rag_cli.py) -----
+PROJECT_ROOT = Path(__file__).resolve().parents[3]  # academy-ai-platform/
+ENV_FILES = [
+    PROJECT_ROOT / "services" / "platform" / ".env",
+    PROJECT_ROOT / ".env",
+]
+
+def load_env_files():
+    loaded = False
+    for env_file in ENV_FILES:
+        if env_file.exists():
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if "=" in line:
+                        key, value = line.split("=", 1)
+                        key = key.strip()
+                        value = value.strip()
+                        if value.startswith('"') and value.endswith('"'):
+                            value = value[1:-1]
+                        elif value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                        os.environ[key] = value
+            loaded = True
+            break
+
+load_env_files()
+
+# ----- Configuration -----
+INTERNAL_SECRET = os.getenv("GATEWAY_INTERNAL_SHARED_SECRET", "")
+
+def get_headers():
+    """Return headers with internal secret if configured."""
+    headers = {"Content-Type": "application/json"}
+    if INTERNAL_SECRET:
+        headers["x-gateway-internal-secret"] = INTERNAL_SECRET
+    return headers
 
 RAG_CHAT_URL = "http://localhost:8000/v1/chat"
 RAG_RETRIEVE_URL = "http://localhost:8000/v1/retrieve"
@@ -30,6 +71,7 @@ class RagIntegrationTests(unittest.TestCase):
     def setUpClass(cls):
         # Check if services are alive
         try:
+            # Use health check with headers (just in case, but health doesn't require auth)
             r = requests.get("http://localhost:8000/health", timeout=2)
             if r.status_code != 200:
                 raise Exception("RAG engine not ready")
@@ -96,7 +138,6 @@ class RagIntegrationTests(unittest.TestCase):
 
     def _run_single_case(self, *, question, user, expected, doc_ids, skip_llm, case_name, category):
         """Execute one request (either retrieval-only or full chat) and validate."""
-        # If skip_llm is True, use /v1/retrieve (fast, no LLM)
         if skip_llm:
             return self._run_retrieval_only(question, user, expected, doc_ids, case_name, category)
         else:
@@ -112,7 +153,7 @@ class RagIntegrationTests(unittest.TestCase):
             req["docIds"] = doc_ids
 
         try:
-            resp = requests.post(RAG_RETRIEVE_URL, json=req, timeout=30)
+            resp = requests.post(RAG_RETRIEVE_URL, json=req, headers=get_headers(), timeout=30)
             if resp.status_code != 200:
                 return {
                     "name": case_name,
@@ -160,7 +201,7 @@ class RagIntegrationTests(unittest.TestCase):
             req["docIds"] = doc_ids
 
         try:
-            resp = requests.post(RAG_CHAT_URL, json=req, timeout=300)
+            resp = requests.post(RAG_CHAT_URL, json=req, headers=get_headers(), timeout=300)
             if resp.status_code != 200:
                 return {
                     "name": case_name,
@@ -178,3 +219,7 @@ class RagIntegrationTests(unittest.TestCase):
             return eval_result
         except Exception as e:
             return {"name": case_name, "category": category, "passed": False, "error": str(e)}
+
+
+if __name__ == "__main__":
+    unittest.main()

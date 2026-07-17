@@ -197,9 +197,9 @@ def _apply_score_thresholds(citations: list[dict]) -> list[dict]:
 _SECURITY_PRIORITY = {"confidential": 4, "restricted": 3, "internal": 2, "public": 1}
 _SECURITY_THRESHOLD = 1.5
 _BOOST_MAP = {
-    "confidential": 4.5,
-    "restricted": 3.5,
-    "internal": 2.5,
+    "confidential": 2.0,
+    "restricted": 1.5,
+    "internal": 1.0,
     "public": 0.0,
 }
 
@@ -224,19 +224,31 @@ def _sort_with_soft_security_priority(citations: list[dict]) -> list[dict]:
 
 def _apply_security_boost(citations: list[dict]) -> list[dict]:
     """
-    Apply a flat additive boost to internal/restricted/confidential docs.
-    This preserves absolute score meaning (thresholds still work) while
-    ensuring authoritative docs beat adversarial ones when scores are close.
+    Apply a flat additive boost to internal/restricted/confidential docs,
+    but only if they are already reasonably relevant (within 20% of the top
+    rerank score or have a rerank score > 0.5). This prevents irrelevant
+    confidential docs from outranking truly relevant internal docs.
     """
     if not citations:
         return citations
-    
+
+    # Find the best rerank score among candidates
+    best_score = max(
+        float(c.get("rerank_score", c.get("score", 0)) or 0)
+        for c in citations
+        if c.get("rerank_score") is not None or c.get("score") is not None
+    )
+
     for c in citations:
         sec = c.get("security_level", "public")
         boost = _BOOST_MAP.get(sec, 0.0)
-        if boost > 0 and c.get("rerank_score") is not None:
-            c["rerank_score"] = float(c["rerank_score"]) + boost
-    
+        if boost > 0:
+            score = float(c.get("rerank_score", c.get("score", 0)) or 0)
+            # Only boost if the document is already within 20% of the best score
+            # or if its absolute score is above 0.5 (meaning it's somewhat relevant)
+            if (score >= best_score * 0.8) or score > 0.5:
+                c["rerank_score"] = score + boost
+            # Otherwise, leave its score unchanged (no boost)
     return citations
 
 
