@@ -405,11 +405,7 @@ async def complete_chat_raw(
             messages,
             temperature=0.3,
             timeout=LLM_TIMEOUT,
-<<<<<<< Updated upstream
-            fallback_targets=_llm_fallback_targets(target),
-=======
             fallback_targets=fallback_targets(),
->>>>>>> Stashed changes
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc
@@ -469,11 +465,7 @@ async def complete_task_assist(history: list[dict]) -> str:
             messages,
             temperature=0.4,
             timeout=LLM_TIMEOUT,
-<<<<<<< Updated upstream
-            fallback_targets=_llm_fallback_targets(target),
-=======
             fallback_targets=fallback_targets(),
->>>>>>> Stashed changes
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc
