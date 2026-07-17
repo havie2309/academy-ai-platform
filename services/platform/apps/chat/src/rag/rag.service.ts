@@ -29,6 +29,7 @@ export class RagService {
   private readonly logger = new Logger(RagService.name)
   private readonly ragUrl: string
   private readonly enabled: boolean
+  private readonly internalSecret: string
 
   constructor(private readonly config: ConfigService) {
     this.ragUrl = (
@@ -36,10 +37,20 @@ export class RagService {
     ).replace(/\/+$/, '')
     this.enabled =
       this.config.get<string>('RAG_ENABLED', 'true').toLowerCase() !== 'false'
+    this.internalSecret =
+      this.config.get<string>('GATEWAY_INTERNAL_SHARED_SECRET') || ''
   }
 
   get isEnabled(): boolean {
     return this.enabled
+  }
+
+  private getHeaders(): HeadersInit {
+    const headers: HeadersInit = { 'Content-Type': 'application/json' }
+    if (this.internalSecret) {
+      headers['x-gateway-internal-secret'] = this.internalSecret
+    }
+    return headers
   }
 
   /**
@@ -57,7 +68,7 @@ export class RagService {
 
     const res = await fetch(`${this.ragUrl}/v1/chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({
         query,
         sessionId: sessionId ?? null,
@@ -110,7 +121,7 @@ export class RagService {
 
     const res = await fetch(`${this.ragUrl}/v1/chat/stream`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: this.getHeaders(),
       body: JSON.stringify({
         query,
         sessionId: sessionId ?? null,
@@ -206,7 +217,7 @@ export class RagService {
     try {
       const res = await fetch(`${this.ragUrl}/v1/retrieve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify({
           query,
           docIds,
