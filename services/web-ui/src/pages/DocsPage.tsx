@@ -965,11 +965,9 @@ export default function DocsPage() {
   // Open modal – reset only if opening a different document
   const openExercisesModal = (doc: DocItem) => {
     const newDocId = doc.id
-    console.log('[Exercise] Opening modal for doc:', newDocId, 'previous:', previousDocIdRef.current)
 
     // If opening a different document, reset state
     if (previousDocIdRef.current !== newDocId) {
-      console.log('[Exercise] Different document – resetting state')
       setExerciseParsed(null)
       setExerciseError(null)
       setExerciseLoading(true) // will be updated by polling
@@ -978,7 +976,6 @@ export default function DocsPage() {
       previousDocIdRef.current = newDocId
     } else {
       // Same document – keep state, just ensure polling is active
-      console.log('[Exercise] Same document – keeping state')
       setExerciseLoading(false)
     }
     setExerciseDocId(newDocId)
@@ -987,7 +984,6 @@ export default function DocsPage() {
   // Polling effect
   useEffect(() => {
     if (!exerciseDocId) {
-      console.log('[Exercise] No docId – stopping polling (preserving state)')
       if (statusPollInterval.current) {
         clearTimeout(statusPollInterval.current)
         statusPollInterval.current = null
@@ -996,14 +992,11 @@ export default function DocsPage() {
       return
     }
 
-    console.log('[Exercise] Starting polling for doc:', exerciseDocId, 'status:', exerciseJobStatus)
-
     let isMounted = true
     let backoff = 3000
 
     const checkStatus = async () => {
       if (!isMounted) return
-      console.log('[Exercise] Checking status...')
 
       try {
         const status = await docsApi.getExerciseStatus(exerciseDocId, {
@@ -1011,10 +1004,8 @@ export default function DocsPage() {
           count: exerciseCount,
           difficulty: exerciseDifficulty,
         })
-        console.log('[Exercise] Status response:', status)
 
         if (status.status === 'completed' && status.exercises) {
-          console.log('[Exercise] Completed with exercises:', status.exercises.length)
           setExerciseParsed(status.exercises)
           setExerciseGenerated(true)
           setExerciseJobStatus('completed')
@@ -1025,14 +1016,12 @@ export default function DocsPage() {
           }
           return
         } else if (status.status === 'running') {
-          console.log('[Exercise] Job is running')
           setExerciseJobStatus('running')
           setExerciseLoading(false)
           setExerciseParsed(null)
           setExerciseGenerated(false)
           scheduleNext()
         } else {
-          console.log('[Exercise] Status not found')
           setExerciseJobStatus('not_found')
           setExerciseParsed(null)
           setExerciseGenerated(false)
@@ -1044,7 +1033,6 @@ export default function DocsPage() {
           return
         }
       } catch (err) {
-        console.error('[Exercise] Error checking status:', err)
         if (err instanceof Error && (err.message.includes('401') || err.message.includes('Unauthorized'))) {
           setExerciseError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
           setExerciseLoading(false)
@@ -1062,7 +1050,6 @@ export default function DocsPage() {
 
     const scheduleNext = () => {
       if (statusPollInterval.current) clearTimeout(statusPollInterval.current)
-      console.log('[Exercise] Scheduling next poll in', backoff, 'ms')
       statusPollInterval.current = setTimeout(checkStatus, backoff)
     }
 
@@ -1093,9 +1080,7 @@ export default function DocsPage() {
 
   // Generate function
   const generateExercises = async (forceRefresh: boolean = false) => {
-    console.log('[Exercise] Generate clicked, current status:', exerciseJobStatus, 'loading:', exerciseLoading)
     if (exerciseLoading || exerciseJobStatus === 'running' || !exerciseDocId) {
-      console.log('[Exercise] Generate blocked')
       return
     }
 
@@ -1106,14 +1091,12 @@ export default function DocsPage() {
     setExerciseJobStatus('running')
 
     try {
-      console.log('[Exercise] Sending generate request...')
       const exercises = await docsApi.generateExercises(exerciseDocId, {
         type: exerciseType,
         count: exerciseCount,
         difficulty: exerciseDifficulty,
         force_refresh: forceRefresh,
       })
-      console.log('[Exercise] Generate request returned exercises:', exercises?.length)
       if (exercises && exercises.length > 0) {
         setExerciseParsed(exercises)
         setExerciseGenerated(true)
@@ -1129,9 +1112,7 @@ export default function DocsPage() {
         setExerciseLoading(false)
       }
     } catch (err) {
-      console.error('[Exercise] Generate error:', err)
       if (err instanceof Error && err.message.includes('503')) {
-        console.log('[Exercise] 503 - job already running')
         setExerciseJobStatus('running')
         setExerciseLoading(false)
         return
@@ -1144,7 +1125,6 @@ export default function DocsPage() {
 
   // Close modal – stop polling but preserve state
   const closeExercises = () => {
-    console.log('[Exercise] Closing modal, preserving status:', exerciseJobStatus)
     if (statusPollInterval.current) {
       clearTimeout(statusPollInterval.current)
       statusPollInterval.current = null

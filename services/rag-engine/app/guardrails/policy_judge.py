@@ -343,7 +343,7 @@ async def complete_llm_policy_judge(
             ],
             temperature=0.0,
             timeout=timeout,
-            fallback_targets=fallback_targets(),
+            fallback_targets=fallback_targets(target),
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc

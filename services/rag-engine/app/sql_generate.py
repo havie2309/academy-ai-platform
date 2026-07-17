@@ -115,7 +115,7 @@ async def generate_sql(question: str) -> str:
             messages,
             temperature=0.1,
             timeout=LLM_TIMEOUT,
-            fallback_targets=fallback_targets(),
+            fallback_targets=fallback_targets(target),
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc
