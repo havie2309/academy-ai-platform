@@ -2,9 +2,9 @@
 """
 Lightweight RAG Engine CLI Tester - Fully Self-Contained.
 - Loads .env files (root .env and services/platform/.env) with priority.
-- Automatically starts ONLY essential data containers (MongoDB, Milvus, Redis)
-  unless SKIP_CONTAINERS is set.
-- Always starts rag-engine locally (the orchestration service) regardless of remote URLs.
+- Automatically starts ONLY essential data containers (Postgres, MongoDB, Milvus, Redis).
+- Starts admin-config (NestJS) to serve guardrail policies.
+- Always starts rag-engine locally.
 - Optionally starts embedding, rerank, and Ollama locally unless remote URLs are provided.
 - Logs service output to ./rag_logs/ for debugging.
 - On exit, kills all spawned processes and runs `docker compose down`.
@@ -73,7 +73,6 @@ def load_secret_from_platform_env() -> str:
                     return line.split("=", 1)[1].strip()
     except FileNotFoundError:
         pass
-    # Fallback to system env for flexibility
     return os.getenv("GATEWAY_INTERNAL_SHARED_SECRET", "")
 
 load_env_files()
@@ -86,10 +85,12 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434").rstrip('/')
 EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", "http://localhost:8001").rstrip('/')
 RERANK_BASE_URL = os.getenv("RERANK_BASE_URL", "http://localhost:8002").rstrip('/')
 RAG_ENGINE_URL = os.getenv("RAG_ENGINE_URL", "http://localhost:8000").rstrip('/')
+ADMIN_CONFIG_URL = os.getenv("ADMIN_CONFIG_URL", "http://localhost:3004").rstrip('/')
 
 EMBEDDING_HEALTH = f"{EMBEDDING_BASE_URL.replace('/v1', '')}/health"
 RERANK_HEALTH = f"{RERANK_BASE_URL.replace('/v1', '')}/health"
 RAG_HEALTH = f"{RAG_ENGINE_URL.replace('/v1', '')}/health"
+ADMIN_CONFIG_HEALTH = f"{ADMIN_CONFIG_URL.replace('/v1', '')}/api/admin-config/health"
 RAG_CHAT_URL = f"{RAG_ENGINE_URL.replace('/v1', '')}/v1/chat"
 OLLAMA_API_TAGS = f"{LLM_BASE_URL.replace('/v1', '')}/api/tags"
 
@@ -103,7 +104,7 @@ background_processes: List[subprocess.Popen] = []
 log_files: List[str] = []
 
 # Skip local AI services (embedding, rerank, Ollama) if remote URLs are provided.
-# rag-engine is always started locally.
+# rag-engine and admin-config are always started locally.
 SKIP_LOCAL_AI = (
     (LLM_BASE_URL != "http://localhost:11434") or
     (EMBEDDING_BASE_URL != "http://localhost:8001") or
@@ -147,14 +148,7 @@ signal.signal(signal.SIGINT, signal_handler)
 
 # ----- Startup helpers -----------------------------------------------
 def run_up_code() -> None:
-    """
-    Start ONLY essential data containers for RAG:
-    - PostgreSQL: policy event and SQL query audit
-    - MongoDB: document/chunk metadata
-    - Milvus: vector search (plus its dependencies etcd + minio)
-    - Redis: cache and session context
-    Skips Postgres and RabbitMQ to save RAM.
-    """
+    """Start ONLY essential data containers for RAG: Postgres, MongoDB, Milvus, Redis."""
     print("Starting minimal data containers (Postgres, MongoDB, Milvus, Redis)...")
     services = ["postgres", "mongodb", "milvus", "etcd", "minio", "redis"]
     try:
@@ -201,8 +195,8 @@ def wait_for_service(url: str, name: str, log_path: str) -> bool:
         pass
     return False
 
-def launch_service(path: str, port: int, name: str) -> None:
-    """Launch a FastAPI service using Python 3.12, printing logs to console and file."""
+def launch_service(path: str, port: int, name: str, command: list) -> None:
+    """Launch a service (Python or Node) with logging, using cmd.exe /c."""
     if check_health(f"http://localhost:{port}/health"):
         print(f"  {name} already running on port {port}.")
         return
@@ -212,41 +206,38 @@ def launch_service(path: str, port: int, name: str) -> None:
     log_files.append(log_path)
     print(f"Launching {name} on port {port}... (log: {log_path})")
 
-    cmd = [
-        "py", "-3.12", "-m", "uvicorn", "main:app",
-        "--host", "0.0.0.0", "--port", str(port)
-    ]
-
-    # Open log file for writing
     log_file = open(log_path, "w", encoding="utf-8")
     log_file.write(f"=== Starting {name} at {time.ctime()} ===\n")
     log_file.flush()
 
-    # Start the process with pipe for stdout/stderr
+    # Use cmd.exe /c to run the command – avoids PowerShell execution policy issues
+    cmd = ["cmd.exe", "/c"] + command
+
     proc = subprocess.Popen(
         cmd,
         cwd=cwd,
-        stdout=subprocess.PIPE,
+        stdout=log_file,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1,
-        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if platform.system() == "Windows" else 0,
-        start_new_session=platform.system() != "Windows",
+        shell=False,
     )
     background_processes.append(proc)
 
-    # Start a thread to read stdout and print to console + log file
-    def reader_thread(proc: subprocess.Popen, log_file, name: str):
-        for line in iter(proc.stdout.readline, ''):
-            if not line:
-                break
-            # Write to log file
-            log_file.write(line)
-            log_file.flush()
-        proc.stdout.close()
 
-    thread = threading.Thread(target=reader_thread, args=(proc, log_file, name), daemon=True)
-    thread.start()
+def launch_python_service(path: str, port: int, name: str):
+    """Launch a FastAPI service using Python 3.12."""
+    cmd = [
+        "py", "-3.12", "-m", "uvicorn", "main:app",
+        "--host", "0.0.0.0", "--port", str(port)
+    ]
+    launch_service(path, port, name, cmd)
+
+
+def launch_nest_service(name: str, port: int):
+    """Launch a NestJS service using npm run start:dev."""
+    cmd = ["npm.cmd", "run", "start:dev", name]
+    launch_service("services/platform", port, name, cmd)
+
 
 def launch_ollama() -> None:
     """Launch Ollama server as a background process."""
@@ -281,17 +272,27 @@ def launch_ollama() -> None:
 
 # ----- Core environment check ----------------------------------------
 def ensure_environment() -> bool:
-    """Check and start minimal data containers + AI services + Ollama."""
-    # Minimal data layer (only MongoDB, Milvus, Redis)
+    """Check and start minimal data containers + admin-config + AI services."""
+    # Minimal data layer (only MongoDB, Milvus, Redis, Postgres)
     print("Checking minimal data containers...")
     if not check_health("http://localhost:27017") and not check_health("http://localhost:27018"):
         run_up_code()
     else:
         print("  Data containers seem ready.")
 
-    # Always start rag-engine locally (or verify it's running)
+    # Start admin-config if not running (needed for guardrail policies)
+    if not check_health(ADMIN_CONFIG_HEALTH):
+        print("Starting admin-config service (for guardrail policies)...")
+        launch_nest_service("admin-config", 3004)
+        if not wait_for_service(ADMIN_CONFIG_HEALTH, "admin-config", os.path.join(LOG_DIR, "admin-config.log")):
+            print("ERROR: admin-config failed to start.")
+            return False
+    else:
+        print("  admin-config is already running.")
+
+    # Always start rag-engine locally
     if not check_health(RAG_HEALTH):
-        launch_service("services/rag-engine", 8000, "rag-engine")
+        launch_python_service("services/rag-engine", 8000, "rag-engine")
         if not wait_for_service(RAG_HEALTH, "rag-engine", os.path.join(LOG_DIR, "rag-engine.log")):
             print("ERROR: rag-engine failed to start.")
             return False
@@ -300,7 +301,6 @@ def ensure_environment() -> bool:
 
     if SKIP_LOCAL_AI:
         print("  Skipping local embedding, rerank, Ollama (remote URLs detected).")
-        # Optional: warn if remote services are unreachable
         for url, name in [(EMBEDDING_HEALTH, "embedding"),
                           (RERANK_HEALTH, "rerank"),
                           (OLLAMA_API_TAGS, "LLM")]:
@@ -321,13 +321,13 @@ def ensure_environment() -> bool:
             return False
 
     if not embed_ok:
-        launch_service("services/embedding-server", 8001, "embedding-server")
+        launch_python_service("services/embedding-server", 8001, "embedding-server")
         if not wait_for_service(EMBEDDING_HEALTH, "embedding-server", os.path.join(LOG_DIR, "embedding-server.log")):
             print("ERROR: embedding-server failed to start.")
             return False
 
     if not rerank_ok:
-        launch_service("services/rerank-server", 8002, "rerank-server")
+        launch_python_service("services/rerank-server", 8002, "rerank-server")
         if not wait_for_service(RERANK_HEALTH, "rerank-server", os.path.join(LOG_DIR, "rerank-server.log")):
             print("ERROR: rerank-server failed to start.")
             return False
@@ -352,7 +352,6 @@ def send_query(query: str, session_id: str = "cli-session") -> Optional[Dict[str
         },
     }
 
-    # Build headers – send secret if configured
     headers = {}
     if INTERNAL_SECRET:
         headers["x-gateway-internal-secret"] = INTERNAL_SECRET
