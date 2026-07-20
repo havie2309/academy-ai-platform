@@ -15,8 +15,8 @@ db.createCollection("retrieval_logs");
 db.createCollection("sync_logs");
 db.createCollection("system_configs");
 db.createCollection("user_feedback");
-db.createCollection("document_exercises");
-db.createCollection("exercise_jobs");
+db.createCollection("document_quizzes");
+db.createCollection("quiz_jobs");
 
 // Indexes
 db.document_chunks.createIndex({ documentId: 1, chunkIndex: 1 });
@@ -59,10 +59,10 @@ db.document_summaries.createIndex(
 db.summary_jobs.createIndex({ documentId: 1 }, { unique: true });
 db.summary_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-db.document_exercises.createIndex(
+db.document_quizzes.createIndex(
   { documentId: 1, configHash: 1, promptHash: 1, optionsHash: 1 },
   { unique: true }
 );
 
-db.exercise_jobs.createIndex({ documentId: 1, configHash: 1, optionsHash: 1 }, { unique: true });
-db.exercise_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+db.quiz_jobs.createIndex({ documentId: 1, configHash: 1, optionsHash: 1 }, { unique: true });
+db.quiz_jobs.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });

@@ -359,16 +359,16 @@ export class DocumentsController {
     return this.docs.summarizeStream(id, toRequestUser(user), res)
   }
 
-  @Post(':id/exercises')
+  @Post(':id/quizzes')
   @UseGuards(AuthGuard('jwt'))
-  async generateExercises(
+  async generateQuizzes(
     @Req() req: Request,
     @Param('id') id: string,
     @Body() body: { type?: string; count?: number; difficulty?: string; force_refresh?: boolean },
     @Res() res: Response,
   ) {
     const user = extractUserFromRequest(req)
-    return this.docs.generateExercises(
+    return this.docs.generateQuizzes(
       id,
       toRequestUser(user),
       body.type || 'multiple_choice',
@@ -379,9 +379,9 @@ export class DocumentsController {
     )
   }
 
-  @Get(':id/exercises/status')
+  @Get(':id/quizzes/status')
   @UseGuards(AuthGuard('jwt'))
-  async getExerciseStatus(
+  async getQuizStatus(
     @Req() req: Request,
     @Param('id') id: string,
     @Query('type') type: string,
@@ -390,7 +390,7 @@ export class DocumentsController {
     @Res() res: Response,
   ) {
     const user = extractUserFromRequest(req)
-    return this.docs.getExerciseStatus(
+    return this.docs.getQuizStatus(
       id,
       toRequestUser(user),
       type || 'multiple_choice',

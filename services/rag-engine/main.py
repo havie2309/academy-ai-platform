@@ -14,9 +14,9 @@ from app.config import (
     GATEWAY_INTERNAL_SHARED_SECRET,
     SESSION_CONTEXT_MAX_MESSAGES,
     SUMMARY_MAX_CHARS,
-    EXERCISE_MAX_CHARS,
+    QUIZ_MAX_CHARS,
 )
-from app.exercises import check_document_permission, get_exercise_status, generate_exercises
+from app.quizzes import check_document_permission, get_quiz_status, generate_quizzes
 from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
 from app.retrieval import retrieve_citations
@@ -865,12 +865,12 @@ async def summarize_stream(body: dict, request: Request):
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Exercises endpoints
+# Quizzes endpoints
 # ──────────────────────────────────────────────────────────────────────────────
 
-@app.post("/v1/exercises")
-async def generate_exercises_endpoint(body: dict, request: Request):
-    """Generate exercises for a document (non‑streaming). Returns JSON."""
+@app.post("/v1/quizzes")
+async def generate_quizzes_endpoint(body: dict, request: Request):
+    """Generate quizzes for a document (non‑streaming). Returns JSON."""
     explicit_user = body.get("user")
     if explicit_user and isinstance(explicit_user, dict):
         explicit_user = RetrieveUser(**explicit_user)
@@ -880,26 +880,26 @@ async def generate_exercises_endpoint(body: dict, request: Request):
     if not document_id:
         raise HTTPException(400, "document_id is required")
 
-    exercise_type = body.get("type", "multiple_choice")
+    quiz_type = body.get("type", "multiple_choice")
     count = body.get("count", 5)
     difficulty = body.get("difficulty", "medium")
     force_refresh = body.get("force_refresh", False)
 
     # Validate
-    if exercise_type not in ("multiple_choice", "short_answer", "true_false"):
-        raise HTTPException(400, "Invalid exercise type")
+    if quiz_type not in ("multiple_choice", "short_answer", "true_false"):
+        raise HTTPException(400, "Invalid quiz type")
     if count not in (3, 5, 10):
         raise HTTPException(400, "Count must be 3, 5, or 10")
     if difficulty not in ("easy", "medium", "hard"):
         raise HTTPException(400, "Difficulty must be easy/medium/hard")
 
-    max_chars = body.get("max_chars") or EXERCISE_MAX_CHARS
+    max_chars = body.get("max_chars") or QUIZ_MAX_CHARS
     try:
         max_chars = int(max_chars)
     except (ValueError, TypeError):
-        max_chars = EXERCISE_MAX_CHARS
+        max_chars = QUIZ_MAX_CHARS
 
-    # Permission check (handled inside exercises.py)
+    # Permission check (handled inside quizzes.py)
     try:
         check_document_permission(document_id, user)
     except PermissionError as e:
@@ -908,33 +908,33 @@ async def generate_exercises_endpoint(body: dict, request: Request):
         raise HTTPException(404, str(e))
 
     try:
-        exercises = await generate_exercises(
+        quizzes = await generate_quizzes(
             document_id,
             user,
-            exercise_type,
+            quiz_type,
             count,
             difficulty,
             max_chars,
             force_refresh,
         )
-        return {"exercises": exercises}
+        return {"quizzes": quizzes}
     except ValueError as e:
         raise HTTPException(500, f"Generation failed: {str(e)}")
     except RuntimeError as e:
         raise HTTPException(503, f"Service unavailable: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error in exercise generation: {e}")
+        logger.error(f"Unexpected error in quiz generation: {e}")
         raise HTTPException(500, "Internal server error")
 
-@app.get("/v1/exercises/status")
-async def exercises_status(
+@app.get("/v1/quizzes/status")
+async def quizzes_status(
     request: Request,
     document_id: str,
     type: str = "multiple_choice",
     count: int = 5,
     difficulty: str = "medium",
 ):
-    """Check the status of an exercise generation job."""
+    """Check the status of an quiz generation job."""
     user = _resolved_user(None, request)
     try:
         check_document_permission(document_id, user)
@@ -943,4 +943,4 @@ async def exercises_status(
     except ValueError as e:
         raise HTTPException(404, str(e))
 
-    return get_exercise_status(document_id, type, count, difficulty)
+    return get_quiz_status(document_id, type, count, difficulty)

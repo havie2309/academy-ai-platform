@@ -1,4 +1,4 @@
-"""Document exercise generation: fetch parent chunks and generate exercises (non‑streaming)."""
+"""Document quiz generation: fetch parent chunks and generate quizzes (non‑streaming)."""
 
 import asyncio
 import hashlib
@@ -11,11 +11,11 @@ from pymongo import MongoClient
 from app.config import (
     MONGO_URI,
     MONGO_DB,
-    EXERCISE_MAX_CHARS,
+    QUIZ_MAX_CHARS,
 )
 from app.generate import stream_chat
 from app.access import can_view_chunk
-from app.target_resolver import resolve_exercise_target
+from app.target_resolver import resolve_quiz_target
 
 import logging
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # Prompt templates (unchanged)
 # ──────────────────────────────────────────────────────────────────────────────
 
-EXERCISE_TEMPLATES = {
+QUIZ_TEMPLATES = {
     "multiple_choice": """
 Bạn là trợ lý AI của học viện. Tạo {count} câu hỏi trắc nghiệm (multiple choice) từ tài liệu dưới đây.
 
@@ -106,18 +106,18 @@ Nội dung tài liệu:
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _get_prompt_hash() -> str:
-    combined = "".join(sorted(EXERCISE_TEMPLATES.values()))
+    combined = "".join(sorted(QUIZ_TEMPLATES.values()))
     return hashlib.md5(combined.encode("utf-8")).hexdigest()
 
 def _get_config_hash() -> str:
-    from app.config import EXERCISE_LLM_PROVIDER, EXERCISE_LLM_BASE_URL, EXERCISE_LLM_MODEL
-    config_str = f"{EXERCISE_LLM_PROVIDER}|{EXERCISE_LLM_BASE_URL}|{EXERCISE_LLM_MODEL}"
+    from app.config import QUIZ_LLM_PROVIDER, QUIZ_LLM_BASE_URL, QUIZ_LLM_MODEL
+    config_str = f"{QUIZ_LLM_PROVIDER}|{QUIZ_LLM_BASE_URL}|{QUIZ_LLM_MODEL}"
     return hashlib.md5(config_str.encode("utf-8")).hexdigest()
 
-def build_exercise_prompt(document_text: str, exercise_type: str, count: int, difficulty: str) -> str:
-    template = EXERCISE_TEMPLATES.get(exercise_type)
+def build_quiz_prompt(document_text: str, quiz_type: str, count: int, difficulty: str) -> str:
+    template = QUIZ_TEMPLATES.get(quiz_type)
     if not template:
-        raise ValueError(f"Unknown exercise type: {exercise_type}")
+        raise ValueError(f"Unknown quiz type: {quiz_type}")
     return template.format(count=count, difficulty=difficulty, document_text=document_text)
 
 def _extract_json_object(text: str) -> dict | list | None:
@@ -214,14 +214,14 @@ async def fetch_document_parent_chunks(doc_id: str, max_chars: int = 2000) -> st
 # Lock management
 # ──────────────────────────────────────────────────────────────────────────────
 
-async def _acquire_exercise_lock(
+async def _acquire_quiz_lock(
     client: MongoClient,
     doc_id: str,
     config_hash: str,
     options_hash: str,
 ) -> bool:
     db = client[MONGO_DB]
-    jobs = db["exercise_jobs"]
+    jobs = db["quiz_jobs"]
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     result = jobs.update_one(
         {
@@ -244,9 +244,9 @@ async def _acquire_exercise_lock(
     )
     return result.matched_count == 0
 
-async def _release_exercise_lock(client: MongoClient, doc_id: str, status: str = "completed", error: str | None = None) -> None:
+async def _release_quiz_lock(client: MongoClient, doc_id: str, status: str = "completed", error: str | None = None) -> None:
     db = client[MONGO_DB]
-    jobs = db["exercise_jobs"]
+    jobs = db["quiz_jobs"]
     jobs.update_one(
         {"documentId": doc_id},
         {
@@ -259,12 +259,12 @@ async def _release_exercise_lock(client: MongoClient, doc_id: str, status: str =
         },
     )
 
-async def _wait_for_exercise_generation(
+async def _wait_for_quiz_generation(
     client: MongoClient, doc_id: str, config_hash: str, options_hash: str, timeout: float = 300
 ) -> dict | None:
     db = client[MONGO_DB]
-    jobs = db["exercise_jobs"]
-    cache = db["document_exercises"]
+    jobs = db["quiz_jobs"]
+    cache = db["document_quizzes"]
     start = datetime.now(timezone.utc)
     while (datetime.now(timezone.utc) - start).total_seconds() < timeout:
         job = jobs.find_one({"documentId": doc_id, "configHash": config_hash, "optionsHash": options_hash})
@@ -279,7 +279,7 @@ async def _wait_for_exercise_generation(
             })
             return cached
         if status == "failed":
-            raise RuntimeError(f"Exercise generation failed: {job.get('error', 'unknown error')}")
+            raise RuntimeError(f"Quiz generation failed: {job.get('error', 'unknown error')}")
         await asyncio.sleep(1)
     return None
 
@@ -312,11 +312,11 @@ def check_document_permission(doc_id: str, user: dict) -> None:
 # Status check
 # ──────────────────────────────────────────────────────────────────────────────
 
-def get_exercise_status(document_id: str, exercise_type: str, count: int, difficulty: str) -> dict:
+def get_quiz_status(document_id: str, quiz_type: str, count: int, difficulty: str) -> dict:
     """
-    Return the status of an exercise generation job without starting a new one.
+    Return the status of an quiz generation job without starting a new one.
     Returns:
-        - {"status": "completed", "exercises": [...]} if cached
+        - {"status": "completed", "quizzes": [...]} if cached
         - {"status": "running"} if a job is in progress
         - {"status": "not_found"} otherwise
     """
@@ -325,10 +325,10 @@ def get_exercise_status(document_id: str, exercise_type: str, count: int, diffic
         db = client[MONGO_DB]
         config_hash = _get_config_hash()
         prompt_hash = _get_prompt_hash()
-        options_hash = hashlib.md5(f"{exercise_type}|{count}|{difficulty}".encode()).hexdigest()
+        options_hash = hashlib.md5(f"{quiz_type}|{count}|{difficulty}".encode()).hexdigest()
 
         # Check cache
-        cache_collection = db["document_exercises"]
+        cache_collection = db["document_quizzes"]
         cached = cache_collection.find_one({
             "documentId": document_id,
             "configHash": config_hash,
@@ -336,16 +336,16 @@ def get_exercise_status(document_id: str, exercise_type: str, count: int, diffic
             "optionsHash": options_hash,
         })
         if cached:
-            exercises_str = cached.get("exercises")
-            if exercises_str:
+            quizzes_str = cached.get("quizzes")
+            if quizzes_str:
                 try:
-                    exercises = json.loads(exercises_str)
-                    return {"status": "completed", "exercises": exercises}
+                    quizzes = json.loads(quizzes_str)
+                    return {"status": "completed", "quizzes": quizzes}
                 except json.JSONDecodeError:
                     pass  # treat cache as invalid and fall through
 
         # Check running job
-        jobs = db["exercise_jobs"]
+        jobs = db["quiz_jobs"]
         job = jobs.find_one({
             "documentId": document_id,
             "configHash": config_hash,
@@ -363,17 +363,17 @@ def get_exercise_status(document_id: str, exercise_type: str, count: int, diffic
 # Main generation function (non‑streaming)
 # ──────────────────────────────────────────────────────────────────────────────
 
-async def generate_exercises(
+async def generate_quizzes(
     doc_id: str,
     user: dict,
-    exercise_type: str,
+    quiz_type: str,
     count: int,
     difficulty: str,
     max_chars: int = 2000,
     force_refresh: bool = False,
 ) -> list:
     """
-    Generate exercises for a document and return the parsed list.
+    Generate quizzes for a document and return the parsed list.
     This is the main entry point for the feature.
     """
     client = MongoClient(MONGO_URI)
@@ -383,7 +383,7 @@ async def generate_exercises(
         # 1. Build cache key
         config_hash = _get_config_hash()
         prompt_hash = _get_prompt_hash()
-        options_hash = hashlib.md5(f"{exercise_type}|{count}|{difficulty}".encode()).hexdigest()
+        options_hash = hashlib.md5(f"{quiz_type}|{count}|{difficulty}".encode()).hexdigest()
         cache_key = {
             "documentId": doc_id,
             "configHash": config_hash,
@@ -392,20 +392,20 @@ async def generate_exercises(
         }
 
         # 2. Check cache (skip if force_refresh)
-        cache_collection = db["document_exercises"]
+        cache_collection = db["document_quizzes"]
         if not force_refresh:
             cached = cache_collection.find_one(cache_key)
             if cached:
-                exercises_str = cached.get("exercises")
-                if exercises_str:
+                quizzes_str = cached.get("quizzes")
+                if quizzes_str:
                     try:
-                        return json.loads(exercises_str)
+                        return json.loads(quizzes_str)
                     except json.JSONDecodeError:
                         # If cache is corrupted, treat as miss
                         pass
 
         # 3. Check for existing running job
-        jobs = db["exercise_jobs"]
+        jobs = db["quiz_jobs"]
         existing_job = jobs.find_one({
             "documentId": doc_id,
             "configHash": config_hash,
@@ -413,20 +413,20 @@ async def generate_exercises(
             "status": {"$in": ["running", "pending"]},
         })
         if existing_job:
-            result = await _wait_for_exercise_generation(client, doc_id, config_hash, options_hash)
+            result = await _wait_for_quiz_generation(client, doc_id, config_hash, options_hash)
             if result:
-                exercises_str = result.get("exercises")
-                if exercises_str:
-                    return json.loads(exercises_str)
+                quizzes_str = result.get("quizzes")
+                if quizzes_str:
+                    return json.loads(quizzes_str)
             raise RuntimeError("Existing job failed to complete")
 
         # 4. Acquire lock
-        if not await _acquire_exercise_lock(client, doc_id, config_hash, options_hash):
-            result = await _wait_for_exercise_generation(client, doc_id, config_hash, options_hash)
+        if not await _acquire_quiz_lock(client, doc_id, config_hash, options_hash):
+            result = await _wait_for_quiz_generation(client, doc_id, config_hash, options_hash)
             if result:
-                exercises_str = result.get("exercises")
-                if exercises_str:
-                    return json.loads(exercises_str)
+                quizzes_str = result.get("quizzes")
+                if quizzes_str:
+                    return json.loads(quizzes_str)
             raise RuntimeError("Concurrent job failed to complete")
 
         # 5. We own the lock – start generation
@@ -440,9 +440,9 @@ async def generate_exercises(
             if not document_text:
                 raise ValueError("No content extracted from document")
 
-            prompt = build_exercise_prompt(document_text, exercise_type, count, difficulty)
+            prompt = build_quiz_prompt(document_text, quiz_type, count, difficulty)
             history = [{"role": "user", "content": prompt}]
-            target = resolve_exercise_target()
+            target = resolve_quiz_target()
 
             full_response = ""
             async for delta in stream_chat(
@@ -458,15 +458,15 @@ async def generate_exercises(
             # Parse and cache
             parsed = _extract_json_object(full_response)
             if not parsed or not isinstance(parsed, list):
-                logger.error(f"Failed to parse exercise JSON. Raw response: {full_response[:500]}")
+                logger.error(f"Failed to parse quiz JSON. Raw response: {full_response[:500]}")
                 raise ValueError("Generated output is not a valid JSON array")
 
-            exercises_str = json.dumps(parsed, ensure_ascii=False)
+            quizzes_str = json.dumps(parsed, ensure_ascii=False)
             cache_collection.update_one(
                 cache_key,
                 {
                     "$set": {
-                        "exercises": exercises_str,
+                        "quizzes": quizzes_str,
                         "configHash": config_hash,
                         "promptHash": prompt_hash,
                         "optionsHash": options_hash,
@@ -477,11 +477,11 @@ async def generate_exercises(
                 },
                 upsert=True,
             )
-            await _release_exercise_lock(client, doc_id, "completed")
+            await _release_quiz_lock(client, doc_id, "completed")
             return parsed
 
         except Exception as e:
-            await _release_exercise_lock(client, doc_id, "failed", str(e))
+            await _release_quiz_lock(client, doc_id, "failed", str(e))
             raise
 
     finally:

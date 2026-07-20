@@ -20,9 +20,9 @@ from app.config import (
     SUMMARY_LLM_PROVIDER,
     SUMMARY_LLM_BASE_URL,
     SUMMARY_LLM_MODEL,
-    EXERCISE_LLM_PROVIDER,
-    EXERCISE_LLM_BASE_URL,
-    EXERCISE_LLM_MODEL,
+    QUIZ_LLM_PROVIDER,
+    QUIZ_LLM_BASE_URL,
+    QUIZ_LLM_MODEL,
 )
 
 
@@ -87,11 +87,11 @@ def resolve_summary_target() -> ChatCompletionTarget:
     )
 
 
-def resolve_exercise_target() -> ChatCompletionTarget:
+def resolve_quiz_target() -> ChatCompletionTarget:
     return _resolve_task_target(
-        provider=EXERCISE_LLM_PROVIDER or LLM_PROVIDER,
-        base_url=EXERCISE_LLM_BASE_URL or LLM_BASE_URL,
-        model=EXERCISE_LLM_MODEL or LLM_MODEL,
+        provider=QUIZ_LLM_PROVIDER or LLM_PROVIDER,
+        base_url=QUIZ_LLM_BASE_URL or LLM_BASE_URL,
+        model=QUIZ_LLM_MODEL or LLM_MODEL,
         openai_model=OPENAI_MODEL,
     )
 

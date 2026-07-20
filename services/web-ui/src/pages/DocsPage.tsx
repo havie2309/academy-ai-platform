@@ -585,16 +585,16 @@ export default function DocsPage() {
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryStreaming, setSummaryStreaming] = useState(false)
 
-  // Exercise modal state
-  const [exerciseDocId, setExerciseDocId] = useState<string | null>(null)
-  const [exerciseParsed, setExerciseParsed] = useState<any[] | null>(null)
-  const [exerciseLoading, setExerciseLoading] = useState(false)
-  const [exerciseError, setExerciseError] = useState<string | null>(null)
-  const [exerciseGenerated, setExerciseGenerated] = useState(false)
-  const [exerciseType, setExerciseType] = useState('multiple_choice')
-  const [exerciseCount, setExerciseCount] = useState(5)
-  const [exerciseDifficulty, setExerciseDifficulty] = useState('medium')
-  const [exerciseJobStatus, setExerciseJobStatus] = useState<'idle' | 'running' | 'completed' | 'not_found'>('idle')
+  // Quiz modal state
+  const [quizDocId, setQuizDocId] = useState<string | null>(null)
+  const [quizParsed, setQuizParsed] = useState<any[] | null>(null)
+  const [quizLoading, setQuizLoading] = useState(false)
+  const [quizError, setQuizError] = useState<string | null>(null)
+  const [quizGenerated, setQuizGenerated] = useState(false)
+  const [quizType, setQuizType] = useState('multiple_choice')
+  const [quizCount, setQuizCount] = useState(5)
+  const [quizDifficulty, setQuizDifficulty] = useState('medium')
+  const [quizJobStatus, setQuizJobStatus] = useState<'idle' | 'running' | 'completed' | 'not_found'>('idle')
   const statusPollInterval = useRef<NodeJS.Timeout | null>(null)
   const previousDocIdRef = useRef<string | null>(null)
 
@@ -963,27 +963,27 @@ export default function DocsPage() {
   }
 
   // Open modal – reset only if opening a different document
-  const openExercisesModal = (doc: DocItem) => {
+  const openQuizzesModal = (doc: DocItem) => {
     const newDocId = doc.id
 
     // If opening a different document, reset state
     if (previousDocIdRef.current !== newDocId) {
-      setExerciseParsed(null)
-      setExerciseError(null)
-      setExerciseLoading(true) // will be updated by polling
-      setExerciseGenerated(false)
-      setExerciseJobStatus('idle')
+      setQuizParsed(null)
+      setQuizError(null)
+      setQuizLoading(true) // will be updated by polling
+      setQuizGenerated(false)
+      setQuizJobStatus('idle')
       previousDocIdRef.current = newDocId
     } else {
       // Same document – keep state, just ensure polling is active
-      setExerciseLoading(false)
+      setQuizLoading(false)
     }
-    setExerciseDocId(newDocId)
+    setQuizDocId(newDocId)
   }
 
   // Polling effect
   useEffect(() => {
-    if (!exerciseDocId) {
+    if (!quizDocId) {
       if (statusPollInterval.current) {
         clearTimeout(statusPollInterval.current)
         statusPollInterval.current = null
@@ -999,33 +999,33 @@ export default function DocsPage() {
       if (!isMounted) return
 
       try {
-        const status = await docsApi.getExerciseStatus(exerciseDocId, {
-          type: exerciseType,
-          count: exerciseCount,
-          difficulty: exerciseDifficulty,
+        const status = await docsApi.getQuizStatus(quizDocId, {
+          type: quizType,
+          count: quizCount,
+          difficulty: quizDifficulty,
         })
 
-        if (status.status === 'completed' && status.exercises) {
-          setExerciseParsed(status.exercises)
-          setExerciseGenerated(true)
-          setExerciseJobStatus('completed')
-          setExerciseLoading(false)
+        if (status.status === 'completed' && status.quizzes) {
+          setQuizParsed(status.quizzes)
+          setQuizGenerated(true)
+          setQuizJobStatus('completed')
+          setQuizLoading(false)
           if (statusPollInterval.current) {
             clearTimeout(statusPollInterval.current)
             statusPollInterval.current = null
           }
           return
         } else if (status.status === 'running') {
-          setExerciseJobStatus('running')
-          setExerciseLoading(false)
-          setExerciseParsed(null)
-          setExerciseGenerated(false)
+          setQuizJobStatus('running')
+          setQuizLoading(false)
+          setQuizParsed(null)
+          setQuizGenerated(false)
           scheduleNext()
         } else {
-          setExerciseJobStatus('not_found')
-          setExerciseParsed(null)
-          setExerciseGenerated(false)
-          setExerciseLoading(false)
+          setQuizJobStatus('not_found')
+          setQuizParsed(null)
+          setQuizGenerated(false)
+          setQuizLoading(false)
           if (statusPollInterval.current) {
             clearTimeout(statusPollInterval.current)
             statusPollInterval.current = null
@@ -1034,9 +1034,9 @@ export default function DocsPage() {
         }
       } catch (err) {
         if (err instanceof Error && (err.message.includes('401') || err.message.includes('Unauthorized'))) {
-          setExerciseError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
-          setExerciseLoading(false)
-          setExerciseJobStatus('not_found')
+          setQuizError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+          setQuizLoading(false)
+          setQuizJobStatus('not_found')
           if (statusPollInterval.current) {
             clearTimeout(statusPollInterval.current)
             statusPollInterval.current = null
@@ -1054,8 +1054,8 @@ export default function DocsPage() {
     }
 
     // If status is already completed or not_found, don't poll
-    if (exerciseJobStatus === 'completed' || exerciseJobStatus === 'not_found') {
-      if (exerciseJobStatus === 'completed' && !exerciseParsed) {
+    if (quizJobStatus === 'completed' || quizJobStatus === 'not_found') {
+      if (quizJobStatus === 'completed' && !quizParsed) {
         // We have status completed but no parsed? Shouldn't happen, but fetch anyway
         checkStatus()
       }
@@ -1063,8 +1063,8 @@ export default function DocsPage() {
     }
 
     // Initial check
-    if (exerciseJobStatus === 'idle') {
-      setExerciseLoading(true)
+    if (quizJobStatus === 'idle') {
+      setQuizLoading(true)
     }
     checkStatus()
     scheduleNext()
@@ -1076,65 +1076,65 @@ export default function DocsPage() {
         statusPollInterval.current = null
       }
     }
-  }, [exerciseDocId, exerciseType, exerciseCount, exerciseDifficulty])
+  }, [quizDocId, quizType, quizCount, quizDifficulty])
 
   // Generate function
-  const generateExercises = async (forceRefresh: boolean = false) => {
-    if (exerciseLoading || exerciseJobStatus === 'running' || !exerciseDocId) {
+  const generateQuizzes = async (forceRefresh: boolean = false) => {
+    if (quizLoading || quizJobStatus === 'running' || !quizDocId) {
       return
     }
 
-    setExerciseLoading(true)
-    setExerciseError(null)
-    setExerciseParsed(null)
-    setExerciseGenerated(false)
-    setExerciseJobStatus('running')
+    setQuizLoading(true)
+    setQuizError(null)
+    setQuizParsed(null)
+    setQuizGenerated(false)
+    setQuizJobStatus('running')
 
     try {
-      const exercises = await docsApi.generateExercises(exerciseDocId, {
-        type: exerciseType,
-        count: exerciseCount,
-        difficulty: exerciseDifficulty,
+      const quizzes = await docsApi.generateQuizzes(quizDocId, {
+        type: quizType,
+        count: quizCount,
+        difficulty: quizDifficulty,
         force_refresh: forceRefresh,
       })
-      if (exercises && exercises.length > 0) {
-        setExerciseParsed(exercises)
-        setExerciseGenerated(true)
-        setExerciseJobStatus('completed')
-        setExerciseLoading(false)
+      if (quizzes && quizzes.length > 0) {
+        setQuizParsed(quizzes)
+        setQuizGenerated(true)
+        setQuizJobStatus('completed')
+        setQuizLoading(false)
         if (statusPollInterval.current) {
           clearTimeout(statusPollInterval.current)
           statusPollInterval.current = null
         }
       } else {
-        // No exercises returned – fallback to polling
-        setExerciseJobStatus('running')
-        setExerciseLoading(false)
+        // No quizzes returned – fallback to polling
+        setQuizJobStatus('running')
+        setQuizLoading(false)
       }
     } catch (err) {
       if (err instanceof Error && err.message.includes('503')) {
-        setExerciseJobStatus('running')
-        setExerciseLoading(false)
+        setQuizJobStatus('running')
+        setQuizLoading(false)
         return
       }
-      setExerciseError(err instanceof Error ? err.message : 'Không thể tạo bài tập.')
-      setExerciseLoading(false)
-      setExerciseJobStatus('not_found')
+      setQuizError(err instanceof Error ? err.message : 'Không thể tạo bài tập.')
+      setQuizLoading(false)
+      setQuizJobStatus('not_found')
     }
   }
 
   // Close modal – stop polling but preserve state
-  const closeExercises = () => {
+  const closeQuizzes = () => {
     if (statusPollInterval.current) {
       clearTimeout(statusPollInterval.current)
       statusPollInterval.current = null
     }
     // Set docId to null to hide modal, but keep state for when reopened
-    setExerciseDocId(null)
+    setQuizDocId(null)
   }
 
-  const downloadExercisesAsDocx = () => {
-    if (!exerciseParsed || exerciseParsed.length === 0) return;
+  const downloadQuizzesAsDocx = () => {
+    if (!quizParsed || quizParsed.length === 0) return;
 
     const doc = new Document({
       sections: [{
@@ -1145,8 +1145,8 @@ export default function DocsPage() {
             heading: HeadingLevel.HEADING_1,
             alignment: AlignmentType.CENTER,
           }),
-          new Paragraph({ text: `Loại: ${exerciseType} | Số lượng: ${exerciseCount} | Độ khó: ${exerciseDifficulty}`, spacing: { after: 200 } }),
-          ...exerciseParsed.flatMap((item, idx) => {
+          new Paragraph({ text: `Loại: ${quizType} | Số lượng: ${quizCount} | Độ khó: ${quizDifficulty}`, spacing: { after: 200 } }),
+          ...quizParsed.flatMap((item, idx) => {
             const children = [
               new Paragraph({
                 text: `Câu ${idx + 1}: ${item.question}`,
@@ -1190,7 +1190,7 @@ export default function DocsPage() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `bai-tap-${exerciseDocId}.docx`;
+      a.download = `bai-tap-${quizDocId}.docx`;
       a.click();
       URL.revokeObjectURL(url);
     });
@@ -1545,7 +1545,7 @@ export default function DocsPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => openExercisesModal(doc)}
+                      onClick={() => openQuizzesModal(doc)}
                       disabled={doc.ingest_status !== 'completed' || busyId === doc.id}
                       title={doc.ingest_status === 'completed' ? 'Tạo bài tập từ tài liệu' : 'Chưa thể tạo bài tập'}
                       className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-green-50 hover:text-green-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
@@ -2048,8 +2048,8 @@ export default function DocsPage() {
         </div>
       )}
 
-      {/* Exercise Modal */}
-      {exerciseDocId && (
+      {/* Quiz Modal */}
+      {quizDocId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-xl border border-slate-200 p-6 flex flex-col">
             <div className="flex items-center justify-between mb-4 shrink-0">
@@ -2059,7 +2059,7 @@ export default function DocsPage() {
               </h2>
               <button
                 type="button"
-                onClick={closeExercises}
+                onClick={closeQuizzes}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X size={18} />
@@ -2067,7 +2067,7 @@ export default function DocsPage() {
             </div>
 
             <div className="text-sm text-slate-500 mb-4 shrink-0">
-              {docs.find(d => d.id === exerciseDocId)?.title || 'Tài liệu'}
+              {docs.find(d => d.id === quizDocId)?.title || 'Tài liệu'}
             </div>
 
             {/* Config row – always editable */}
@@ -2075,10 +2075,10 @@ export default function DocsPage() {
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-500">Loại:</label>
                 <select
-                  value={exerciseType}
-                  onChange={(e) => setExerciseType(e.target.value)}
+                  value={quizType}
+                  onChange={(e) => setQuizType(e.target.value)}
                   className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
-                  disabled={exerciseLoading || exerciseJobStatus === 'running'}
+                  disabled={quizLoading || quizJobStatus === 'running'}
                 >
                   <option value="multiple_choice">Trắc nghiệm</option>
                   <option value="short_answer">Tự luận</option>
@@ -2088,10 +2088,10 @@ export default function DocsPage() {
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-500">Số lượng:</label>
                 <select
-                  value={exerciseCount}
-                  onChange={(e) => setExerciseCount(Number(e.target.value))}
+                  value={quizCount}
+                  onChange={(e) => setQuizCount(Number(e.target.value))}
                   className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
-                  disabled={exerciseLoading || exerciseJobStatus === 'running'}
+                  disabled={quizLoading || quizJobStatus === 'running'}
                 >
                   <option value={3}>3</option>
                   <option value={5}>5</option>
@@ -2101,10 +2101,10 @@ export default function DocsPage() {
               <div className="flex items-center gap-2">
                 <label className="text-xs font-semibold text-slate-500">Độ khó:</label>
                 <select
-                  value={exerciseDifficulty}
-                  onChange={(e) => setExerciseDifficulty(e.target.value)}
+                  value={quizDifficulty}
+                  onChange={(e) => setQuizDifficulty(e.target.value)}
                   className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
-                  disabled={exerciseLoading || exerciseJobStatus === 'running'}
+                  disabled={quizLoading || quizJobStatus === 'running'}
                 >
                   <option value="easy">Dễ</option>
                   <option value="medium">Trung bình</option>
@@ -2113,24 +2113,24 @@ export default function DocsPage() {
               </div>
               <button
                 type="button"
-                onClick={() => generateExercises(exerciseGenerated)}
-                disabled={exerciseLoading || exerciseJobStatus === 'running' || !exerciseDocId}
+                onClick={() => generateQuizzes(quizGenerated)}
+                disabled={quizLoading || quizJobStatus === 'running' || !quizDocId}
                 className="ml-auto px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all disabled:opacity-50"
               >
-                {exerciseGenerated ? 'Tạo lại (ngẫu nhiên mới)' : 'Tạo bài tập'}
+                {quizGenerated ? 'Tạo lại (ngẫu nhiên mới)' : 'Tạo bài tập'}
               </button>
             </div>
 
             {/* Content area */}
             <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl p-4 border border-slate-200 min-h-[200px] max-h-[500px]">
               {/* Loading: initial check or generation in progress */}
-              {(exerciseLoading || exerciseJobStatus === 'idle' || exerciseJobStatus === 'running') && !exerciseParsed && (
+              {(quizLoading || quizJobStatus === 'idle' || quizJobStatus === 'running') && !quizParsed && (
                 <div className="flex items-center justify-center h-full text-slate-400">
                   <Loader2 className="animate-spin mr-2" size={20} />
                   <span>
-                    {exerciseJobStatus === 'running'
+                    {quizJobStatus === 'running'
                       ? 'Đang tạo bài tập (ngầm)...'
-                      : exerciseLoading
+                      : quizLoading
                       ? 'Đang tạo bài tập...'
                       : 'Đang kiểm tra...'}
                   </span>
@@ -2138,18 +2138,18 @@ export default function DocsPage() {
               )}
 
               {/* Error */}
-              {exerciseError && (
+              {quizError && (
                 <div className="text-red-600 text-sm">
                   <AlertCircle size={16} className="inline mr-2" />
-                  {exerciseError}
+                  {quizError}
                 </div>
               )}
 
-              {/* Parsed exercises */}
-              {exerciseParsed && exerciseParsed.length > 0 && (
+              {/* Parsed quizzes */}
+              {quizParsed && quizParsed.length > 0 && (
                 <div className="space-y-6">
-                  {/* Render exercises as before */}
-                  {exerciseParsed.map((item, idx) => (
+                  {/* Render quizzes as before */}
+                  {quizParsed.map((item, idx) => (
                     <div key={idx} className="border-l-4 border-green-400 pl-4 bg-white p-4 rounded-lg shadow-sm">
                       <p className="font-semibold text-slate-800">
                         Câu {idx + 1}: {item.question}
@@ -2187,7 +2187,7 @@ export default function DocsPage() {
               )}
 
               {/* Empty state – only when not loading, not running, no error, no parsed */}
-              {!exerciseParsed && !exerciseLoading && exerciseJobStatus === 'not_found' && !exerciseError && (
+              {!quizParsed && !quizLoading && quizJobStatus === 'not_found' && !quizError && (
                 <div className="flex items-center justify-center h-full text-slate-400 text-sm">
                   Chọn cấu hình và nhấn "Tạo bài tập".
                 </div>
@@ -2199,27 +2199,27 @@ export default function DocsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (exerciseParsed) {
-                    navigator.clipboard?.writeText(JSON.stringify(exerciseParsed, null, 2))
+                  if (quizParsed) {
+                    navigator.clipboard?.writeText(JSON.stringify(quizParsed, null, 2))
                       .catch(() => {})
                   }
                 }}
-                disabled={!exerciseParsed}
+                disabled={!quizParsed}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-40"
               >
                 Sao chép (JSON)
               </button>
               <button
                 type="button"
-                onClick={downloadExercisesAsDocx}
-                disabled={!exerciseParsed}
+                onClick={downloadQuizzesAsDocx}
+                disabled={!quizParsed}
                 className="px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-sm font-semibold hover:bg-blue-100 transition-all cursor-pointer disabled:opacity-40"
               >
                 Tải DOCX
               </button>
               <button
                 type="button"
-                onClick={closeExercises}
+                onClick={closeQuizzes}
                 className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all cursor-pointer"
               >
                 Đóng

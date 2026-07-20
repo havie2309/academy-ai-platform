@@ -1128,9 +1128,9 @@ export class DocumentsService implements OnModuleInit {
   }
 
   /**
-   * Proxy to rag-engine for non-streaming exercise generation.
+   * Proxy to rag-engine for non-streaming quiz generation.
    */
-  async generateExercises(
+  async generateQuizzes(
     docId: string,
     user: RequestUser,
     type: string,
@@ -1140,7 +1140,7 @@ export class DocumentsService implements OnModuleInit {
     res: Response,
   ): Promise<void> {
     const ragUrl = this.config.get<string>('RAG_ENGINE_URL', 'http://localhost:8000')
-    const url = `${ragUrl.replace(/\/+$/, '')}/v1/exercises`
+    const url = `${ragUrl.replace(/\/+$/, '')}/v1/quizzes`
     const internalSecret = this.config.get<string>('GATEWAY_INTERNAL_SHARED_SECRET')
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (internalSecret) {
@@ -1164,7 +1164,7 @@ export class DocumentsService implements OnModuleInit {
           count,
           difficulty,
           force_refresh: forceRefresh,
-          max_chars: Number(this.config.get('EXERCISE_MAX_CHARS', 2000)) || 2000,
+          max_chars: Number(this.config.get('QUIZ_MAX_CHARS', 2000)) || 2000,
         }),
       })
       const status = fetchRes.status
@@ -1177,9 +1177,9 @@ export class DocumentsService implements OnModuleInit {
   }
 
   /**
-   * Proxy to rag-engine for exercise status.
+   * Proxy to rag-engine for quiz status.
    */
-  async getExerciseStatus(
+  async getQuizStatus(
     docId: string,
     user: RequestUser,
     type: string,
@@ -1188,7 +1188,7 @@ export class DocumentsService implements OnModuleInit {
     res: Response,
   ): Promise<void> {
     const ragUrl = this.config.get<string>('RAG_ENGINE_URL', 'http://localhost:8000')
-    const url = `${ragUrl.replace(/\/+$/, '')}/v1/exercises/status?document_id=${encodeURIComponent(docId)}&type=${encodeURIComponent(type)}&count=${encodeURIComponent(count)}&difficulty=${encodeURIComponent(difficulty)}`
+    const url = `${ragUrl.replace(/\/+$/, '')}/v1/quizzes/status?document_id=${encodeURIComponent(docId)}&type=${encodeURIComponent(type)}&count=${encodeURIComponent(count)}&difficulty=${encodeURIComponent(difficulty)}`
     const internalSecret = this.config.get<string>('GATEWAY_INTERNAL_SHARED_SECRET')
     
     // Set headers: Accept + Gateway user headers + internal secret

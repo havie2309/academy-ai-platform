@@ -354,37 +354,37 @@ export const docsApi = {
   },
 
   /**
-   * Generate exercises for a document (non-streaming).
-   * Returns the parsed exercises array.
+   * Generate quizzes for a document (non-streaming).
+   * Returns the parsed quizzes array.
    */
-  async generateExercises(
+  async generateQuizzes(
     id: string,
     options: { type: string; count: number; difficulty: string; force_refresh?: boolean }
   ): Promise<any[]> {
-    const res = await fetchWithAuth(`/api/documents/${id}/exercises`, {
+    const res = await fetchWithAuth(`/api/documents/${id}/quizzes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(options),
     })
     if (!res.ok) throw new Error(await parseError(res))
     const data = await res.json()
-    return data.exercises || []
+    return data.quizzes || []
   },
 
   /**
-   * Get the status of an exercise generation job for a document and settings.
+   * Get the status of an quiz generation job for a document and settings.
    */
-  async getExerciseStatus(
+  async getQuizStatus(
     id: string,
     options: { type: string; count: number; difficulty: string }
-  ): Promise<{ status: 'completed' | 'running' | 'not_found'; exercises?: any[] }> {
+  ): Promise<{ status: 'completed' | 'running' | 'not_found'; quizzes?: any[] }> {
     const params = new URLSearchParams({
       document_id: id,
       type: options.type,
       count: String(options.count),
       difficulty: options.difficulty,
     })
-    const res = await fetchWithAuth(`/api/documents/${id}/exercises/status?${params}`, {
+    const res = await fetchWithAuth(`/api/documents/${id}/quizzes/status?${params}`, {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })

@@ -192,8 +192,8 @@
 | Loại | Mô tả                                            | MS  | Tiến độ | Evidence |
 | ---- | ------------------------------------------------ | --- | ------- | -------- |
 | AI   | J-01 · Tóm tắt tài liệu (kể cả tài liệu hạn chế) | M6 | `[x]` | `summarize.py` + `documents.service.ts` + `DocsPage.tsx`: sử dụng parent chunks, cache MongoDB (`document_summaries`), sinh ngầm với distributed lock (`summary_jobs`), cấu hình LLM riêng (`SUMMARY_*`), streaming SSE với hỗ trợ abort. |
-| AI | J-02 · Hỗ trợ bài tập, giải thích từng bước | M6 | `[x]` | `exercises.py` + `documents.service.ts` + `DocsPage.tsx`: uses parent chunks, MongoDB cache (`document_exercises`), background generation with distributed lock (`exercise_jobs`), separate LLM config (`EXERCISE_*`), polling-based status, DOCX export. |
-| AI   | J-03 · Sinh, làm, chấm quiz và giải thích đáp án | M6  |         |          |
+| AI   | J-02 · Hỗ trợ bài tập, giải thích từng bước      | M6  |         |          |
+| AI   | J-03 · Sinh, làm, chấm quiz và giải thích đáp án | M6  | `[x]` (Phase 1: generate + display + export; Phase 2: interactive quiz taking/grading pending) | `quizzes.py` + `DocsPage.tsx`: generates multiple choice, short answer, true/false from parent chunks with MongoDB cache + background lock + DOCX export. |
 | AI   | J-04 · Tiến trình học và soạn giáo án            | M6  |         |          |
 | AI   | J-05 · Phân tích xu hướng và báo cáo sơ khai     | M6  |         |          |
 | AI   | J-06 · Tìm kiếm ngữ nghĩa và chatbot cá nhân     | M6  |         |          |
