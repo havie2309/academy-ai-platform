@@ -1132,7 +1132,7 @@ def generate_group_docs(group: dict, base_doc_id: int, dept: dict) -> list[dict]
         "is_adversarial": False,
         "adversarial_type": "none",
         "conflict_group_id": group["topic"],
-        "security_level": "internal",
+        "security_level": "confidential",
         "source_system": "official",
     }
     docs.append(normal2)
