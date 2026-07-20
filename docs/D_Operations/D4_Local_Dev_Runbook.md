@@ -56,6 +56,33 @@ Nếu dùng Mode B:
 - Nếu thấy lỗi bind `3001`, nghĩa là local `user-management` chưa tắt hẳn.
 - Có thể vẫn chạy local `api-gateway`, `chat`, `rbac`, `admin-config`, `audit`, `web-ui`, `rag-engine` và các Python service khác.
 
+#### Mode C — Remote AI Host (dùng AI server do supervisor cung cấp)
+
+Nếu supervisor đã thiết lập một máy chủ AI riêng cho LLM, embedding và rerank (topology 2 máy), bạn có thể chạy local platform kết nối tới các dịch vụ đó mà không cần bật embedding-server, rerank-server hay Ollama trên máy local.
+
+1.  Cập nhật `services/platform/.env` với các URL của remote AI host:
+    ```env
+    LLM_BASE_URL=http://[IP]:[port]/v1
+    EMBEDDING_BASE_URL=http://[IP]:[port]/v1
+    RERANK_BASE_URL=http://[IP]:[port]
+    ```
+2.  Chạy script launcher dành riêng cho remote AI:
+    ```powershell
+    .\scripts\start-remote-ai.ps1
+    ```
+    Script này sẽ:
+    - Khởi động các container dữ liệu (Postgres, MongoDB, Milvus, Redis).
+    - Khởi động các service NestJS (api-gateway, chat, user-management, ...).
+    - Chỉ khởi động `rag-engine` và `document-processor` (không khởi động embedding-server, rerank-server, Ollama).
+    - (Tùy chọn) Chạy Web UI nếu không dùng flag `-NoWebUi`.
+
+3.  Để dừng toàn bộ, dùng:
+    ```powershell
+    .\scripts\stop-dev.ps1
+    ```
+
+> **Lưu ý:** Script `rag_cli.py` cũng tự động phát hiện các URL remote – nếu `LLM_BASE_URL`, `EMBEDDING_BASE_URL`, hoặc `RERANK_BASE_URL` khác localhost, nó sẽ bỏ qua việc khởi động các service AI local và chỉ dùng remote host.
+
 ### 2.4. Thứ tự khởi động khuyến nghị
 
 #### Lõi app hiện tại

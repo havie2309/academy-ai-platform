@@ -36,6 +36,7 @@
 | ETL integration | SQL Server connector co API | smoke nguon that, UI ETL |
 | Self-service | co khung web-ui | chua co module nghiep vu day du |
 | Chat streaming & persistence | Real token streaming, persistent streaming messages (`status` field), polling fallback, immediate loading feedback, citation retention on refusal | Live stream resumption after full page reload (accepted trade-off – polling provides good fallback) |
+| AI profile M1 | Đã có script `start-remote-ai.ps1` và cập nhật `rag_cli.py` để hỗ trợ remote AI endpoints (LLM, embedding, rerank) qua biến môi trường. Thêm `RERANK_SCORE_FIELD` để linh hoạt với nhiều loại rerank server. | Profile `ai` trong docker-compose và smoke test chính thức cho topology 2 máy (A-08, A-09) vẫn đang ở trạng thái `planned`. |
 
 ## 4. Uu tien tiep theo nen lam
 

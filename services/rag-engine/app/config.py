@@ -30,6 +30,7 @@ RERANK_ENABLED = os.getenv("RERANK_ENABLED", "true").lower() != "false"
 VECTOR_SCORE_MIN = float(os.getenv("VECTOR_SCORE_MIN", "-100"))
 RERANK_SCORE_MIN = float(os.getenv("RERANK_SCORE_MIN", "-0.5"))
 RERANK_SCORE_DELTA = float(os.getenv("RERANK_SCORE_DELTA", "2.0"))
+RERANK_SCORE_FIELD = (os.getenv("RERANK_SCORE_FIELD") or "").strip()
 
 # --- LLM (answer generation) -------------------------------------------------
 # Mirrors the chat service: 'ollama' (local, OpenAI-compatible) or 'openai' (cloud).

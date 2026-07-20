@@ -1,90 +1,132 @@
-# D2 - Environment Config
+## D2 — Environment Config
 
-## 1. Muc tieu
+### 1. Mục tiêu
 
-- Tach cau hinh khoi code.
-- Biet bien nao thuoc root stack, bien nao thuoc platform, bien nao thuoc AI.
-- Giam loi "chay local duoc nhung khong tai lap duoc".
+- Tách cấu hình khỏi code.
+- Biết biến nào thuộc root stack, biến nào thuộc platform, biến nào thuộc AI.
+- Giảm lỗi "chạy local được nhưng không tái lập được".
 
-## 2. File cau hinh chuan
+---
 
-| File | Vai tro |
+### 2. File cấu hình chuẩn
+
+| File | Vai trò |
 |------|---------|
-| `.env.example` | Cau hinh root cho docker/data stack |
-| `.env` | Ban local thuc thi, khong commit |
-| `services/platform/.env.example` | Cau hinh platform/chat/rag bridge/auth |
-| `services/platform/.env` | Ban local cua NestJS monorepo |
+| `.env.example` | Cấu hình root cho docker/data stack |
+| `.env` | Bản local thực thi, không commit |
+| `services/platform/.env.example` | Cấu hình platform/chat/rag bridge/auth |
+| `services/platform/.env` | Bản local của NestJS monorepo |
 
-## 3. Nhom bien chinh
+---
 
-### Ha tang
+### 3. Nhóm biến chính
 
-- `POSTGRES_*`
-- `MONGO_*`
-- `REDIS_*`
-- `RABBITMQ_*`
-- `MILVUS_*`
+#### Hạ tầng (Infrastructure)
 
-### Auth va session
-
-- `JWT_*`
-- `REFRESH_*` hoac session TTL tuong duong
-- cookie config
-
-### AI routing
-
-- `LLM_PROVIDER`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-- `EMBEDDING_BASE_URL`
-- `RERANK_BASE_URL`
-
-### Chat va RAG
-
-- cache TTL
-- session context TTL
-- `RETRIEVAL_TOP_K=20` (mặc định trước đây 30)
-- `RERANK_TOP_K=6` (trước đây 8)
-- `RERANK_SCORE_MIN` – đã giảm từ -8 xuống -2 để áp dụng tighter filtering (cùng với `RERANK_SCORE_DELTA`).
-- `MAX_CHUNKS_PER_DOC=3`
-- `RERANK_DOC_MAX_CHARS=1800`: giới hạn độ dài mỗi candidate trước khi gọi rerank
-- `RAG_CONTEXT_MAX_CHARS=1800` (trước đây 6000) – giảm để tăng tốc generation và cải thiện first-token latency
-- refusal policy fetch key
-
-### Guardrail
-
-- `GUARDRAIL_SEMANTIC_THRESHOLD` – mặc định 0.88 (được đặt trong code, có thể ghi đè qua env).
-- `GUARDRAIL_FUZZY_ENABLED` – vẫn giữ true.
-- `GUARDRAIL_HEURISTIC_POLICY_ENABLED` – true.
-- `GUARDRAIL_LLM_ENABLED` – false.
-
-### SQL route
-
-- `SQL_READONLY_*`
-- catalog/config cho curated schema
-
-### API Gateway - Resilience
-
-| Bien | Mac dinh | Mo ta |
+| Biến | Mặc định | Mô tả |
 |------|----------|-------|
-| `RATE_LIMIT_AUTH` | `60` | So request toi da moi phut cho nguoi dung da dang nhap khi khong co policy role rieng |
-| `RATE_LIMIT_ANON` | `10` | So request toi da moi phut cho nguoi dung chua dang nhap |
-| `RATE_LIMIT_WINDOW` | `60` | Time window (giay) cua Redis bucket rate-limit |
-| `RATE_LIMIT_ROLE_ADMIN` | `180` | Gioi han/phut cho `ADMIN`; gateway uu tien policy role theo thu tu role |
-| `RATE_LIMIT_ROLE_BGD` | `180` | Gioi han/phut cho `BGD` |
-| `RATE_LIMIT_ROLE_P2` | `120` | Gioi han/phut cho `P2` |
-| `RATE_LIMIT_ROLE_P7` | `90` | Gioi han/phut cho `P7` |
-| `RATE_LIMIT_ROLE_GIANG_VIEN` | `90` | Gioi han/phut cho `GIANG_VIEN` |
-| `RATE_LIMIT_ROLE_HOC_VIEN` | `60` | Gioi han/phut cho `HOC_VIEN` |
-| `LOAD_SHEDDING_MAX_CONCURRENT` | `100` | So request dong thoi toi da truoc khi gateway tu choi voi ma `503` |
-| `LOAD_SHEDDING_RETRY_AFTER` | `1` | Gia tri `Retry-After` (giay) tra ve khi load shedding `503` |
-| `CIRCUIT_FAILURE_THRESHOLD_<service>` | `5` | So lan that bai de mo circuit cho moi upstream, vi du `CIRCUIT_FAILURE_THRESHOLD_CHAT` |
-| `CIRCUIT_TIMEOUT_<service>` | `30` | So giay circuit giu trang thai `OPEN` truoc khi chuyen sang `HALF_OPEN` |
-| `CIRCUIT_HALFOPEN_MAX_<service>` | `1` | So request toi da duoc phep o trang thai `HALF_OPEN` cho moi upstream |
+| `POSTGRES_HOST` | `127.0.0.1` | Host PostgreSQL |
+| `POSTGRES_PORT` | `5433` | Port PostgreSQL |
+| `POSTGRES_DB` | `pm2` | Tên database |
+| `POSTGRES_USER` | `pm2_user` | Tên user |
+| `POSTGRES_PASSWORD` | `pm2pass` | Mật khẩu user |
+| `MONGO_URI` | `mongodb://pm2_user:pm2pass@localhost:27017/pm2?authSource=admin` | Connection string MongoDB |
+| `MONGO_DB` | `pm2` | Tên database MongoDB |
+| `REDIS_HOST` | `127.0.0.1` | Host Redis |
+| `REDIS_PORT` | `6379` | Port Redis |
+| `REDIS_PASSWORD` | (rỗng) | Mật khẩu Redis |
+| `REDIS_DB` | `0` | Database index Redis |
+| `RABBITMQ_HOST` | `127.0.0.1` | Host RabbitMQ |
+| `RABBITMQ_PORT` | `5672` | Port RabbitMQ |
+| `RABBITMQ_USER` | `pm2_user` | Tên user RabbitMQ |
+| `RABBITMQ_PASSWORD` | `pm2pass` | Mật khẩu RabbitMQ |
+| `MILVUS_HOST` | `localhost` | Host Milvus |
+| `MILVUS_PORT` | `19530` | Port Milvus |
+| `MILVUS_COLLECTION` | `document_chunks` | Tên collection Milvus |
 
-Cac bien nay duoc `api-gateway` su dung de bao ve upstream khoi qua tai va loi lan truyen.
+---
 
-### Summarization (J-01)
+#### Auth và Session
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `JWT_SECRET` | (bắt buộc) | Secret key cho JWT |
+| `JWT_EXPIRES_IN` | `15m` | Thời gian hết hạn access token |
+| `REFRESH_TOKEN_EXPIRES_IN` | `7d` | Thời gian hết hạn refresh token |
+| `COOKIE_DOMAIN` | (rỗng) | Domain cho cookie (dùng khi 2 máy) |
+| `COOKIE_SAMESITE` | `lax` | SameSite policy cho cookie |
+| `COOKIE_SECURE` | `false` | Chỉ gửi cookie qua HTTPS |
+
+---
+
+#### AI Routing
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `LLM_PROVIDER` | `ollama` | Provider cho LLM (`ollama`/`openai`) |
+| `LLM_BASE_URL` | `http://localhost:11434` | Endpoint cho LLM (OpenAI-compatible) |
+| `LLM_MODEL` | `qwen2.5:3b` | Model cho LLM |
+| `LLM_FALLBACK_PROVIDER` | (rỗng) | Provider fallback |
+| `LLM_FALLBACK_BASE_URL` | (rỗng) | Endpoint fallback |
+| `LLM_FALLBACK_MODEL` | (rỗng) | Model fallback |
+| `LLM_TIMEOUT` | `120` | Timeout (giây) cho LLM |
+| `OPENAI_API_KEY` | (rỗng) | API key cho OpenAI (nếu dùng) |
+| `OPENAI_MODEL` | `gpt-4o-mini` | Model khi dùng OpenAI |
+| `EMBEDDING_BASE_URL` | `http://localhost:8001` | Endpoint cho embedding service |
+| `RERANK_BASE_URL` | `http://localhost:8002` | Endpoint cho rerank service |
+| `RERANK_ENABLED` | `true` | Bật/tắt rerank |
+| `RERANK_SCORE_FIELD` | (rỗng) | Tên field score từ rerank server (mặc định thử `score`, `relevance_score`, etc.) |
+| `RAG_ENGINE_URL` | `http://localhost:8000` | URL của rag-engine (dùng bởi chat service) |
+
+---
+
+#### Document Processor (Ingest)
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `CHUNK_MAX_PARENT_SIZE` | `1000` | Số ký tự tối đa cho parent chunk (cấp section) |
+| `CHUNK_MAX_CHILD_SIZE` | `200` | Số ký tự tối đa cho child chunk (đơn vị embedding) |
+| `CHUNK_OVERLAP` | `0.2` | Tỷ lệ overlap giữa các chunk (0.0–1.0) |
+| `INGEST_QUEUE` | `ingest.jobs` | Tên queue RabbitMQ cho ingest jobs |
+| `EMBEDDING_DIM` | `384` | Số chiều vector (phải khớp với model embedding) |
+| `ALLOW_ADVERSARIAL_DOCS` | `true` | Cho phép document adversarial trong retrieval |
+
+---
+
+#### Chat và RAG
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `CHAT_SESSION_CONTEXT_TTL` | `3600` | TTL (giây) cho context chat trong Redis |
+| `CHAT_SESSION_CONTEXT_MAX_MESSAGES` | `20` | Số message tối đa giữ trong context |
+| `RETRIEVAL_TOP_K` | `60` | Số chunk lấy từ Milvus trước rerank |
+| `RERANK_TOP_K` | `8` | Số chunk giữ lại sau rerank |
+| `RERANK_SCORE_MIN` | `-0.5` | Ngưỡng tối thiểu cho rerank score |
+| `RERANK_SCORE_DELTA` | `2.0` | Khoảng cách cho phép so với top score |
+| `MAX_CHUNKS_PER_DOC` | `3` | Số chunk tối đa từ một document |
+| `RERANK_DOC_MAX_CHARS` | `1800` | Số ký tự tối đa gửi cho reranker mỗi chunk |
+| `RAG_CONTEXT_MAX_CHARS` | `1800` | Số ký tự tối đa đưa vào LLM context |
+| `VECTOR_SCORE_MIN` | `-100` | Ngưỡng tối thiểu cho vector score |
+
+---
+
+#### Guardrail (Safe Refusal)
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `GUARDRAIL_FUZZY_ENABLED` | `true` | Bật fuzzy keyword matching |
+| `GUARDRAIL_FUZZY_THRESHOLD` | `0.85` | Ngưỡng tương tự fuzzy |
+| `GUARDRAIL_SEMANTIC_ENABLED` | `false` | Bật semantic guardrail (embedding-based) |
+| `GUARDRAIL_SEMANTIC_THRESHOLD` | `0.78` | Ngưỡng cosine similarity cho semantic |
+| `GUARDRAIL_SEMANTIC_TIMEOUT_SECONDS` | `5` | Timeout (giây) cho semantic guardrail |
+| `GUARDRAIL_LLM_ENABLED` | `false` | Bật LLM-based guardrail |
+| `GUARDRAIL_HEURISTIC_POLICY_ENABLED` | `true` | Bật heuristic policy judge |
+| `ADMIN_CONFIG_URL` | `http://127.0.0.1:3004` | URL của admin-config service |
+| `ADMIN_CONFIG_CACHE_TTL_SECONDS` | `30` | TTL cache policy (giây) |
+
+---
+
+#### Summarization (J-01)
 
 | Biến | Mặc định | Mô tả |
 |------|----------|-------|
@@ -92,35 +134,92 @@ Cac bien nay duoc `api-gateway` su dung de bao ve upstream khoi qua tai va loi l
 | `SUMMARY_LLM_PROVIDER` | `ollama` | Provider cho tóm tắt (ollama/openai) |
 | `SUMMARY_LLM_BASE_URL` | `http://localhost:11434` | Endpoint cho tóm tắt |
 | `SUMMARY_LLM_MODEL` | `qwen2.5:3b` | Model cho tóm tắt |
-| `SUMMARY_LLM_FALLBACK_PROVIDER` | - | Fallback provider (tùy chọn) |
-| `SUMMARY_LLM_FALLBACK_BASE_URL` | - | Fallback endpoint (tùy chọn) |
-| `SUMMARY_LLM_FALLBACK_MODEL` | - | Fallback model (tùy chọn) |
+| `SUMMARY_LLM_FALLBACK_PROVIDER` | (rỗng) | Fallback provider (tùy chọn) |
+| `SUMMARY_LLM_FALLBACK_BASE_URL` | (rỗng) | Fallback endpoint (tùy chọn) |
+| `SUMMARY_LLM_FALLBACK_MODEL` | (rỗng) | Fallback model (tùy chọn) |
 | `SUMMARY_LLM_RETRY_ATTEMPTS` | `2` | Số lần thử lại khi lỗi |
 | `SUMMARY_LLM_TIMEOUT` | `60` | Timeout (giây) cho tóm tắt |
 
-## 4. Quy tac quan ly secret
+---
 
-- Khong commit `.env` that.
-- API key noi bo va mat khau DB phai thay duoc theo moi truong.
-- Internal key cho `admin-config` khong duoc lo ra client.
-- Neu can chia se local env giua team, dung template da lam sach secret.
+#### Text-to-SQL
 
-## 5. Quy tac thay doi config
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `SQL_LLM_PROVIDER` | `ollama` | Provider cho SQL generation |
+| `SQL_LLM_BASE_URL` | `http://localhost:11434` | Endpoint cho SQL generation |
+| `SQL_LLM_MODEL` | `qwen2.5:3b` | Model cho SQL generation |
+| `SQL_OPENAI_MODEL` | `gpt-4o-mini` | Model khi dùng OpenAI cho SQL |
+| `SQL_FEW_SHOT_ENABLED` | `true` | Bật few-shot examples trong prompt |
+| `SQL_READONLY_USER` | `pm2_readonly` | User read-only cho Postgres |
+| `SQL_READONLY_PASSWORD` | `pm2_readonly_pass` | Password cho read-only user |
+| `SQL_STATEMENT_TIMEOUT_MS` | `10000` | Timeout (ms) cho SQL query |
+| `SQL_DEFAULT_LIMIT` | `100` | Số hàng mặc định |
+| `SQL_MAX_LIMIT` | `100` | Số hàng tối đa |
+| `SQL_AUDIT_ENABLED` | `true` | Bật ghi audit cho SQL |
 
-- Them bien moi phai cap nhat `.env.example` tuong ung.
-- Neu bien anh huong flow nghiep vu hoac topology, cap nhat them `D1` hoac `D4`.
-- Neu bien dung chung giua platform va Python service, can ghi ro owner va default.
+---
 
-## 6. Cau hinh toi thieu de chay local
+#### API Gateway — Resilience
 
-| Nhom | Toi thieu |
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `RATE_LIMIT_AUTH` | `60` | Số request tối đa mỗi phút cho user đã đăng nhập |
+| `RATE_LIMIT_ANON` | `10` | Số request tối đa mỗi phút cho user chưa đăng nhập |
+| `RATE_LIMIT_WINDOW` | `60` | Time window (giây) của Redis bucket rate-limit |
+| `RATE_LIMIT_ROLE_ADMIN` | `180` | Giới hạn/phút cho `ADMIN` |
+| `RATE_LIMIT_ROLE_BGD` | `180` | Giới hạn/phút cho `BGD` |
+| `RATE_LIMIT_ROLE_P2` | `120` | Giới hạn/phút cho `P2` |
+| `RATE_LIMIT_ROLE_P7` | `90` | Giới hạn/phút cho `P7` |
+| `RATE_LIMIT_ROLE_GIANG_VIEN` | `90` | Giới hạn/phút cho `GIANG_VIEN` |
+| `RATE_LIMIT_ROLE_HOC_VIEN` | `60` | Giới hạn/phút cho `HOC_VIEN` |
+| `LOAD_SHEDDING_MAX_CONCURRENT` | `100` | Số request đồng thời tối đa trước khi gateway từ chối với mã `503` |
+| `LOAD_SHEDDING_RETRY_AFTER` | `1` | Giá trị `Retry-After` (giây) trả về khi load shedding `503` |
+| `CIRCUIT_FAILURE_THRESHOLD_<service>` | `5` | Số lần thất bại để mở circuit cho mỗi upstream |
+| `CIRCUIT_TIMEOUT_<service>` | `30` | Số giây circuit giữ trạng thái `OPEN` trước khi chuyển sang `HALF_OPEN` |
+| `CIRCUIT_HALFOPEN_MAX_<service>` | `1` | Số request tối đa được phép ở trạng thái `HALF_OPEN` cho mỗi upstream |
+
+---
+
+#### Internal Gateway Auth
+
+| Biến | Mặc định | Mô tả |
+|------|----------|-------|
+| `GATEWAY_INTERNAL_SHARED_SECRET` | (rỗng) | Secret cho internal calls giữa gateway và rag-engine. Để trống trong dev để bỏ qua check. |
+| `ADMIN_CONFIG_INTERNAL_KEY` | (rỗng) | Internal key cho admin-config service |
+
+---
+
+### 4. Quy tắc quản lý secret
+
+- Không commit `.env` thật.
+- API key nội bộ và mật khẩu DB phải thay được theo môi trường.
+- Internal key cho `admin-config` không được lộ ra client.
+- Nếu cần chia sẻ local env giữa team, dùng template đã làm sạch secret.
+
+---
+
+### 5. Quy tắc thay đổi config
+
+- Thêm biến mới phải cập nhật `.env.example` tương ứng.
+- Nếu biến ảnh hưởng flow nghiệp vụ hoặc topology, cập nhật thêm `D1` hoặc `D4`.
+- Nếu biến dùng chung giữa platform và Python service, cần ghi rõ owner và default.
+
+---
+
+### 6. Cấu hình tối thiểu để chạy local
+
+| Nhóm | Tối thiểu |
 |------|-----------|
 | Auth | JWT secret, cookie settings |
 | Data | Postgres, MongoDB |
 | Chat dev | `LLM_PROVIDER=ollama`, `LLM_BASE_URL=http://localhost:11434`, `LLM_MODEL=qwen2.5:3b` |
-| RAG dev | embedding/rerank base URL neu bat `start-rag.ps1` |
+| RAG dev | embedding/rerank base URL nếu bật `start-rag.ps1` |
 
-## 7. Gaps hien tai
+---
 
-- Tai lieu 2 may con can chi tiet hoa them khi profile `ai` hoan tat.
-- Mot so tuning connection pool/cache van nam trong code nhieu hon tai lieu env.
+### 7. Gaps hiện tại
+
+- Tài liệu 2 máy còn cần chi tiết hóa thêm khi profile `ai` hoàn tất.
+- Một số tuning connection pool/cache vẫn nằm trong code nhiều hơn tài liệu env.
+- Remote AI host đã có script hỗ trợ (`start-remote-ai.ps1`) nhưng chưa có profile `ai` trong docker-compose.

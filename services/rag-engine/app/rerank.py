@@ -10,9 +10,47 @@ from app.config import (
     RERANK_DOC_MAX_CHARS,
     RERANK_ENABLED,
     RERANK_TOP_K,
+    RERANK_SCORE_FIELD,
 )
 
 logger = logging.getLogger(__name__)
+
+# Common score field names to try if RERANK_SCORE_FIELD is not set
+DEFAULT_SCORE_FIELDS = ["score", "relevance_score", "relevance", "similarity", "confidence"]
+
+
+def _extract_score(item: dict) -> float:
+    """
+    Extract the score from a rerank response item, using the configured field
+    name or falling back to common names.
+    """
+    # If a specific field is configured, use it first
+    if RERANK_SCORE_FIELD:
+        value = item.get(RERANK_SCORE_FIELD)
+        if value is not None:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"Configured score field '{RERANK_SCORE_FIELD}' has non-numeric value: {value}"
+                )
+        else:
+            logger.warning(
+                f"Configured score field '{RERANK_SCORE_FIELD}' not found in item. Falling back to defaults."
+            )
+
+    # Otherwise try common names
+    for field in DEFAULT_SCORE_FIELDS:
+        value = item.get(field)
+        if value is not None:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                continue
+
+    # If all fail, log and return 0.0
+    logger.warning(f"No known score field found in item: {list(item.keys())}")
+    return 0.0
 
 
 def _trim_text(text: str, max_chars: int) -> str:
@@ -104,7 +142,7 @@ async def rerank_citations(query: str, citations: list[dict]) -> list[dict]:
         if idx is None or idx < 0 or idx >= len(citations):
             continue
         row = dict(citations[idx])
-        row["rerank_score"] = item.get("score")
+        row["rerank_score"] = _extract_score(item)
         reranked.append(row)
         if len(reranked) >= RERANK_TOP_K:
             break

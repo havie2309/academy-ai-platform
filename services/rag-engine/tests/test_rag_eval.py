@@ -17,17 +17,21 @@ from app.rag_eval import (  # noqa: E402
     summarize_results,
 )
 from app.retrieval import RetrievalResult
+from app.config import GATEWAY_INTERNAL_SHARED_SECRET
 
 CASES_PATH = Path(__file__).resolve().parents[3] / "eval" / "rag_cases.json"
 
 
 def _request() -> Request:
+    secret_bytes = GATEWAY_INTERNAL_SHARED_SECRET.encode()
     return Request(
         {
             "type": "http",
             "method": "POST",
             "path": "/v1/chat",
-            "headers": [],
+            "headers": [
+                (b"x-gateway-internal-secret", secret_bytes)
+            ],
         }
     )
 
