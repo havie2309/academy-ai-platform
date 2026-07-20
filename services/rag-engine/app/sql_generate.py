@@ -26,6 +26,10 @@ from app.config import (
 )
 from app.generate import LlmError
 from app.sql_catalog import build_few_shot_prompt, build_schema_prompt
+from app.target_resolver import (
+    resolve_sql_target,
+    fallback_targets,
+)
 
 SQL_SYSTEM_PROMPT = """
 Bạn là trợ lý sinh câu lệnh SQL PostgreSQL cho hệ thống đào tạo PM2.
@@ -68,26 +72,8 @@ def _extract_sql(raw: str) -> str:
 
 def _sql_llm_target() -> tuple[str, str, dict[str, str]]:
     """Resolve dedicated LLM target for SQL generation."""
-    provider = SQL_LLM_PROVIDER or ("ollama" if SQL_LLM_BASE_URL else "openai")
-
-    if provider == "openai":
-        if not OPENAI_API_KEY:
-            raise LlmError("Chưa cấu hình OPENAI_API_KEY cho SQL generation.")
-        return (
-            "https://api.openai.com/v1/chat/completions",
-            SQL_OPENAI_MODEL,
-            {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-            },
-        )
-
-    base = (SQL_LLM_BASE_URL or "http://localhost:11434").rstrip("/")
-    return (
-        f"{base}/v1/chat/completions",
-        SQL_LLM_MODEL,
-        {"Content-Type": "application/json"},
-    )
+    target = resolve_sql_target()
+    return (target.url, target.model, target.headers)
 
 
 def build_sql_messages(question: str) -> list[dict[str, str]]:
@@ -120,59 +106,8 @@ async def generate_sql(question: str) -> str:
     return _extract_sql(content)
 
 
-def _sql_llm_target() -> tuple[str, str, dict[str, str]]:
-    """Resolve dedicated LLM target for SQL generation."""
-    target = _resolve_sql_target()
-    return (target.url, target.model, target.headers)
-
-
-def _resolve_sql_target():
-    try:
-        return resolve_chat_target(
-            provider=SQL_LLM_PROVIDER,
-            base_url=SQL_LLM_BASE_URL,
-            model=SQL_LLM_MODEL,
-            openai_api_key=OPENAI_API_KEY,
-            openai_model=SQL_OPENAI_MODEL,
-        )
-    except ValueError as exc:
-        raise LlmError(str(exc)) from exc
-
-
-def _sql_fallback_targets():
-    has_fallback = bool(
-        SQL_LLM_FALLBACK_PROVIDER
-        or SQL_LLM_FALLBACK_BASE_URL
-        or SQL_LLM_FALLBACK_MODEL
-    )
-    if not has_fallback:
-        return []
-
-    provider = SQL_LLM_FALLBACK_PROVIDER or (
-        "ollama" if SQL_LLM_FALLBACK_BASE_URL else "openai"
-    )
-    model = SQL_LLM_FALLBACK_MODEL or (
-        SQL_OPENAI_MODEL if provider == "openai" else SQL_LLM_MODEL
-    )
-    try:
-        fallback = resolve_chat_target(
-            provider=provider,
-            base_url=SQL_LLM_FALLBACK_BASE_URL,
-            model=model,
-            openai_api_key=OPENAI_API_KEY,
-            openai_model=model,
-        )
-    except ValueError as exc:
-        raise LlmError(str(exc)) from exc
-
-    primary = _resolve_sql_target()
-    if (fallback.url, fallback.model) == (primary.url, primary.model):
-        return []
-    return [fallback]
-
-
 async def generate_sql(question: str) -> str:
-    target = _resolve_sql_target()
+    target = resolve_sql_target()
     messages = build_sql_messages(question)
     try:
         data = await create_chat_completion(
@@ -180,7 +115,7 @@ async def generate_sql(question: str) -> str:
             messages,
             temperature=0.1,
             timeout=LLM_TIMEOUT,
-            fallback_targets=_sql_fallback_targets(),
+            fallback_targets=fallback_targets(target),
         )
     except (AIClientError, httpx.HTTPError) as exc:
         raise LlmError(str(exc)) from exc

@@ -325,6 +325,10 @@ export class DocumentsService implements OnModuleInit {
     return createHash('sha256').update(buf).digest('hex')
   }
 
+  private getInternalSecret(): string | undefined {
+    return this.config.get<string>('GATEWAY_INTERNAL_SHARED_SECRET') || undefined;
+  }
+
   async create(
     file: UploadedFileLike,
     meta: {
@@ -1046,10 +1050,15 @@ export class DocumentsService implements OnModuleInit {
       const ragUrl = this.config.get<string>('RAG_ENGINE_URL', 'http://localhost:8000')
       const maxChars = Number(this.config.get('SUMMARY_MAX_CHARS', 1500)) || 1500;
       const url = `${ragUrl.replace(/\/+$/, '')}/v1/summarize/stream`
+      const internalSecret = this.getInternalSecret();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (internalSecret) {
+        headers['x-gateway-internal-secret'] = internalSecret;
+      }
 
       const fetchRes = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           document_id: docId,
           user: {
@@ -1115,6 +1124,93 @@ export class DocumentsService implements OnModuleInit {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không thể tạo tóm tắt.'
       writeSseError(res, message)
+    }
+  }
+
+  /**
+   * Proxy to rag-engine for non-streaming quiz generation.
+   */
+  async generateQuizzes(
+    docId: string,
+    user: RequestUser,
+    type: string,
+    count: number,
+    difficulty: string,
+    forceRefresh: boolean,
+    res: Response,
+  ): Promise<void> {
+    const ragUrl = this.config.get<string>('RAG_ENGINE_URL', 'http://localhost:8000')
+    const url = `${ragUrl.replace(/\/+$/, '')}/v1/quizzes`
+    const internalSecret = this.config.get<string>('GATEWAY_INTERNAL_SHARED_SECRET')
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (internalSecret) {
+      headers['x-gateway-internal-secret'] = internalSecret
+    }
+
+    try {
+      const fetchRes = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          document_id: docId,
+          user: {
+            userId: user.userId,
+            username: user.userId,
+            roles: user.roles,
+            department: user.department,
+            maxSecurityLevel: user.maxSecurityLevel,
+          },
+          type,
+          count,
+          difficulty,
+          force_refresh: forceRefresh,
+          max_chars: Number(this.config.get('QUIZ_MAX_CHARS', 2000)) || 2000,
+        }),
+      })
+      const status = fetchRes.status
+      const body = await fetchRes.text()
+      res.status(status).send(body)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể tạo bài tập.'
+      res.status(500).json({ error: message })
+    }
+  }
+
+  /**
+   * Proxy to rag-engine for quiz status.
+   */
+  async getQuizStatus(
+    docId: string,
+    user: RequestUser,
+    type: string,
+    count: number,
+    difficulty: string,
+    res: Response,
+  ): Promise<void> {
+    const ragUrl = this.config.get<string>('RAG_ENGINE_URL', 'http://localhost:8000')
+    const url = `${ragUrl.replace(/\/+$/, '')}/v1/quizzes/status?document_id=${encodeURIComponent(docId)}&type=${encodeURIComponent(type)}&count=${encodeURIComponent(count)}&difficulty=${encodeURIComponent(difficulty)}`
+    const internalSecret = this.config.get<string>('GATEWAY_INTERNAL_SHARED_SECRET')
+    
+    // Set headers: Accept + Gateway user headers + internal secret
+    const headers: Record<string, string> = {
+      'Accept': 'application/json',
+      'x-gateway-user-id': user.userId,
+      'x-gateway-username': user.userId,
+      'x-gateway-roles': (user.roles || []).join(','),
+      'x-gateway-department': encodeURIComponent(user.department || ''),
+      'x-gateway-max-security-level': String(user.maxSecurityLevel || 1),
+    }
+    if (internalSecret) {
+      headers['x-gateway-internal-secret'] = internalSecret
+    }
+
+    try {
+      const fetchRes = await fetch(url, { headers })
+      const status = fetchRes.status
+      const body = await fetchRes.text()
+      res.status(status).send(body)
+    } catch (err) {
+      res.status(500).json({ error: 'Không thể kiểm tra trạng thái bài tập.' })
     }
   }
 }

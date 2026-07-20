@@ -22,6 +22,7 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
+  BookOpenText,
 } from 'lucide-react'
 import {
   docsApi,
@@ -34,6 +35,7 @@ import { authApi } from '../api/auth'
 import { API_BASE } from '../api/base'
 import { isAdminLikeRole } from '../lib/authz'
 import React from 'react'
+import { Document, Packer, Paragraph, HeadingLevel, AlignmentType } from 'docx'
 
 const UPLOAD_CATEGORIES = ['Quy chế', 'Tài liệu môn học', 'Lịch thi', 'Khác']
 
@@ -583,6 +585,19 @@ export default function DocsPage() {
   const [summaryError, setSummaryError] = useState<string | null>(null)
   const [summaryStreaming, setSummaryStreaming] = useState(false)
 
+  // Quiz modal state
+  const [quizDocId, setQuizDocId] = useState<string | null>(null)
+  const [quizParsed, setQuizParsed] = useState<any[] | null>(null)
+  const [quizLoading, setQuizLoading] = useState(false)
+  const [quizError, setQuizError] = useState<string | null>(null)
+  const [quizGenerated, setQuizGenerated] = useState(false)
+  const [quizType, setQuizType] = useState('multiple_choice')
+  const [quizCount, setQuizCount] = useState(5)
+  const [quizDifficulty, setQuizDifficulty] = useState('medium')
+  const [quizJobStatus, setQuizJobStatus] = useState<'idle' | 'running' | 'completed' | 'not_found'>('idle')
+  const statusPollInterval = useRef<NodeJS.Timeout | null>(null)
+  const previousDocIdRef = useRef<string | null>(null)
+
   const [scopeEditDoc, setScopeEditDoc] = useState<DocItem | null>(null)
   const [scopeEditLevel, setScopeEditLevel] = useState<SecurityLevel>('internal')
   const [scopeEditType, setScopeEditType] = useState<AccessScopeType>('all')
@@ -947,6 +962,240 @@ export default function DocsPage() {
     }
   }
 
+  // Open modal – reset only if opening a different document
+  const openQuizzesModal = (doc: DocItem) => {
+    const newDocId = doc.id
+
+    // If opening a different document, reset state
+    if (previousDocIdRef.current !== newDocId) {
+      setQuizParsed(null)
+      setQuizError(null)
+      setQuizLoading(true) // will be updated by polling
+      setQuizGenerated(false)
+      setQuizJobStatus('idle')
+      previousDocIdRef.current = newDocId
+    } else {
+      // Same document – keep state, just ensure polling is active
+      setQuizLoading(false)
+    }
+    setQuizDocId(newDocId)
+  }
+
+  // Polling effect
+  useEffect(() => {
+    if (!quizDocId) {
+      if (statusPollInterval.current) {
+        clearTimeout(statusPollInterval.current)
+        statusPollInterval.current = null
+      }
+      // DO NOT reset loading/status – keep them for when modal reopens
+      return
+    }
+
+    let isMounted = true
+    let backoff = 3000
+
+    const checkStatus = async () => {
+      if (!isMounted) return
+
+      try {
+        const status = await docsApi.getQuizStatus(quizDocId, {
+          type: quizType,
+          count: quizCount,
+          difficulty: quizDifficulty,
+        })
+
+        if (status.status === 'completed' && status.quizzes) {
+          setQuizParsed(status.quizzes)
+          setQuizGenerated(true)
+          setQuizJobStatus('completed')
+          setQuizLoading(false)
+          if (statusPollInterval.current) {
+            clearTimeout(statusPollInterval.current)
+            statusPollInterval.current = null
+          }
+          return
+        } else if (status.status === 'running') {
+          setQuizJobStatus('running')
+          setQuizLoading(false)
+          setQuizParsed(null)
+          setQuizGenerated(false)
+          scheduleNext()
+        } else {
+          setQuizJobStatus('not_found')
+          setQuizParsed(null)
+          setQuizGenerated(false)
+          setQuizLoading(false)
+          if (statusPollInterval.current) {
+            clearTimeout(statusPollInterval.current)
+            statusPollInterval.current = null
+          }
+          return
+        }
+      } catch (err) {
+        if (err instanceof Error && (err.message.includes('401') || err.message.includes('Unauthorized'))) {
+          setQuizError('Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.')
+          setQuizLoading(false)
+          setQuizJobStatus('not_found')
+          if (statusPollInterval.current) {
+            clearTimeout(statusPollInterval.current)
+            statusPollInterval.current = null
+          }
+          return
+        }
+        backoff = Math.min(backoff * 1.5, 60000)
+        scheduleNext()
+      }
+    }
+
+    const scheduleNext = () => {
+      if (statusPollInterval.current) clearTimeout(statusPollInterval.current)
+      statusPollInterval.current = setTimeout(checkStatus, backoff)
+    }
+
+    // If status is already completed or not_found, don't poll
+    if (quizJobStatus === 'completed' || quizJobStatus === 'not_found') {
+      if (quizJobStatus === 'completed' && !quizParsed) {
+        // We have status completed but no parsed? Shouldn't happen, but fetch anyway
+        checkStatus()
+      }
+      return
+    }
+
+    // Initial check
+    if (quizJobStatus === 'idle') {
+      setQuizLoading(true)
+    }
+    checkStatus()
+    scheduleNext()
+
+    return () => {
+      isMounted = false
+      if (statusPollInterval.current) {
+        clearTimeout(statusPollInterval.current)
+        statusPollInterval.current = null
+      }
+    }
+  }, [quizDocId, quizType, quizCount, quizDifficulty])
+
+  // Generate function
+  const generateQuizzes = async (forceRefresh: boolean = false) => {
+    if (quizLoading || quizJobStatus === 'running' || !quizDocId) {
+      return
+    }
+
+    setQuizLoading(true)
+    setQuizError(null)
+    setQuizParsed(null)
+    setQuizGenerated(false)
+    setQuizJobStatus('running')
+
+    try {
+      const quizzes = await docsApi.generateQuizzes(quizDocId, {
+        type: quizType,
+        count: quizCount,
+        difficulty: quizDifficulty,
+        force_refresh: forceRefresh,
+      })
+      if (quizzes && quizzes.length > 0) {
+        setQuizParsed(quizzes)
+        setQuizGenerated(true)
+        setQuizJobStatus('completed')
+        setQuizLoading(false)
+        if (statusPollInterval.current) {
+          clearTimeout(statusPollInterval.current)
+          statusPollInterval.current = null
+        }
+      } else {
+        // No quizzes returned – fallback to polling
+        setQuizJobStatus('running')
+        setQuizLoading(false)
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('503')) {
+        setQuizJobStatus('running')
+        setQuizLoading(false)
+        return
+      }
+      setQuizError(err instanceof Error ? err.message : 'Không thể tạo bài tập.')
+      setQuizLoading(false)
+      setQuizJobStatus('not_found')
+    }
+  }
+
+  // Close modal – stop polling but preserve state
+  const closeQuizzes = () => {
+    if (statusPollInterval.current) {
+      clearTimeout(statusPollInterval.current)
+      statusPollInterval.current = null
+    }
+    // Set docId to null to hide modal, but keep state for when reopened
+    setQuizDocId(null)
+  }
+
+  const downloadQuizzesAsDocx = () => {
+    if (!quizParsed || quizParsed.length === 0) return;
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: [
+          new Paragraph({
+            text: 'Bài tập từ tài liệu',
+            heading: HeadingLevel.HEADING_1,
+            alignment: AlignmentType.CENTER,
+          }),
+          new Paragraph({ text: `Loại: ${quizType} | Số lượng: ${quizCount} | Độ khó: ${quizDifficulty}`, spacing: { after: 200 } }),
+          ...quizParsed.flatMap((item, idx) => {
+            const children = [
+              new Paragraph({
+                text: `Câu ${idx + 1}: ${item.question}`,
+                heading: HeadingLevel.HEADING_3,
+                spacing: { before: 200, after: 100 },
+              }),
+            ];
+            if (item.options && Array.isArray(item.options)) {
+              item.options.forEach((opt: string, oi: number) => {
+                children.push(new Paragraph({
+                  text: `  ${String.fromCharCode(65 + oi)}. ${opt.replace(/^[A-D]\.\s*/, '')}`,
+                  spacing: { after: 50 },
+                }));
+              });
+            }
+            if (item.answer) {
+              children.push(new Paragraph({
+                text: `Đáp án: ${item.answer}`,
+                spacing: { after: 50 },
+              }));
+            }
+            if (item.explanation) {
+              children.push(new Paragraph({
+                text: `Giải thích: ${item.explanation}`,
+                spacing: { after: 100 },
+              }));
+            }
+            if (item.model_answer) {
+              children.push(new Paragraph({
+                text: `Đáp án gợi ý: ${item.model_answer}`,
+                spacing: { after: 100 },
+              }));
+            }
+            return children;
+          }),
+        ],
+      }],
+    });
+
+    Packer.toBlob(doc).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bai-tap-${quizDocId}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+
   const canDelete = (doc: DocItem) =>
     isAdmin || doc.uploaded_by_id === currentUser?.id
 
@@ -1293,6 +1542,15 @@ export default function DocsPage() {
                       className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
                     >
                       <Sparkles size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openQuizzesModal(doc)}
+                      disabled={doc.ingest_status !== 'completed' || busyId === doc.id}
+                      title={doc.ingest_status === 'completed' ? 'Tạo bài tập từ tài liệu' : 'Chưa thể tạo bài tập'}
+                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-green-50 hover:text-green-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
+                    >
+                      <BookOpenText size={13} />
                     </button>
                     <button
                       type="button"
@@ -1782,6 +2040,187 @@ export default function DocsPage() {
                 type="button"
                 onClick={closeSummary}
                 className="px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-all cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quiz Modal */}
+      {quizDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-3xl max-h-[90vh] bg-white rounded-2xl shadow-xl border border-slate-200 p-6 flex flex-col">
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
+                <BookOpenText className="text-green-500" size={18} />
+                Tạo bài tập từ tài liệu
+              </h2>
+              <button
+                type="button"
+                onClick={closeQuizzes}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="text-sm text-slate-500 mb-4 shrink-0">
+              {docs.find(d => d.id === quizDocId)?.title || 'Tài liệu'}
+            </div>
+
+            {/* Config row – always editable */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 shrink-0 p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Loại:</label>
+                <select
+                  value={quizType}
+                  onChange={(e) => setQuizType(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+                  disabled={quizLoading || quizJobStatus === 'running'}
+                >
+                  <option value="multiple_choice">Trắc nghiệm</option>
+                  <option value="short_answer">Tự luận</option>
+                  <option value="true_false">Đúng/Sai</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Số lượng:</label>
+                <select
+                  value={quizCount}
+                  onChange={(e) => setQuizCount(Number(e.target.value))}
+                  className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+                  disabled={quizLoading || quizJobStatus === 'running'}
+                >
+                  <option value={3}>3</option>
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-semibold text-slate-500">Độ khó:</label>
+                <select
+                  value={quizDifficulty}
+                  onChange={(e) => setQuizDifficulty(e.target.value)}
+                  className="border border-slate-200 rounded-lg px-2 py-1 text-sm bg-white"
+                  disabled={quizLoading || quizJobStatus === 'running'}
+                >
+                  <option value="easy">Dễ</option>
+                  <option value="medium">Trung bình</option>
+                  <option value="hard">Khó</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => generateQuizzes(quizGenerated)}
+                disabled={quizLoading || quizJobStatus === 'running' || !quizDocId}
+                className="ml-auto px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all disabled:opacity-50"
+              >
+                {quizGenerated ? 'Tạo lại (ngẫu nhiên mới)' : 'Tạo bài tập'}
+              </button>
+            </div>
+
+            {/* Content area */}
+            <div className="flex-1 overflow-y-auto bg-slate-50 rounded-xl p-4 border border-slate-200 min-h-[200px] max-h-[500px]">
+              {/* Loading: initial check or generation in progress */}
+              {(quizLoading || quizJobStatus === 'idle' || quizJobStatus === 'running') && !quizParsed && (
+                <div className="flex items-center justify-center h-full text-slate-400">
+                  <Loader2 className="animate-spin mr-2" size={20} />
+                  <span>
+                    {quizJobStatus === 'running'
+                      ? 'Đang tạo bài tập (ngầm)...'
+                      : quizLoading
+                      ? 'Đang tạo bài tập...'
+                      : 'Đang kiểm tra...'}
+                  </span>
+                </div>
+              )}
+
+              {/* Error */}
+              {quizError && (
+                <div className="text-red-600 text-sm">
+                  <AlertCircle size={16} className="inline mr-2" />
+                  {quizError}
+                </div>
+              )}
+
+              {/* Parsed quizzes */}
+              {quizParsed && quizParsed.length > 0 && (
+                <div className="space-y-6">
+                  {/* Render quizzes as before */}
+                  {quizParsed.map((item, idx) => (
+                    <div key={idx} className="border-l-4 border-green-400 pl-4 bg-white p-4 rounded-lg shadow-sm">
+                      <p className="font-semibold text-slate-800">
+                        Câu {idx + 1}: {item.question}
+                      </p>
+                      {item.options && Array.isArray(item.options) && (
+                        <ul className="mt-2 space-y-1 text-sm text-slate-600">
+                          {item.options.map((opt: string, oi: number) => (
+                            <li key={oi} className="flex items-start gap-2">
+                              <span className="font-mono text-xs text-slate-400">
+                                {String.fromCharCode(65 + oi)}.
+                              </span>
+                              <span>{opt.replace(/^[A-D]\.\s*/, '')}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.answer && (
+                        <p className="mt-2 text-sm font-semibold text-green-700">
+                          Đáp án: {item.answer}
+                        </p>
+                      )}
+                      {item.explanation && (
+                        <p className="mt-1 text-xs text-slate-500 bg-slate-50 p-2 rounded">
+                          💡 {item.explanation}
+                        </p>
+                      )}
+                      {item.model_answer && (
+                        <p className="mt-2 text-sm text-slate-700 bg-slate-50 p-2 rounded">
+                          📝 {item.model_answer}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty state – only when not loading, not running, no error, no parsed */}
+              {!quizParsed && !quizLoading && quizJobStatus === 'not_found' && !quizError && (
+                <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                  Chọn cấu hình và nhấn "Tạo bài tập".
+                </div>
+              )}
+            </div>
+
+            {/* Footer with copy and close */}
+            <div className="mt-4 flex justify-end gap-2 shrink-0 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (quizParsed) {
+                    navigator.clipboard?.writeText(JSON.stringify(quizParsed, null, 2))
+                      .catch(() => {})
+                  }
+                }}
+                disabled={!quizParsed}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-semibold hover:bg-slate-200 transition-all cursor-pointer disabled:opacity-40"
+              >
+                Sao chép (JSON)
+              </button>
+              <button
+                type="button"
+                onClick={downloadQuizzesAsDocx}
+                disabled={!quizParsed}
+                className="px-4 py-2 rounded-xl bg-blue-50 text-blue-600 text-sm font-semibold hover:bg-blue-100 transition-all cursor-pointer disabled:opacity-40"
+              >
+                Tải DOCX
+              </button>
+              <button
+                type="button"
+                onClick={closeQuizzes}
+                className="px-4 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-all cursor-pointer"
               >
                 Đóng
               </button>
