@@ -47,6 +47,20 @@ def _citation_ids(citations: List[dict], key: str = "chunk_id") -> Set[str]:
     return {_compact_ws(c.get(key)) for c in citations if _compact_ws(c.get(key))}
 
 
+def _remove_markdown(text: str) -> str:
+    """Remove common markdown formatting (bold, italic, headers, links, inline code)."""
+    # Remove bold/italic
+    text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+    text = re.sub(r'\*(.+?)\*', r'\1', text)
+    # Remove headers
+    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+    # Remove links
+    text = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', text)
+    # Remove inline code
+    text = re.sub(r'`(.+?)`', r'\1', text)
+    return text
+
+
 def evaluate_response(
     response: dict,
     expected: dict,
@@ -59,7 +73,6 @@ def evaluate_response(
     For authority cases (acceptable_doc_ids or forbidden_doc_id present),
     citation correctness is based on document IDs, not chunk IDs.
     """
-    answer = _compact_ws(response.get("answer"))
     citations = response.get("citations") if isinstance(response.get("citations"), list) else []
 
     actual_chunk_ids = _citation_ids(citations, "chunk_id")
@@ -69,10 +82,15 @@ def evaluate_response(
         _compact_ws(cid) for cid in expected.get("citation_chunk_ids", []) if _compact_ws(cid)
     )
     expected_refusal = bool(expected.get("refusal", False))
+    
+    answer = _compact_ws(response.get("answer"))
+    answer_clean = _remove_markdown(answer)
+    folded_answer = _fold(answer_clean)
+
     missing_terms = [
         term
         for term in expected.get("answer_contains", [])
-        if _fold(term) not in _fold(answer)
+        if _fold(term) not in folded_answer
     ]
     refusal_detected = is_refusal_answer(answer)
 

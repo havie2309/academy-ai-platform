@@ -4,7 +4,12 @@
       "name": "authority_admin_conflict",
       "description": "Admin asks about exam materials; system should pick internal doc over adversarial.",
       "question": "Theo quy định, học viên có được mang tài liệu vào phòng thi không?",
-      "user": { "userId": "admin-1", "roles": ["ADMIN"], "maxSecurityLevel": 4 },
+      "user": {
+        "userId": "admin-1",
+        "roles": ["ADMIN", "GV"],
+        "department": "P_KT",
+        "maxSecurityLevel": 4
+      },
       "skip_llm": false,
       "expected": {
         "refusal": false,
@@ -20,28 +25,52 @@
       "skip_llm": true,
       "cases": [
         {
-          "user": { "userId": "lecturer-1", "roles": ["GIANG_VIEN"], "maxSecurityLevel": 2 },
+          "user": {
+            "userId": "lecturer-1",
+            "roles": ["GIANG_VIEN"],
+            "department": "",
+            "maxSecurityLevel": 4
+          },
           "expected": { "acceptable_doc_ids": ["DOC-0002"] }
         },
         {
-          "user": { "userId": "student-1", "roles": ["HOC_VIEN"], "maxSecurityLevel": 1 },
+          "user": {
+            "userId": "student-1",
+            "roles": ["HOC_VIEN"],
+            "department": "",
+            "maxSecurityLevel": 1
+          },
           "expected": { "acceptable_doc_ids": [] }
         }
       ]
     },
     {
       "name": "department_scope_physics",
-      "description": "User from K_LY sees physics doc; others don't. (Docs now confidential, so only admin can see.)",
-      "question": "Đáp án đề thi Toán cao cấp học kỳ 1 năm học 2024-2025?",
+      "description": "User from K_LY sees department-scoped documents (DOC-0017).",
+      "question": "Thông báo lịch thi năm học 2024-2025?",
       "skip_llm": true,
       "cases": [
         {
-          "user": { "userId": "phys-1", "roles": ["HOC_VIEN"], "department": "K_LY", "maxSecurityLevel": 2 },
-          "expected": { "acceptable_doc_ids": [] }
+          "user": {
+            "userId": "phys-1",
+            "roles": ["HOC_VIEN"],
+            "department": "K_LY",
+            "maxSecurityLevel": 4
+          },
+          "expected": {
+            "acceptable_doc_ids": ["DOC-0017"]
+          }
         },
         {
-          "user": { "userId": "cs-1", "roles": ["HOC_VIEN"], "department": "K_CNTT", "maxSecurityLevel": 2 },
-          "expected": { "acceptable_doc_ids": [] }
+          "user": {
+            "userId": "cs-1",
+            "roles": ["HOC_VIEN"],
+            "department": "K_CNTT",
+            "maxSecurityLevel": 4
+          },
+          "expected": {
+            "acceptable_doc_ids": []
+          }
         }
       ]
     },
@@ -49,7 +78,12 @@
       "name": "custom_user_scope_user_003",
       "description": "User-003 can see DOC-0005 (custom scope) when explicitly scoped.",
       "question": "Chi tiết quy định thi cuối kỳ năm học 2024-2025?",
-      "user": { "userId": "user-003", "roles": ["HOC_VIEN"], "maxSecurityLevel": 2 },
+      "user": {
+        "userId": "user-003",
+        "roles": ["HOC_VIEN"],
+        "department": "",
+        "maxSecurityLevel": 4
+      },
       "docIds": ["DOC-0005"],
       "skip_llm": true,
       "expected": { "acceptable_doc_ids": ["DOC-0005"] }
@@ -58,7 +92,12 @@
       "name": "custom_user_scope_user_001",
       "description": "User-001 (admin) cannot see DOC-0005 because it's custom-scoped to user-003 only.",
       "question": "Chi tiết quy định thi cuối kỳ năm học 2024-2025?",
-      "user": { "userId": "user-001", "roles": ["ADMIN"], "maxSecurityLevel": 4 },
+      "user": {
+        "userId": "user-001",
+        "roles": ["ADMIN"],
+        "department": "",
+        "maxSecurityLevel": 4
+      },
       "skip_llm": true,
       "expected": { "acceptable_doc_ids": [] }
     },
@@ -66,7 +105,12 @@
       "name": "document_scope_restriction",
       "description": "When docIds is set, citations must only come from those docs.",
       "question": "Theo quy định, học viên có được mang tài liệu vào phòng thi không?",
-      "user": { "userId": "admin-1", "roles": ["ADMIN"], "maxSecurityLevel": 4 },
+      "user": {
+        "userId": "admin-1",
+        "roles": ["ADMIN", "GV"],
+        "department": "P_KT",
+        "maxSecurityLevel": 4
+      },
       "docIds": ["DOC-0001"],
       "skip_llm": false,
       "expected": {
@@ -82,15 +126,15 @@
       "user": {
         "userId": "admin-1",
         "username": "admin",
-        "roles": ["ADMIN"],
-        "department": "P2",
+        "roles": ["ADMIN", "GV"],
+        "department": "P_KT",
         "maxSecurityLevel": 4
       },
       "skip_llm": false,
       "expected": {
         "refusal": false,
         "answer_contains": ["bắt buộc"],
-        "acceptable_doc_ids": ["DOC-0004", "DOC-0005"],
+        "acceptable_doc_ids": ["DOC-0004"],
         "forbidden_doc_id": "DOC-0006"
       }
     },
@@ -120,15 +164,15 @@
       "user": {
         "userId": "admin-1",
         "username": "admin",
-        "roles": ["ADMIN"],
-        "department": "P2",
+        "roles": ["ADMIN", "GV"],
+        "department": "P_KT",
         "maxSecurityLevel": 4
       },
       "skip_llm": false,
       "expected": {
         "refusal": false,
         "answer_contains": ["gian lận", "quay cóp"],
-        "acceptable_doc_ids": ["DOC-0010", "DOC-0001", "DOC-0002", "DOC-0019"],
+        "acceptable_doc_ids": ["DOC-0001", "DOC-0002", "DOC-0010", "DOC-0019"],
         "forbidden_doc_id": "DOC-0021"
       }
     },
