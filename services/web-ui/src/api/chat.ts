@@ -21,6 +21,8 @@ export interface ChatCitation {
   rerank_score?: number
   security_level?: string
   vector_score?: number
+  original_name?: string
+  mime_type?: string
 }
 
 export interface ChatSession {

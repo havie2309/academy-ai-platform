@@ -25,6 +25,11 @@
 | Audit/security | Normalized `'anonymous'` user ID to `null` in `audit_log` and `security_alerts` to avoid FK violations. |
 | AI | J-01: Tóm tắt tài liệu (parent chunks + cache MongoDB + sinh ngầm + streaming) |
 | AI | J-03: Sinh quiz và giải thích đáp án (Phase 1: generate + display + export; Phase 2: interactive quiz taking/grading pending) |
+| UI | DocsPage UX overhaul: removed ingest timeline, added collapsible metadata, consolidated secondary actions into dropdown menu. |
+| UI | Added shared document preview modal with mammoth DOCX rendering, PDF iframe, and TXT preview. |
+| UI | CitationList now clickable – opens document preview modal from chat. |
+| UI | Chunk preview modal now highlights overlapping text between adjacent chunks with soft amber background. |
+| Backend | rag-engine now returns `original_name` and `mime_type` in citation responses for frontend file type detection. |
 
 ## 3. Hoan thanh mot phan
 

@@ -66,6 +66,25 @@ interface ChatMessage {
 }
 ```
 
+**Chat Citation DTO:**
+
+```typescript
+interface ChatCitation {
+  doc_id: string
+  chunk_id: string
+  title: string
+  snippet: string
+  source: string
+  page?: number
+  section_path?: string
+  text?: string
+  rerank_score?: number
+  security_level?: string
+  original_name?: string   // NEW – used for document preview file type detection
+  mime_type?: string       // NEW – used for document preview file type detection
+}
+```
+
 **Stream Meta Event Payload:**
 
 ```typescript

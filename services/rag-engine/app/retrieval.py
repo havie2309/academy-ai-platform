@@ -451,7 +451,13 @@ async def retrieve_citations(
     citations = []
     for row in filtered_parents:
         best_score = parent_best_scores.get(row.get("chunkId", ""), None)
-        citations.append(_build_citation(row, row.get("chunkId"), best_score))
+        doc_id = row.get("documentId", "")
+        doc_meta = documents_by_id.get(doc_id, {})
+        citation = _build_citation(row, row.get("chunkId"), best_score)
+        # Add document metadata
+        citation["original_name"] = doc_meta.get("originalName", "")
+        citation["mime_type"] = doc_meta.get("mimeType", "")
+        citations.append(citation)
 
     reranked = await rerank_citations(query_text, citations)
     max_score = max((c.get("rerank_score") for c in reranked if c.get("rerank_score") is not None), default=None)
