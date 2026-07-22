@@ -79,6 +79,25 @@ function parseSseBlock(
 }
 
 export const chatApi = {
+  async submitFeedback(
+    sessionId: string,
+    messageId: string,
+    rating: 1 | -1,
+    chunkIds: string[],
+  ): Promise<void> {
+    await fetchWithAuth('/api/rag/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        message_id: messageId,
+        rating,
+        chunk_ids: chunkIds,
+      }),
+    })
+  },
+
+
   async listSessions(): Promise<ChatSession[]> {
     const res = await fetchWithAuth('/api/chat/sessions', {
       headers: { Accept: 'application/json' },
