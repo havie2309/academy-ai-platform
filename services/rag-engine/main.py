@@ -12,10 +12,13 @@ from pydantic import BaseModel, Field
 from app.cache import RedisCache
 from app.config import (
     GATEWAY_INTERNAL_SHARED_SECRET,
+    MONGO_DB,
+    MONGO_URI,
     SESSION_CONTEXT_MAX_MESSAGES,
     SUMMARY_MAX_CHARS,
     QUIZ_MAX_CHARS,
 )
+from pymongo import MongoClient
 from app.quizzes import check_document_permission, get_quiz_status, generate_quizzes
 from app.generate import LlmError, complete_chat_structured, complete_task_assist, stream_chat
 from app.guardrails.document_security import build_document_security_refusal
@@ -59,6 +62,13 @@ class RetrieveRequest(BaseModel):
     user: RetrieveUser | None = None
     # Optional document scope (intersected with the caller's ACL).
     docIds: list[str] = []
+
+
+class FeedbackRequest(BaseModel):
+    session_id: str | None = None
+    message_id: str | None = None
+    rating: int = Field(..., description="1 = helpful, -1 = not helpful")
+    chunk_ids: list[str] = []
 
 
 class ChatMessage(BaseModel):
@@ -944,3 +954,60 @@ async def quizzes_status(
         raise HTTPException(404, str(e))
 
     return get_quiz_status(document_id, type, count, difficulty)
+
+
+@app.post("/v1/feedback")
+async def submit_feedback(body: FeedbackRequest, request: Request):
+    """Record thumbs-up / thumbs-down on an assistant answer.
+
+    Negative feedback (rating=-1) penalises every cited chunk so that future
+    retrievals deprioritise them.  Positive feedback (rating=1) removes any
+    existing penalty.
+    """
+    user = _gateway_user(request)
+    if user is None:
+        raise HTTPException(401, "missing user context")
+
+    if body.rating not in (1, -1):
+        raise HTTPException(400, "rating must be 1 or -1")
+
+    chunk_ids = [c.strip() for c in body.chunk_ids if c and c.strip()]
+    if not chunk_ids:
+        return {"ok": True, "penalized": 0}
+
+    penalized = body.rating == -1
+    now = datetime.now(timezone.utc)
+
+    try:
+        client: MongoClient = MongoClient(MONGO_URI)
+        db = client[MONGO_DB]
+        try:
+            ops = [
+                {
+                    "filter": {"chunk_id": cid, "user_id": user.userId},
+                    "update": {
+                        "$set": {
+                            "chunk_id": cid,
+                            "user_id": user.userId,
+                            "session_id": body.session_id,
+                            "message_id": body.message_id,
+                            "penalized": penalized,
+                            "updated_at": now,
+                        },
+                        "$setOnInsert": {"created_at": now},
+                    },
+                    "upsert": True,
+                }
+                for cid in chunk_ids
+            ]
+            for op in ops:
+                db.chunk_feedback.update_one(
+                    op["filter"], op["update"], upsert=op["upsert"]
+                )
+        finally:
+            client.close()
+    except Exception as exc:
+        logger.error("Failed to save feedback: %s", exc)
+        raise HTTPException(500, "feedback storage failed")
+
+    return {"ok": True, "penalized": len(chunk_ids) if penalized else 0}

@@ -21,6 +21,8 @@ export interface ChatCitation {
   rerank_score?: number
   security_level?: string
   vector_score?: number
+  original_name?: string
+  mime_type?: string
 }
 
 export interface ChatSession {
@@ -80,6 +82,24 @@ function parseSseBlock(
 }
 
 export const chatApi = {
+  async submitFeedback(
+    sessionId: string,
+    messageId: string,
+    rating: 1 | -1,
+    chunkIds: string[],
+  ): Promise<void> {
+    await fetchWithAuth('/api/rag/v1/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        message_id: messageId,
+        rating,
+        chunk_ids: chunkIds,
+      }),
+    })
+  },
+
   async listSessions(personalFolderId?: string): Promise<ChatSession[]> {
     const query = personalFolderId
       ? `?personal_folder_id=${encodeURIComponent(personalFolderId)}`

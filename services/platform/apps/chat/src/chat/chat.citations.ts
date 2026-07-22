@@ -8,6 +8,8 @@ export interface ChatCitationDto {
   section_path?: string
   /** Full chunk text used as LLM grounding context. Stripped before sending to the client. */
   text?: string
+  original_name?: string
+  mime_type?: string
 }
 
 /** Stub retrieval fallback when RAG engine is unavailable. */

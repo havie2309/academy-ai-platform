@@ -23,6 +23,7 @@ import {
   AlertCircle,
   Sparkles,
   BookOpenText,
+  MoreVertical, // Added import for dropdown
 } from 'lucide-react'
 import {
   docsApi,
@@ -34,6 +35,9 @@ import {
 import { authApi } from '../api/auth'
 import { API_BASE } from '../api/base'
 import { isAdminLikeRole } from '../lib/authz'
+import { useDocumentPreview } from '../hooks/useDocumentPreview'
+import DocumentPreviewModal from '../components/DocumentPreviewModal'
+
 import React from 'react'
 import { Document, Packer, Paragraph, HeadingLevel, AlignmentType } from 'docx'
 
@@ -65,15 +69,8 @@ const ROLE_OPTIONS: { code: string; label: string }[] = [
   { code: 'HOC_VIEN', label: 'Học viên' },
 ]
 
-const STAGE_ORDER = ['queued', 'extract', 'chunk', 'embed', 'index', 'done']
-const STAGE_LABELS: Record<string, string> = {
-  queued: 'Chờ xử lý',
-  extract: 'Trích xuất',
-  chunk: 'Chia đoạn',
-  embed: 'Vector hóa',
-  index: 'Chỉ mục',
-  done: 'Hoàn tất',
-}
+// Removed STAGE_ORDER and STAGE_LABELS since we are removing the timeline
+
 interface VungDuLieuData {
   user: {
     userId: string
@@ -554,6 +551,22 @@ export default function DocsPage() {
   const [selectedCat, setSelectedCat] = useState('Tất cả')
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  // New state for compact UX
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(new Set())
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdownId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const [uploadOpen, setUploadOpen] = useState(false)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [uploadTitle, setUploadTitle] = useState('')
@@ -597,6 +610,8 @@ export default function DocsPage() {
   const [quizJobStatus, setQuizJobStatus] = useState<'idle' | 'running' | 'completed' | 'not_found'>('idle')
   const statusPollInterval = useRef<NodeJS.Timeout | null>(null)
   const previousDocIdRef = useRef<string | null>(null)
+
+  const { preview, openPreview, closePreview } = useDocumentPreview()
 
   const [scopeEditDoc, setScopeEditDoc] = useState<DocItem | null>(null)
   const [scopeEditLevel, setScopeEditLevel] = useState<SecurityLevel>('internal')
@@ -811,17 +826,20 @@ export default function DocsPage() {
   const openDoc = async (doc: DocItem, download = false) => {
     setBusyId(doc.id)
     try {
-      const blob = await docsApi.fetchBlob(doc.id)
-      const url = URL.createObjectURL(blob)
       if (download) {
+        const blob = await docsApi.fetchBlob(doc.id)
+        const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
         a.download = doc.original_name
         a.click()
-      } else {
-        window.open(url, '_blank', 'noopener')
+        setTimeout(() => URL.revokeObjectURL(url), 60_000)
+        setBusyId(null)
+        return
       }
-      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+
+      // Use shared preview hook for all formats (DOCX, PDF, TXT, etc.)
+      await openPreview(doc.id, doc.title, doc.original_name)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không mở được tài liệu.')
     } finally {
@@ -842,7 +860,7 @@ export default function DocsPage() {
     }
   }
 
-  const openPreview = async (doc: DocItem) => {
+  const openPreviewChunk = async (doc: DocItem) => {
     setPreviewDocId(doc.id)
     setPreviewLoading(true)
     setPreviewChunks([])
@@ -1231,6 +1249,22 @@ export default function DocsPage() {
     }
   }
 
+  const toggleDetails = (id: string) => {
+    setExpandedDetails(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
+
+  const toggleDropdown = (id: string) => {
+    setOpenDropdownId(prev => prev === id ? null : id)
+  }
+
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-6 md:p-8 overflow-y-auto">
       <input
@@ -1240,8 +1274,6 @@ export default function DocsPage() {
         accept=".pdf,.docx,.pptx,.xlsx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain"
         onChange={onFileChosen}
       />
-
-      
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
@@ -1334,7 +1366,7 @@ export default function DocsPage() {
       {/* Tab Content */}
       {activeTab === 'documents' ? (
         // ============================================================
-        // DOCUMENTS TAB (your existing content)
+        // DOCUMENTS TAB
         // ============================================================
         <>
           {error && (
@@ -1392,200 +1424,181 @@ export default function DocsPage() {
             </div>
           ) : filteredDocs.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredDocs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-200/60 transition-all group"
-                >
-                  <div className="flex items-start justify-between gap-3 mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
-                      <FileText size={20} />
-                    </div>
-                    <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wide">
-                      {fileTypeLabel(doc.original_name)}
-                    </span>
-                  </div>
+              {filteredDocs.map((doc) => {
+                const isExpanded = expandedDetails.has(doc.id);
+                const isBusy = busyId === doc.id;
+                
+                // Determine status color for the simplified pill
+                let statusColorClass = 'bg-slate-100 text-slate-600';
+                let statusIcon = null;
+                if (doc.ingest_status === 'completed') {
+                  statusColorClass = 'bg-emerald-100 text-emerald-700';
+                  statusIcon = <CheckCircle size={12} />;
+                } else if (doc.ingest_status === 'processing') {
+                  statusColorClass = 'bg-amber-100 text-amber-700';
+                  statusIcon = <Loader2 size={12} className="animate-spin" />;
+                } else if (doc.ingest_status === 'failed') {
+                  statusColorClass = 'bg-red-100 text-red-700';
+                  statusIcon = <AlertCircle size={12} />;
+                }
 
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide">{doc.category}</span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${securityMeta(doc.security_level).badge}`}>
-                      {securityMeta(doc.security_level).label}
-                    </span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wide ${ingestMeta(doc.ingest_status).badge}`}>
-                      {ingestMeta(doc.ingest_status).label}
-                    </span>
-                  </div>
-                  <h3 className="text-slate-800 font-bold text-sm leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-3 min-h-[40px]">
-                    {doc.title}
-                  </h3>
-                  {/* Ingest timeline */}
-                  {doc.ingest_status && (
-                    <div className="-mt-5 mb-2">
-                      <div className="flex items-center gap-1">
-                        {STAGE_ORDER.map((stage, idx) => {
-                          const currentIndex = STAGE_ORDER.indexOf(doc.ingest_stage || 'queued')
-                          const isDone = doc.ingest_status === 'completed'
-                          const isActive = stage === doc.ingest_stage
-                          const isPast = STAGE_ORDER.indexOf(stage) <= currentIndex
-                          const isFailed = doc.ingest_status === 'failed'
-
-                          return (
-                            <React.Fragment key={stage}>
-                              <div
-                                className={`flex flex-col items-center flex-1 ${
-                                  isFailed
-                                    ? 'text-red-400'
-                                    : isDone || isPast
-                                    ? 'text-emerald-500'
-                                    : isActive
-                                    ? 'text-blue-500'
-                                    : 'text-slate-300'
-                                }`}
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex flex-col bg-white border border-slate-200/60 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-blue-200/60 transition-all group relative"
+                    ref={openDropdownId === doc.id ? dropdownRef : null}
+                  >
+                    {/* Card Header: Icon, Type Badge, Dropdown */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-100 transition-colors">
+                        <FileText size={20} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold px-2 py-1 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wide">
+                          {fileTypeLabel(doc.original_name)}
+                        </span>
+                        
+                        {/* Secondary Actions Dropdown */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => toggleDropdown(doc.id)}
+                            className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                          >
+                            <MoreVertical size={16} />
+                          </button>
+                          {openDropdownId === doc.id && (
+                            <div className="absolute right-0 top-8 z-20 w-40 bg-white border border-slate-200 rounded-xl shadow-xl p-1.5 flex flex-col gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => { setOpenDropdownId(null); openPreviewChunk(doc); }}
+                                disabled={doc.ingest_status !== 'completed'}
+                                className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs font-semibold rounded-lg hover:bg-slate-50 text-slate-700 disabled:opacity-40 cursor-pointer disabled:cursor-default"
                               >
-                                <div
-                                  className={`w-5 h-5 rounded-full flex items-center justify-center border-2 ${
-                                    isFailed
-                                      ? 'border-red-400 bg-red-50'
-                                      : isDone || isPast
-                                      ? 'border-emerald-500 bg-emerald-50'
-                                      : isActive
-                                      ? 'border-blue-500 bg-blue-50'
-                                      : 'border-slate-200 bg-slate-50'
-                                  }`}
+                                <Eye size={14} /> Xem chunks
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setOpenDropdownId(null); openSummary(doc); }}
+                                disabled={doc.ingest_status !== 'completed' || isBusy}
+                                className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs font-semibold rounded-lg hover:bg-slate-50 text-slate-700 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                              >
+                                <Sparkles size={14} /> Tóm tắt
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setOpenDropdownId(null); openQuizzesModal(doc); }}
+                                disabled={doc.ingest_status !== 'completed' || isBusy}
+                                className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs font-semibold rounded-lg hover:bg-slate-50 text-slate-700 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                              >
+                                <BookOpenText size={14} /> Tạo quiz
+                              </button>
+                              {canEditScope(doc) && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenDropdownId(null); openScopeEdit(doc); }}
+                                  disabled={isBusy}
+                                  className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs font-semibold rounded-lg hover:bg-slate-50 text-slate-700 disabled:opacity-40 cursor-pointer disabled:cursor-default"
                                 >
-                                  {isFailed ? (
-                                    <AlertCircle size={12} />
-                                  ) : isDone || isPast ? (
-                                    <CheckCircle size={12} />
-                                  ) : isActive ? (
-                                    <Loader2 size={12} className="animate-spin" />
-                                  ) : (
-                                    <div className="w-2 h-2 rounded-full bg-slate-300" />
-                                  )}
-                                </div>
-                                <span className="text-[8px] mt-0.5 whitespace-nowrap">
-                                  {STAGE_LABELS[stage] || stage}
-                                </span>
-                              </div>
-                              {idx < STAGE_ORDER.length - 1 && (
-                                <div
-                                  className={`h-0.5 flex-1 ${
-                                    isFailed
-                                      ? 'bg-red-200'
-                                      : isDone || STAGE_ORDER.indexOf(stage) < currentIndex
-                                      ? 'bg-emerald-300'
-                                      : 'bg-slate-200'
-                                  }`}
-                                />
+                                  <Settings2 size={14} /> Sửa quyền
+                                </button>
                               )}
-                            </React.Fragment>
-                          )
-                        })}
+                              {canDelete(doc) && (
+                                <button
+                                  type="button"
+                                  onClick={() => { setOpenDropdownId(null); deleteDoc(doc); }}
+                                  disabled={isBusy}
+                                  className="flex items-center gap-2 px-3 py-1.5 w-full text-left text-xs font-semibold rounded-lg hover:bg-red-50 text-red-600 disabled:opacity-40 cursor-pointer disabled:cursor-default"
+                                >
+                                  <Trash2 size={14} /> Xóa
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  )}
 
-                  <div className="space-y-1.5 mb-5 text-xs text-slate-400">
-                    <div className="flex justify-between">
-                      <span>Người tải</span>
-                      <span className="font-semibold text-slate-600 truncate max-w-[60%]">{doc.uploaded_by}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Ngày tải</span>
-                      <span className="font-semibold text-slate-600">{formatDate(doc.created_at)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Dung lượng</span>
-                      <span className="font-semibold text-slate-600">{formatSize(doc.size)}</span>
-                    </div>
-                    {doc.ingest_status === 'completed' && (doc.chunk_count ?? 0) > 0 && (
-                      <div className="flex justify-between">
-                        <span>Chunks</span>
-                        <span className="font-semibold text-emerald-600">{doc.chunk_count}</span>
-                      </div>
-                    )}
-                    {doc.ingest_status === 'processing' && doc.ingest_stage && (
-                      <div className="flex justify-between">
-                        <span>Giai đoạn</span>
-                        <span className="font-semibold text-amber-600">{doc.ingest_stage}</span>
-                      </div>
-                    )}
-                    {doc.ingest_status === 'failed' && doc.ingest_error && (
-                      <p className="text-red-500 text-[11px] leading-snug">{doc.ingest_error}</p>
-                    )}
-                  </div>
+                    {/* Title */}
+                    <h3 className="text-slate-800 font-bold text-base leading-snug group-hover:text-blue-600 transition-colors line-clamp-2 mb-2 min-h-[40px]">
+                      {doc.title}
+                    </h3>
 
-                  <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
+                    {/* Simplified Badge Row */}
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                      <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide bg-blue-50 px-2 py-0.5 rounded-md">{doc.category}</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide ${securityMeta(doc.security_level).badge}`}>
+                        {securityMeta(doc.security_level).label}
+                      </span>
+                      <span className={`text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-full uppercase tracking-wide ${statusColorClass}`}>
+                        {statusIcon}
+                        {doc.ingest_status === 'processing' ? doc.ingest_stage : ingestMeta(doc.ingest_status).label}
+                      </span>
+                    </div>
+
+                    {/* "Chi tiết" toggle */}
                     <button
                       type="button"
-                      onClick={() => openDoc(doc, false)}
-                      disabled={busyId === doc.id || isAnonymous}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
+                      onClick={() => toggleDetails(doc.id)}
+                      className="w-fit flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-blue-600 transition-colors mb-3 cursor-pointer"
                     >
-                      {busyId === doc.id ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
-                      Xem online
+                      {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
+                      <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openPreview(doc)}
-                      disabled={doc.ingest_status !== 'completed'}
-                      title={doc.ingest_status === 'completed' ? 'Xem chunks' : 'Chưa có chunks'}
-                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
-                    >
-                      <Eye size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openSummary(doc)}
-                      disabled={doc.ingest_status !== 'completed' || busyId === doc.id}
-                      title={doc.ingest_status === 'completed' ? 'Tóm tắt tài liệu' : 'Chưa có chunks để tóm tắt'}
-                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-amber-50 hover:text-amber-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
-                    >
-                      <Sparkles size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openQuizzesModal(doc)}
-                      disabled={doc.ingest_status !== 'completed' || busyId === doc.id}
-                      title={doc.ingest_status === 'completed' ? 'Tạo bài tập từ tài liệu' : 'Chưa thể tạo bài tập'}
-                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-green-50 hover:text-green-600 transition-all cursor-pointer disabled:opacity-40 disabled:hover:bg-slate-50 disabled:hover:text-slate-500"
-                    >
-                      <BookOpenText size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openDoc(doc, true)}
-                      disabled={busyId === doc.id}
-                      title="Tải về"
-                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-all cursor-pointer disabled:opacity-50"
-                    >
-                      <Download size={13} />
-                    </button>
-                    {canEditScope(doc) && (
+
+                    {/* Collapsible Metadata */}
+                    {isExpanded && (
+                      <div className="space-y-1.5 mb-4 text-xs text-slate-400 bg-slate-50/50 p-3 rounded-xl border border-slate-100/50">
+                        <div className="flex justify-between">
+                          <span>Người tải</span>
+                          <span className="font-semibold text-slate-600 truncate max-w-[60%]">{doc.uploaded_by}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Ngày tải</span>
+                          <span className="font-semibold text-slate-600">{formatDate(doc.created_at)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Dung lượng</span>
+                          <span className="font-semibold text-slate-600">{formatSize(doc.size)}</span>
+                        </div>
+                        {doc.ingest_status === 'completed' && (doc.chunk_count ?? 0) > 0 && (
+                          <div className="flex justify-between">
+                            <span>Chunks</span>
+                            <span className="font-semibold text-emerald-600">{doc.chunk_count}</span>
+                          </div>
+                        )}
+                        {doc.ingest_status === 'failed' && doc.ingest_error && (
+                          <p className="text-red-500 text-[11px] leading-snug pt-1 border-t border-red-100/50 mt-1">
+                            {doc.ingest_error}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Primary Action Row */}
+                    <div className="flex gap-2 mt-auto pt-3 border-t border-slate-100">
                       <button
                         type="button"
-                        onClick={() => openScopeEdit(doc)}
-                        disabled={busyId === doc.id}
-                        title="Sửa quyền truy cập"
-                        className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-violet-50 hover:text-violet-600 transition-all cursor-pointer disabled:opacity-50"
+                        onClick={() => openDoc(doc, false)}
+                        disabled={isBusy || isAnonymous}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-default"
                       >
-                        <Settings2 size={13} />
+                        {isBusy ? <Loader2 size={12} className="animate-spin" /> : <ExternalLink size={12} />}
+                        Xem online
                       </button>
-                    )}
-                    {canDelete(doc) && (
                       <button
                         type="button"
-                        onClick={() => deleteDoc(doc)}
-                        disabled={busyId === doc.id}
-                        title="Xóa"
-                        className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-50 text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer disabled:opacity-50"
+                        onClick={() => openDoc(doc, true)}
+                        disabled={isBusy}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 disabled:cursor-default"
                       >
-                        <Trash2 size={13} />
+                        <Download size={12} />
+                        Tải về
                       </button>
-                    )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 px-4 bg-white border border-slate-200/60 rounded-2xl shadow-sm">
@@ -1603,7 +1616,7 @@ export default function DocsPage() {
         </>
       ) : (
         // ============================================================
-        // VÙNG DỮ LIỆU TAB (NEW)
+        // VÙNG DỮ LIỆU TAB
         // ============================================================
         <VungDuLieuTab />
       )}
@@ -1888,7 +1901,8 @@ export default function DocsPage() {
                 </div>
               ) : (
                 previewChunks.map((chunk, idx) => {
-                  const overlapLen = (() => {
+                  // 1. Calculate overlap with the PREVIOUS chunk (appears at the start of this chunk)
+                  const prevOverlapLen = (() => {
                     if (idx === 0) return 0
                     const prev = previewChunks[idx - 1].text
                     const curr = chunk.text
@@ -1898,31 +1912,61 @@ export default function DocsPage() {
                     }
                     return 0
                   })()
-                  const overlapText = overlapLen > 0 ? chunk.text.slice(0, overlapLen) : ''
-                  const newText = chunk.text.slice(overlapLen)
+
+                  // 2. Calculate overlap with the NEXT chunk (appears at the end of this chunk)
+                  const nextOverlapLen = (() => {
+                    if (idx === previewChunks.length - 1) return 0
+                    const curr = chunk.text
+                    const next = previewChunks[idx + 1].text
+                    const maxCheck = Math.min(curr.length, next.length, 200)
+                    for (let len = maxCheck; len > 10; len--) {
+                      if (next.startsWith(curr.slice(-len))) return len
+                    }
+                    return 0
+                  })()
+
+                  const startText = chunk.text.slice(0, prevOverlapLen)
+                  const endText = nextOverlapLen > 0 ? chunk.text.slice(-nextOverlapLen) : ''
+                  const middleText = chunk.text.slice(
+                    prevOverlapLen, 
+                    nextOverlapLen > 0 ? -nextOverlapLen : undefined
+                  )
+
                   return (
-                  <div
-                    key={chunk.id}
-                    className="border border-slate-200 rounded-xl p-4 bg-slate-50/50"
-                  >
-                    <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
-                      <span className="font-mono">#{chunk.index}</span>
-                      {chunk.section_path && (
-                        <span className="truncate max-w-[60%]">
-                          📂 {chunk.section_path}
-                        </span>
-                      )}
-                      {chunk.page && (
-                        <span>📄 Trang {chunk.page}</span>
-                      )}
+                    <div
+                      key={chunk.id}
+                      className="border border-slate-200 rounded-xl p-4 bg-slate-50/50"
+                    >
+                      <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                        <span className="font-mono">#{chunk.index}</span>
+                        {chunk.section_path && (
+                          <span className="truncate max-w-[60%]">
+                            📂 {chunk.section_path}
+                          </span>
+                        )}
+                        {chunk.page && (
+                          <span>📄 Trang {chunk.page}</span>
+                        )}
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
+                        {/* Highlighted overlap from the PREVIOUS chunk */}
+                        {prevOverlapLen > 0 && (
+                          <span className="bg-amber-100/70 text-slate-800 px-0.5 rounded-sm">
+                            {startText}
+                          </span>
+                        )}
+                        
+                        {/* Main text (non-overlapping portion) */}
+                        <span className="text-slate-700">{middleText}</span>
+                        
+                        {/* Highlighted overlap that goes into the NEXT chunk */}
+                        {nextOverlapLen > 0 && (
+                          <span className="bg-amber-100/70 text-slate-800 px-0.5 rounded-sm">
+                            {endText}
+                          </span>
+                        )}
+                      </p>
                     </div>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">
-                      {overlapText && (
-                        <span className="text-slate-300">{overlapText}</span>
-                      )}
-                      <span className="text-slate-700">{newText}</span>
-                    </p>
-                  </div>
                   )
                 })
               )}
@@ -2228,6 +2272,8 @@ export default function DocsPage() {
           </div>
         </div>
       )}
+
+      <DocumentPreviewModal preview={preview} onClose={closePreview} />
     </div>
   )
 }

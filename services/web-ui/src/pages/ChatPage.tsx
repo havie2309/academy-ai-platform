@@ -1,12 +1,14 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BookOpen, Database, Sparkles, Calendar, ArrowUp, Trash2 } from 'lucide-react'
+import { BookOpen, Database, Sparkles, Calendar, ArrowUp, Trash2, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { chatApi, type ChatMessage } from '../api/chat'
 import { authApi } from '../api/auth'
 import { useChatSessions } from '../contexts/ChatSessionContext'
 import ChatMarkdown from '../components/ChatMarkdown'
 import CitationList from '../components/CitationList'
 import { useChatAssistantMode } from '../lib/chatAssistantMode'
+import { useDocumentPreview } from '../hooks/useDocumentPreview'
+import DocumentPreviewModal from '../components/DocumentPreviewModal'
 
 const suggestions = [
   { icon: Calendar, text: 'Lịch thi học kỳ 2 khi nào?', category: 'Khảo thí' },
@@ -25,12 +27,15 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(false)
+  const [feedbackMap, setFeedbackMap] = useState<Map<string, 1 | -1>>(new Map())
   const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const skipLoadRef = useRef<string | null>(null)
   const pollingRef = useRef<number | null>(null)
   const isAdmin = user?.roles?.includes('ADMIN') ?? false
   const isCentralizedAssistant = mode === 'centralized'
+
+  const { preview, openPreview, closePreview } = useDocumentPreview()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -270,6 +275,25 @@ export default function ChatPage() {
     navigate('/chat')
   }
 
+  const handleFeedback = useCallback(
+    async (msg: ChatMessage, rating: 1 | -1) => {
+      if (!sessionId || !msg.id) return
+      setFeedbackMap((prev) => new Map(prev).set(msg.id, rating))
+      const chunkIds = (msg.citations ?? []).map((c) => c.chunk_id).filter(Boolean)
+      try {
+        await chatApi.submitFeedback(sessionId, msg.id, rating, chunkIds)
+      } catch {
+        // revert optimistic update on failure
+        setFeedbackMap((prev) => {
+          const next = new Map(prev)
+          next.delete(msg.id)
+          return next
+        })
+      }
+    },
+    [sessionId],
+  )
+
   const handleKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -427,7 +451,42 @@ export default function ChatPage() {
                       msg.citations.length > 0 &&
                       msg.status !== 'streaming' &&
                       msg.status !== 'loading' && (
-                        <CitationList citations={msg.citations} showScores={isAdmin} />
+                        <CitationList
+                          citations={msg.citations}
+                          showScores={isAdmin}
+                          onCitationClick={(citation) => {
+                            if (citation.doc_id) {
+                              openPreview(
+                                citation.doc_id,
+                                citation.title,
+                                citation.original_name,
+                                citation.mime_type
+                              )
+                            }
+                          }}
+                        />
+                      )}
+                    {!msg.error &&
+                      msg.status !== 'streaming' &&
+                      msg.status !== 'loading' && (
+                        <div className="flex items-center gap-1 pt-0.5">
+                          <button
+                            type="button"
+                            aria-label="Câu trả lời hữu ích"
+                            onClick={() => handleFeedback(msg, 1)}
+                            className={`rounded-lg p-1.5 transition-colors ${feedbackMap.get(msg.id) === 1 ? 'text-green-600' : 'text-slate-300 hover:text-slate-500'}`}
+                          >
+                            <ThumbsUp size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Câu trả lời không hữu ích"
+                            onClick={() => handleFeedback(msg, -1)}
+                            className={`rounded-lg p-1.5 transition-colors ${feedbackMap.get(msg.id) === -1 ? 'text-red-500' : 'text-slate-300 hover:text-slate-500'}`}
+                          >
+                            <ThumbsDown size={14} />
+                          </button>
+                        </div>
                       )}
                   </div>
                 )}
@@ -481,6 +540,8 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
+
+      <DocumentPreviewModal preview={preview} onClose={closePreview} />
     </div>
   )
 }
