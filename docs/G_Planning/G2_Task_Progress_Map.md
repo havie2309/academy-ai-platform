@@ -30,6 +30,8 @@
 | UI | CitationList now clickable – opens document preview modal from chat. |
 | UI | Chunk preview modal now highlights overlapping text between adjacent chunks with soft amber background. |
 | Backend | rag-engine now returns `original_name` and `mime_type` in citation responses for frontend file type detection. |
+| UI/UX | Document preview now supports two modes: original file preview (DocsPage) and markdown chunk preview (ChatPage citations). Clicking a citation highlights the exact parent chunk with amber background. |
+| Backend | `GET /api/documents/:id/chunks` now supports `chunkType` parameter (`child`/`parent`) and increased limit to 1000. |
 
 ## 3. Hoan thanh mot phan
 

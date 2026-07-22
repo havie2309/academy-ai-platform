@@ -837,9 +837,7 @@ export default function DocsPage() {
         setBusyId(null)
         return
       }
-
-      // Use shared preview hook for all formats (DOCX, PDF, TXT, etc.)
-      await openPreview(doc.id, doc.title, doc.original_name)
+      await openPreview(doc.id, doc.title, doc.original_name, doc.mime_type)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Không mở được tài liệu.')
     } finally {
@@ -866,7 +864,7 @@ export default function DocsPage() {
     setPreviewChunks([])
     setPreviewTotal(0)
     try {
-      const data = await docsApi.getChunks(doc.id, 5)
+      const data = await docsApi.getChunks(doc.id, 5, 'child')
       setPreviewChunks(data.chunks)
       setPreviewTotal(data.total)
     } catch (err) {

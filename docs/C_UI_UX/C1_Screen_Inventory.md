@@ -13,7 +13,7 @@
 | UI-01 | Login | `/login` | Mọi user | idle, submitting, error | auth login/refresh/logout | `implemented` |
 | UI-02 | Chat | `/chat`, `/chat/:sessionId` | User thường, giảng viên, admin | empty, streaming, answered, refusal, error | chat session/message, RAG, SQL | `implemented` |
 | UI-03 | Sidebar lịch sử chat | trong layout chat | User | loading, optimistic update, delete confirm | chat sessions | `implemented` |
-| UI-04 | Docs workspace | `/docs` | User có quyền tài liệu | list, upload, ingest polling, download, delete, **chunk preview**, **scope edit** | documents, ingest-status, **chunks** | `implemented` |
+| UI-04 | Docs workspace | `/docs` | User có quyền tài liệu | list, upload, ingest polling, download, delete, chunk preview, scope edit, compact card design, collapsible metadata, dropdown actions, **markdown file preview** | documents, ingest-status, chunks | `implemented` |
 | UI-05 | Upload document modal | trong `/docs` | User có quyền upload | form, validating, uploading, queued; dropdown level lọc theo `maxSecurityLevel` | documents upload | `implemented` |
 | UI-05b | Scope edit modal | trong `/docs` | Admin hoặc document owner | pre-filled form, saving | `PATCH /api/documents/:id/scope` | `implemented` |
 | UI-06 | Admin health | `/admin` | admin | loading, partial-down, refreshed | gateway health | `implemented` |
