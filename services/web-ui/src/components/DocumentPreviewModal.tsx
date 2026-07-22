@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown'
+import rehypeRaw from 'rehype-raw'
 import type { DocumentPreviewState } from '../hooks/useDocumentPreview'
 
 interface DocumentPreviewModalProps {
@@ -5,44 +7,88 @@ interface DocumentPreviewModalProps {
   onClose: () => void
 }
 
-export default function DocumentPreviewModal({ preview, onClose }: DocumentPreviewModalProps) {
-  if (!preview.isOpen) return null
+function renderOriginalContent(preview: DocumentPreviewState) {
+  if (preview.isLoading) {
+    return <div className="flex items-center justify-center py-12 text-slate-500">Đang tải…</div>
+  }
 
-  const renderContent = () => {
-    if (preview.isLoading) {
+  if (preview.error) {
+    return <div className="text-red-500 text-sm">{preview.error}</div>
+  }
+
+  switch (preview.fileType) {
+    case 'docx':
       return (
-        <div className="flex items-center justify-center py-12 text-slate-500">
-          Đang tải…
+        <div
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: preview.originalContent || '' }}
+        />
+      )
+    case 'pdf':
+      return (
+        <iframe
+          src={preview.originalContent}
+          className="h-[70vh] w-full"
+          title={preview.title}
+        />
+      )
+    case 'txt':
+      return (
+        <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm font-mono">
+          {preview.originalContent}
+        </pre>
+      )
+    case 'markdown':
+      return (
+        <div className="prose prose-sm max-w-none">
+          <ReactMarkdown>{preview.originalContent}</ReactMarkdown>
         </div>
       )
-    }
-
-    switch (preview.fileType) {
-      case 'docx':
-        return (
-          <div
-            className="prose prose-sm max-w-none"
-            dangerouslySetInnerHTML={{ __html: preview.content }}
-          />
-        )
-      case 'pdf':
-        return (
-          <iframe src={preview.content} className="h-[70vh] w-full" title={preview.title} />
-        )
-      case 'txt':
-        return (
-          <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm font-mono">
-            {preview.content}
-          </pre>
-        )
-      default:
-        return (
-          <div className="text-slate-500">
-            Không thể hiển thị tài liệu này. Vui lòng tải xuống để xem.
-          </div>
-        )
-    }
+    default:
+      return (
+        <div className="text-slate-500">
+          Không thể hiển thị tài liệu này. Vui lòng tải xuống để xem.
+        </div>
+      )
   }
+}
+
+function renderMarkdownContent(preview: DocumentPreviewState) {
+  if (preview.isLoading) {
+    return <div className="flex items-center justify-center py-12 text-slate-500">Đang tải…</div>
+  }
+
+  if (preview.error) {
+    return <div className="text-red-500 text-sm">{preview.error}</div>
+  }
+
+  if (!preview.chunks || preview.chunks.length === 0) {
+    return <div className="text-slate-500 text-sm">Không có nội dung để hiển thị.</div>
+  }
+
+  const highlightSet = new Set(preview.highlightChunkIds || [])
+
+  // Combine chunks, wrapping highlighted ones in a div with the highlight class
+  const combinedMarkdown = preview.chunks
+    .map((chunk) => {
+      const text = chunk.text || ''
+      if (highlightSet.has(chunk.id)) {
+        // Wrap the entire chunk in a div with highlight class
+        return `<div class="highlight-block">${text}</div>`
+      }
+      return text
+    })
+    .join('\n\n') // Preserve paragraph separation
+
+  return (
+    <div className="prose prose-sm max-w-none">
+      <ReactMarkdown rehypePlugins={[rehypeRaw]}>{combinedMarkdown}</ReactMarkdown>
+    </div>
+  )
+}
+
+export default function DocumentPreviewModal({ preview, onClose }: DocumentPreviewModalProps) {
+  if (!preview.isOpen) return null
 
   return (
     <div
@@ -54,9 +100,7 @@ export default function DocumentPreviewModal({ preview, onClose }: DocumentPrevi
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
-          <h3 className="text-lg font-semibold text-slate-800">
-            {preview.title}
-          </h3>
+          <h3 className="text-lg font-semibold text-slate-800">{preview.title}</h3>
           <button
             onClick={onClose}
             className="rounded-full p-1 hover:bg-slate-100"
@@ -64,8 +108,12 @@ export default function DocumentPreviewModal({ preview, onClose }: DocumentPrevi
             ✕
           </button>
         </div>
-        {renderContent()}
+
+        {preview.mode === 'markdown'
+          ? renderMarkdownContent(preview)
+          : renderOriginalContent(preview)}
       </div>
     </div>
   )
 }
+

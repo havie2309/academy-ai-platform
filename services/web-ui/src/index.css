@@ -155,5 +155,9 @@
   background-size: 24px 24px;
 }
 
-
-
+.highlight-block {
+  background-color: #fde68a; /* amber-200 */
+  padding: 0.25rem 0.25rem; /* px-1 equivalent */
+  border-radius: 0.25rem;   /* rounded-sm */
+  font-weight: 600;          /* font-semibold */
+}

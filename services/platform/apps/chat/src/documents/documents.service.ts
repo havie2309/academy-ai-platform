@@ -594,13 +594,14 @@ export class DocumentsService implements OnModuleInit {
     }
   }
 
-    /**
-   * Get first N child chunks of a document for preview.
+  /**
+   * Get first N child/parent chunks of a document for preview.
    */
   async getChunks(
     docId: string,
     user: RequestUser,
     limit = 5,
+    chunkType: 'child' | 'parent' = 'child',
   ): Promise<{ chunks: any[]; total: number }> {
     this.ensureReady()
     const doc = await this.documents.findOne({ docId })
@@ -614,7 +615,7 @@ export class DocumentsService implements OnModuleInit {
       .find(
         {
           documentId: docId,
-          chunkType: 'child',
+          chunkType: chunkType,
         },
         {
           sort: { chunkIndex: 1, createdAt: 1 },
@@ -632,7 +633,7 @@ export class DocumentsService implements OnModuleInit {
 
     const total = await this.db
       .collection('document_chunks')
-      .countDocuments({ documentId: docId, chunkType: 'child' })
+      .countDocuments({ documentId: docId, chunkType: chunkType })
 
     return {
       chunks: chunks.map((c) => ({

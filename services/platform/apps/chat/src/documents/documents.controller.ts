@@ -246,11 +246,20 @@ export class DocumentsController {
   }
 
   @Get(':id/chunks')
-  @UseGuards(AuthGuard('jwt'))
-  async getChunks(@Req() req: Request, @Param('id') id: string) {
+  async getChunks(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('chunkType') chunkType?: 'child' | 'parent',
+  ) {
     const user = extractUserFromRequest(req)
-    const limit = parseInt(req.query.limit as string, 10) || 5
-    return this.docs.getChunks(id, toRequestUser(user), Math.min(limit, 20))
+    const limitNum = Math.min(Number(limit) || 5, 1000)
+    return this.docs.getChunks(
+      id,
+      user,
+      limitNum,
+      chunkType || 'child',
+    )
   }
 
   @Get(':id/file')

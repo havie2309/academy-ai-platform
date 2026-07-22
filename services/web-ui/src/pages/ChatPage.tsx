@@ -460,7 +460,8 @@ export default function ChatPage() {
                                 citation.doc_id,
                                 citation.title,
                                 citation.original_name,
-                                citation.mime_type
+                                citation.mime_type,
+                                citation.chunk_id
                               )
                             }
                           }}

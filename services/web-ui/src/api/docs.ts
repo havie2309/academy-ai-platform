@@ -269,10 +269,15 @@ export const docsApi = {
     return res.json()
   },
 
-    /**
-   * Get preview chunks for a document (first N child chunks).
+  /**
+   * Get preview chunks for a document
    */
-  async getChunks(id: string, limit = 5): Promise<{
+  async getChunks(
+    id: string,
+    limit = 5,
+    chunkType: 'child' | 'parent' = 'child',
+    chunkIds?: string[],
+  ): Promise<{
     chunks: Array<{
       id: string
       text: string
@@ -283,7 +288,15 @@ export const docsApi = {
     }>
     total: number
   }> {
-    const res = await fetchWithAuth(`/api/documents/${id}/chunks?limit=${limit}`, {
+    const params = new URLSearchParams()
+    params.append('limit', String(limit))
+    if (chunkType) {
+      params.append('chunkType', chunkType)
+    }
+    if (chunkIds?.length) {
+      chunkIds.forEach((cid) => params.append('chunk_ids', cid))
+    }
+    const res = await fetchWithAuth(`/api/documents/${id}/chunks?${params}`, {
       headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
