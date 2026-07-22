@@ -252,6 +252,37 @@ def _apply_security_boost(citations: list[dict]) -> list[dict]:
     return citations
 
 
+async def _apply_feedback_penalty(citations: list[dict]) -> list[dict]:
+    """Set rerank_score to -999 for any chunk that has been negatively rated."""
+    if not citations:
+        return citations
+    chunk_ids = [c["chunk_id"] for c in citations if c.get("chunk_id")]
+    if not chunk_ids:
+        return citations
+    try:
+        client = _get_mongo()
+        db = client[MONGO_DB]
+        try:
+            penalized = {
+                doc["chunk_id"]
+                for doc in db.chunk_feedback.find(
+                    {"chunk_id": {"$in": chunk_ids}, "penalized": True},
+                    {"chunk_id": 1},
+                )
+            }
+        finally:
+            client.close()
+    except Exception:
+        logger.warning("chunk_feedback lookup failed; skipping penalty")
+        return citations
+    if not penalized:
+        return citations
+    for c in citations:
+        if c.get("chunk_id") in penalized:
+            c["rerank_score"] = -999.0
+    return citations
+
+
 async def retrieve_citations(
     query: str,
     user: dict,
@@ -460,6 +491,7 @@ async def retrieve_citations(
         citations.append(citation)
 
     reranked = await rerank_citations(query_text, citations)
+    reranked = await _apply_feedback_penalty(reranked)
     max_score = max((c.get("rerank_score") for c in reranked if c.get("rerank_score") is not None), default=None)
     reranked = _apply_security_boost(reranked)
     selected = _apply_score_thresholds(reranked)
