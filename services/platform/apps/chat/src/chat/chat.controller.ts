@@ -43,16 +43,19 @@ export class ChatController {
   constructor(private readonly chat: ChatService) {}
 
   @Get('sessions')
-  listSessions(@Req() req: { user: AuthUser }) {
-    return this.chat.listSessions(req.user.userId)
+  listSessions(
+    @Req() req: { user: AuthUser },
+    @Query('personal_folder_id') personalFolderId?: string,
+  ) {
+    return this.chat.listSessions(req.user.userId, personalFolderId)
   }
 
   @Post('sessions')
   createSession(
     @Req() req: { user: AuthUser },
-    @Body() body: { title?: string },
+    @Body() body: { title?: string; personal_folder_id?: string },
   ) {
-    return this.chat.createSession(req.user.userId, body.title)
+    return this.chat.createSession(req.user.userId, body.title, body.personal_folder_id)
   }
 
   @Get('sessions/:sessionId')

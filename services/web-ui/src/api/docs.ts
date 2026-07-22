@@ -24,6 +24,7 @@ export interface DocumentSecurityConfig {
   owner_unit?: string
   tags?: string[]
   domain_metadata?: Record<string, unknown>
+  personal_folder_id?: string | null
 }
 
 export interface AccessConfig {

@@ -98,6 +98,7 @@ interface DocumentDoc {
   ownerUnit?: string
   tags?: string[]
   domainMetadata?: Record<string, unknown>
+  personalFolderId?: string
 }
 
 interface DocumentVersionDoc {
@@ -336,6 +337,7 @@ export class DocumentsService implements OnModuleInit {
       category?: string
       access: AccessMeta
       security?: DocumentSecurityMeta
+      personalFolderId?: string
     },
     user: { userId: string; name: string },
   ) {
@@ -349,7 +351,10 @@ export class DocumentsService implements OnModuleInit {
       category,
       access.securityLevel,
     )
-    const documentKey = normalizeDocumentKey(title, category)
+    const baseDocumentKey = normalizeDocumentKey(title, category)
+    const documentKey = meta.personalFolderId
+      ? `personal-${meta.personalFolderId}-${baseDocumentKey}`
+      : baseDocumentKey
     const fileChecksum = await this.sha256File(file.path)
     const previousLatest = await this.documents.findOne(
       { documentKey, isLatestVersion: true },
@@ -390,6 +395,7 @@ export class DocumentsService implements OnModuleInit {
       ownerUnit: security.ownerUnit,
       tags: security.tags,
       domainMetadata: security.domainMetadata,
+      ...(meta.personalFolderId ? { personalFolderId: meta.personalFolderId } : {}),
     }
     await this.documents.insertOne(doc)
     await this.documentVersions.insertOne({
@@ -464,6 +470,8 @@ export class DocumentsService implements OnModuleInit {
 
   /** Người dùng có được xem tài liệu này không (mức mật + phạm vi). */
   private canView(doc: DocumentDoc, user: RequestUser): boolean {
+    // Personal-folder documents are private even from privileged/admin roles.
+    if (doc.personalFolderId) return doc.uploadedById === user.userId
     if (doc.uploadedById === user.userId) return true
     if (this.isPrivileged(user)) return true
 
@@ -497,11 +505,27 @@ export class DocumentsService implements OnModuleInit {
   async list(user: RequestUser) {
     this.ensureReady()
     const rows = await this.documents
-      .find({ isLatestVersion: { $ne: false } })
+      .find({
+        isLatestVersion: { $ne: false },
+        personalFolderId: { $exists: false },
+      })
       .sort({ createdAt: -1 })
       .limit(500)
       .toArray()
     return rows.filter((d) => this.canView(d, user)).map((d) => this.toDto(d))
+  }
+
+  async listByPersonalFolder(folderId: string, ownerUserId: string) {
+    this.ensureReady()
+    const rows = await this.documents
+      .find({
+        personalFolderId: folderId,
+        uploadedById: ownerUserId,
+        isLatestVersion: { $ne: false },
+      })
+      .sort({ createdAt: -1 })
+      .toArray()
+    return rows.map((doc) => this.toDto(doc))
   }
 
   async getForDownload(
@@ -629,6 +653,9 @@ export class DocumentsService implements OnModuleInit {
     if (!doc) throw new NotFoundException('Không tìm thấy tài liệu.')
 
     const isOwner = doc.uploadedById === user.userId
+    if (doc.personalFolderId && !isOwner) {
+      throw new ForbiddenException('Chỉ chủ sở hữu được xóa tài liệu cá nhân này.')
+    }
     if (!isOwner && !this.isPrivileged(user)) {
       throw new ForbiddenException('Bạn không có quyền xóa tài liệu này.')
     }
@@ -685,6 +712,7 @@ export class DocumentsService implements OnModuleInit {
       owner_unit: d.ownerUnit ?? '',
       tags: d.tags ?? [],
       domain_metadata: d.domainMetadata ?? {},
+      personal_folder_id: d.personalFolderId ?? null,
     }
   }
 
@@ -951,6 +979,9 @@ export class DocumentsService implements OnModuleInit {
     this.ensureReady()
     const doc = await this.documents.findOne({ docId })
     if (!doc) throw new NotFoundException('Không tìm thấy tài liệu.')
+    if (doc.personalFolderId) {
+      throw new BadRequestException('Phân quyền của tài liệu trong folder cá nhân được hệ thống khóa cố định.')
+    }
 
     const isAdmin = this.isPrivileged(user)
     if (!isAdmin && doc.uploadedById !== user.userId) {

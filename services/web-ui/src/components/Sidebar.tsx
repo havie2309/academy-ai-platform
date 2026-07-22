@@ -27,10 +27,13 @@ export default function Sidebar() {
   const { sessionId: activeSessionId } = useParams()
   const { sessions, loading, removeSession } = useChatSessions()
   const { mode, setMode } = useChatAssistantMode()
-  const [chatOpen, setChatOpen] = useState(location.pathname.startsWith('/chat'))
+  const [chatOpen, setChatOpen] = useState(
+    location.pathname.startsWith('/chat') || location.pathname.startsWith('/personal-assistant'),
+  )
   const [docsOpen, setDocsOpen] = useState(location.pathname.startsWith('/docs'))
   const [sidebarWidth, setSidebarWidth] = useState(256)
-  const isChatRoute = location.pathname.startsWith('/chat')
+  const isChatRoute = location.pathname.startsWith('/chat') || location.pathname.startsWith('/personal-assistant')
+  const isPersonalAssistantRoute = location.pathname.startsWith('/personal-assistant')
   const isCentralizedAssistant = mode === 'centralized'
 
   const onResizeStart = (e: React.MouseEvent) => {
@@ -82,6 +85,13 @@ export default function Sidebar() {
   const isDocsActive = location.pathname.startsWith('/docs')
 
   const handleNewChat = () => {
+    if (isPersonalAssistantRoute) {
+      const folderMatch = location.pathname.match(/^\/personal-assistant\/([^/]+)/)
+      navigate(folderMatch ? `/personal-assistant/${folderMatch[1]}` : '/personal-assistant')
+      return
+    }
+
+    setMode('centralized')
     if (activeSessionId) {
       navigate('/chat')
       return
@@ -224,14 +234,14 @@ export default function Sidebar() {
                   }}
                   data-testid="sidebar-chat-centralized"
                   className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    isChatRoute && isCentralizedAssistant
+                    location.pathname.startsWith('/chat') && isCentralizedAssistant
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                   }`}
                 >
                   <MessageSquare
                     size={15}
-                    className={isChatRoute && isCentralizedAssistant ? 'text-blue-600' : 'text-slate-400'}
+                    className={location.pathname.startsWith('/chat') && isCentralizedAssistant ? 'text-blue-600' : 'text-slate-400'}
                   />
                   Trợ lý ảo tập trung
                 </button>
@@ -240,18 +250,18 @@ export default function Sidebar() {
                   type="button"
                   onClick={() => {
                     setMode('personal')
-                    navigate('/chat')
+                    navigate('/personal-assistant')
                   }}
                   data-testid="sidebar-chat-personal"
                   className={`flex w-full items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-medium transition-all ${
-                    isChatRoute && !isCentralizedAssistant
+                    isPersonalAssistantRoute
                       ? 'bg-blue-50 text-blue-600'
                       : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
                   }`}
                 >
                   <User
                     size={15}
-                    className={isChatRoute && !isCentralizedAssistant ? 'text-blue-600' : 'text-slate-400'}
+                    className={isPersonalAssistantRoute ? 'text-blue-600' : 'text-slate-400'}
                   />
                   Trợ lý ảo cá nhân
                 </button>

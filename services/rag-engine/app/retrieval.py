@@ -298,6 +298,26 @@ async def retrieve_citations(
                 user,
                 allow_adversarial=ALLOW_ADVERSARIAL_DOCS,
             )
+            # An explicit scope may contain personal-folder documents. Admit
+            # those only when Mongo confirms that the caller owns them; admin
+            # privilege does not bypass personal ownership.
+            if scope_set is not None:
+                owner_user_id = str(user.get("userId") or "").strip()
+                if owner_user_id:
+                    personal_rows = db.documents.find(
+                        {
+                            "docId": {"$in": list(scope_set)},
+                            "personalFolderId": {"$exists": True},
+                            "uploadedById": owner_user_id,
+                        },
+                        {"docId": 1},
+                    )
+                    accessible_doc_ids.extend(
+                        str(row.get("docId") or "").strip()
+                        for row in personal_rows
+                        if str(row.get("docId") or "").strip()
+                    )
+                    accessible_doc_ids = list(dict.fromkeys(accessible_doc_ids))
             if not accessible_doc_ids:
                 return RetrievalResult(citations=[])
             # Narrow to the requested document scope, keeping ACL as the ceiling.
@@ -310,14 +330,12 @@ async def retrieve_citations(
             milvus_expr = build_milvus_document_expr(accessible_doc_ids)
         except Exception:
             logger.warning(
-                "ACL push-down failed; continuing with post-filter retrieval only."
+                "ACL push-down failed; refusing explicit document scope."
             )
-            # Even if the ACL push-down fails, still honour an explicit doc scope
-            # so the answer stays confined to the requested document(s). Mongo
-            # security post-filtering below remains the source of truth.
+            # A client-supplied scope cannot be trusted when Mongo ownership/ACL
+            # verification is unavailable. Fail closed instead of searching it.
             if scope_set is not None:
-                accessible_doc_ids = sorted(scope_set)
-                milvus_expr = build_milvus_document_expr(accessible_doc_ids)
+                return RetrievalResult(citations=[])
             else:
                 accessible_doc_ids = None
                 milvus_expr = None
