@@ -7,6 +7,8 @@ import { useChatSessions } from '../contexts/ChatSessionContext'
 import ChatMarkdown from '../components/ChatMarkdown'
 import CitationList from '../components/CitationList'
 import { useChatAssistantMode } from '../lib/chatAssistantMode'
+import { useDocumentPreview } from '../hooks/useDocumentPreview'
+import DocumentPreviewModal from '../components/DocumentPreviewModal'
 
 const suggestions = [
   { icon: Calendar, text: 'Lịch thi học kỳ 2 khi nào?', category: 'Khảo thí' },
@@ -31,6 +33,8 @@ export default function ChatPage() {
   const pollingRef = useRef<number | null>(null)
   const isAdmin = user?.roles?.includes('ADMIN') ?? false
   const isCentralizedAssistant = mode === 'centralized'
+
+  const { preview, openPreview, closePreview } = useDocumentPreview()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -427,7 +431,20 @@ export default function ChatPage() {
                       msg.citations.length > 0 &&
                       msg.status !== 'streaming' &&
                       msg.status !== 'loading' && (
-                        <CitationList citations={msg.citations} showScores={isAdmin} />
+                        <CitationList
+                          citations={msg.citations}
+                          showScores={isAdmin}
+                          onCitationClick={(citation) => {
+                            if (citation.doc_id) {
+                              openPreview(
+                                citation.doc_id,
+                                citation.title,
+                                citation.original_name,
+                                citation.mime_type
+                              )
+                            }
+                          }}
+                        />
                       )}
                   </div>
                 )}
@@ -481,6 +498,8 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
+
+      <DocumentPreviewModal preview={preview} onClose={closePreview} />
     </div>
   )
 }

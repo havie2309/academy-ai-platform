@@ -4,6 +4,7 @@ import type { ChatCitation } from '../api/chat'
 interface CitationListProps {
   citations: ChatCitation[]
   showScores?: boolean
+  onCitationClick?: (citation: ChatCitation) => void
 }
 
 interface CitationGroup {
@@ -14,11 +15,17 @@ interface CitationGroup {
   pages: number[]
   sections: string[]
   matchCount: number
-  rerankScore: number | null // best score in group
+  rerankScore: number | null
 }
 
 function compactText(value: string | undefined, max = 180): string {
-  const text = (value ?? '').replace(/\s+/g, ' ').trim()
+  const text = (value ?? '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/^#+\s+/gm, '')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\s+/g, ' ').trim()
   if (!text) return ''
   if (text.length <= max) return text
   return `${text.slice(0, max - 1).trimEnd()}…`
@@ -92,7 +99,11 @@ function buildGroups(citations: ChatCitation[]): CitationGroup[] {
   return [...groups.values()]
 }
 
-export default function CitationList({ citations, showScores = false }: CitationListProps) {
+export default function CitationList({
+  citations,
+  showScores = false,
+  onCitationClick,
+}: CitationListProps) {
   if (!citations.length) return null
 
   let groups = buildGroups(citations)
@@ -104,6 +115,14 @@ export default function CitationList({ citations, showScores = false }: Citation
       const bScore = b.rerankScore ?? -Infinity
       return bScore - aScore
     })
+  }
+
+  const handleCardClick = (group: CitationGroup) => {
+    if (!onCitationClick) return
+    const originalCitation = citations.find((c) => groupKey(c) === group.key)
+    if (originalCitation) {
+      onCitationClick(originalCitation)
+    }
   }
 
   return (
@@ -128,8 +147,11 @@ export default function CitationList({ citations, showScores = false }: Citation
             <div
               key={group.key}
               data-testid="citation-card"
-              className="rounded-xl border border-blue-100/80 bg-gradient-to-br from-blue-50/80 to-white px-3 py-2.5 text-left shadow-sm"
-              title={group.snippet || group.title}
+              onClick={() => handleCardClick(group)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCardClick(group)}
+              role="button"
+              tabIndex={0}
+              className="cursor-pointer rounded-xl border border-blue-100/80 bg-gradient-to-br from-blue-50/80 to-white px-3 py-2.5 text-left shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             >
               <div className="flex items-start gap-2.5">
                 <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
