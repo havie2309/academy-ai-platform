@@ -30,6 +30,7 @@ export interface ChatSession {
   title: string
   created_at: string
   updated_at: string
+  personal_folder_id?: string
 }
 
 export interface ChatMessage {
@@ -99,9 +100,11 @@ export const chatApi = {
     })
   },
 
-
-  async listSessions(): Promise<ChatSession[]> {
-    const res = await fetchWithAuth('/api/chat/sessions', {
+  async listSessions(personalFolderId?: string): Promise<ChatSession[]> {
+    const query = personalFolderId
+      ? `?personal_folder_id=${encodeURIComponent(personalFolderId)}`
+      : ''
+    const res = await fetchWithAuth(`/api/chat/sessions${query}`, {
       headers: { Accept: 'application/json' },
     })
     if (!res.ok) throw new Error(await parseError(res))
@@ -109,11 +112,11 @@ export const chatApi = {
     return Array.isArray(data) ? data : []
   },
 
-  async createSession(title?: string): Promise<ChatSession> {
+  async createSession(title?: string, personalFolderId?: string): Promise<ChatSession> {
     const res = await fetchWithAuth('/api/chat/sessions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, personal_folder_id: personalFolderId }),
     })
     if (!res.ok) throw new Error(await parseError(res))
     return res.json()

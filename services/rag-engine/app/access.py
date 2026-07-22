@@ -141,7 +141,11 @@ def build_document_access_query(
     *,
     allow_adversarial: bool = False,
 ) -> dict:
-    query: dict = {}
+    # Personal-folder documents are opt-in through an explicit, owner-verified
+    # document scope. They must never enter the centralized assistant corpus.
+    # Mongo's equality-to-null matches both null and a missing field, covering
+    # legacy/driver-serialized documents while excluding real folder ids.
+    query: dict = {"personalFolderId": None}
     if not allow_adversarial:
         query["isAdversarial"] = {"$ne": True}
 

@@ -211,7 +211,7 @@ export class RagService {
     docIds: string[] = [],
   ): Promise<ChatCitationDto[]> {
     if (!this.enabled) {
-      return resolveCitations(query)
+      return docIds.length ? [] : resolveCitations(query)
     }
 
     try {
@@ -235,7 +235,7 @@ export class RagService {
 
       if (!res.ok) {
         this.logger.warn(`RAG engine ${res.status} — fallback stub`)
-        return resolveCitations(query)
+        return docIds.length ? [] : resolveCitations(query)
       }
 
       const data = (await res.json()) as {
@@ -259,7 +259,7 @@ export class RagService {
       this.logger.warn(
         `RAG engine unreachable — fallback stub: ${err instanceof Error ? err.message : err}`,
       )
-      return resolveCitations(query)
+      return docIds.length ? [] : resolveCitations(query)
     }
   }
 }

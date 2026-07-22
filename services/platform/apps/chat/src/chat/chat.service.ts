@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
@@ -22,6 +23,7 @@ import {
   type RagMessage,
   type RagUserContext,
 } from '../rag/rag.service'
+import { PersonalFoldersService } from '../personal-folders/personal-folders.service'
 
 const SYSTEM_PROMPT = `
 Bạn là trợ lý ảo của học viện, hỗ trợ cán bộ, giảng viên và học viên tra cứu thông tin đào tạo, khảo thí, nghiên cứu khoa học.
@@ -75,6 +77,7 @@ interface ChatSessionDoc {
   createdAt: Date
   updatedAt: Date
   deletedAt?: Date
+  personalFolderId?: string
 }
 
 interface ChatMessageDoc {
@@ -103,6 +106,7 @@ export class ChatService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly rag: RagService,
     private readonly cache: ChatCacheService,
+    @Optional() private readonly personalFolders?: PersonalFoldersService,
   ) {}
 
   async onModuleInit() {
@@ -122,19 +126,26 @@ export class ChatService implements OnModuleInit {
     this.messages = this.db.collection('chat_messages')
   }
 
-  async listSessions(userId: string) {
+  async listSessions(userId: string, personalFolderId?: string) {
     if (!this.sessions) {
       throw new ServiceUnavailableException('Chat database chưa sẵn sàng.')
     }
+    const folderFilter = personalFolderId
+      ? { personalFolderId }
+      : { personalFolderId: { $exists: false } }
     const rows = await this.sessions
-      .find({ userId, deletedAt: { $exists: false } })
+      .find({ userId, deletedAt: { $exists: false }, ...folderFilter })
       .sort({ updatedAt: -1 })
       .limit(50)
       .toArray()
     return rows.map((s) => this.toSessionDto(s))
   }
 
-  async createSession(userId: string, title?: string) {
+  async createSession(userId: string, title?: string, personalFolderId?: string) {
+    if (personalFolderId) {
+      if (!this.personalFolders) throw new ServiceUnavailableException('Kho trợ lý cá nhân chưa sẵn sàng.')
+      await this.personalFolders.getOwned(personalFolderId, userId)
+    }
     const now = new Date()
     const doc: ChatSessionDoc = {
       sessionId: uuidv4(),
@@ -143,6 +154,7 @@ export class ChatService implements OnModuleInit {
       scope: { domain: 'general' },
       createdAt: now,
       updatedAt: now,
+      ...(personalFolderId ? { personalFolderId } : {}),
     }
     await this.sessions.insertOne(doc)
     await this.writeSessionContext(doc.sessionId, userId, [], null)
@@ -216,17 +228,16 @@ export class ChatService implements OnModuleInit {
       sessionId,
       content,
     )
+    const scopedDocIds = await this.resolveDocumentScope(session, userId)
     let answer: string
     let clientCitations: ChatCitationDto[]
     let route = 'rag'
     try {
       // Primary: rag-engine owns the full RAG turn (retrieve + grounded answer).
-      const result = await this.rag.chat(
-        text,
-        this.toRagMessages(history),
-        ragUser,
-        sessionId,
-      )
+      const ragMessages = this.toRagMessages(history)
+      const result = scopedDocIds.length
+        ? await this.rag.chat(text, ragMessages, ragUser, sessionId, scopedDocIds)
+        : await this.rag.chat(text, ragMessages, ragUser, sessionId)
       answer = result.answer
       clientCitations = result.citations
       route = result.route ?? 'rag'
@@ -235,7 +246,7 @@ export class ChatService implements OnModuleInit {
       this.logger.warn(
         `rag-engine /v1/chat lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
       )
-      const citations = await this.rag.retrieveCitations(text, ragUser)
+      const citations = await this.rag.retrieveCitations(text, ragUser, scopedDocIds)
       answer = await this.callLlm(history, citations)
       clientCitations = this.toClientCitations(citations)
     }
@@ -291,6 +302,7 @@ export class ChatService implements OnModuleInit {
         sessionId,
         content,
       )
+      const scopedDocIds = await this.resolveDocumentScope(session, userId, docIds)
 
       // Create the streaming assistant message immediately
       const { messageId: assistantMsgId } = await this.createStreamingAssistantMessage(
@@ -335,7 +347,7 @@ export class ChatService implements OnModuleInit {
             answer += delta
             writeSseEvent(res, 'token', { delta })
           },
-          docIds,
+          scopedDocIds,
         )
         // After stream finishes, we have final answer and citations.
         answer = result.answer
@@ -347,7 +359,7 @@ export class ChatService implements OnModuleInit {
         this.logger.warn(
           `rag-engine /v1/chat/stream lỗi — fallback LLM nội bộ: ${err instanceof Error ? err.message : err}`,
         )
-        const citations = await this.rag.retrieveCitations(text, ragUser, docIds)
+        const citations = await this.rag.retrieveCitations(text, ragUser, scopedDocIds)
         clientCitations = this.toClientCitations(citations)
         // Send meta with assistant ID
         writeSseEvent(res, 'meta', {
@@ -447,6 +459,24 @@ export class ChatService implements OnModuleInit {
     )
 
     return { session, userMsg, history, text }
+  }
+
+  private async resolveDocumentScope(
+    session: ChatSessionDoc,
+    userId: string,
+    requestedDocIds: string[] = [],
+  ): Promise<string[]> {
+    if (!session.personalFolderId) return requestedDocIds
+    if (!this.personalFolders) {
+      throw new ServiceUnavailableException('Kho trợ lý cá nhân chưa sẵn sàng.')
+    }
+    const docIds = await this.personalFolders.documentIds(session.personalFolderId, userId)
+    if (docIds.length === 0) {
+      throw new BadRequestException(
+        'Folder chưa có tài liệu đã xử lý xong. Hãy tải file lên và chờ hoàn tất ingest trước khi hỏi.',
+      )
+    }
+    return docIds
   }
 
   private async loadConversationHistory(
@@ -889,6 +919,7 @@ export class ChatService implements OnModuleInit {
       title: s.title,
       created_at: s.createdAt.toISOString(),
       updated_at: s.updatedAt.toISOString(),
+      ...(s.personalFolderId ? { personal_folder_id: s.personalFolderId } : {}),
       ...(s.deletedAt ? { deleted_at: s.deletedAt.toISOString() } : {}),
     }
   }

@@ -9,6 +9,8 @@ import AdminPage from './pages/AdminPage.tsx'
 import AccountPage from './pages/AccountPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
 import LoginPage from "./pages/LoginPage.tsx"
+import PersonalAssistantPage from './pages/PersonalAssistantPage.tsx'
+import PersonalFolderPage from './pages/PersonalFolderPage.tsx'
 import RequireAuth from "./components/RequireAuth.tsx"
 
 function App() {
@@ -22,6 +24,9 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/chat/:sessionId" element={<ChatPage />} />
+            <Route path="/personal-assistant" element={<PersonalAssistantPage />} />
+            <Route path="/personal-assistant/:folderId" element={<PersonalFolderPage />} />
+            <Route path="/personal-assistant/:folderId/chat/:personalSessionId" element={<PersonalFolderPage />} />
             <Route path="/docs" element={<DocsPage />} />
             <Route path="/docs/kho-du-lieu" element={<KhoDuLieuPage />} />
             <Route path="/docs/tra-cuu" element={<TraCuuPage />} />

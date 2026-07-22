@@ -14,6 +14,8 @@ import { DocumentsService } from './documents/documents.service'
 import { RequestsController } from './requests/requests.controller'
 import { RequestsService } from './requests/requests.service'
 import { RagService } from './rag/rag.service'
+import { PersonalFoldersController } from './personal-folders/personal-folders.controller'
+import { PersonalFoldersService } from './personal-folders/personal-folders.service'
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { RagService } from './rag/rag.service'
     CommonModule,
     RedisModule,
   ],
-  controllers: [ChatController, DocumentsController, RequestsController],
+  controllers: [ChatController, DocumentsController, RequestsController, PersonalFoldersController],
   providers: [
     ChatService,
     ChatCacheService,
@@ -36,6 +38,7 @@ import { RagService } from './rag/rag.service'
     RequestsService,
     IngestQueueService,
     RagService,
+    PersonalFoldersService,
     JwtStrategy,
   ],
 })
